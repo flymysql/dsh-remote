@@ -1,7 +1,7 @@
 {
   "name": "dsh-remote",
-  "version": "0.2.2",
-  "description": "Remote-work assistant for DeepSeek Harness: connect SSH (password or key) to a remote host, pick a remote workspace directory, and operate on it with remote_list_dir / remote_read_file / remote_exec tools from the agent and a settings-page browser.",
+  "version": "0.3.0",
+  "description": "Remote-work assistant for DeepSeek Harness: connect SSH (password or key), pick a remote workspace, operate on it with rw_pick_workspace / rw_list_dir / rw_read_file / rw_exec / rw_sync tools, and mirror it to a real local directory (SFTP) so the DSH native workspace can adopt it.",
   "keywords": [
     "deepseek-harness",
     "dsh",

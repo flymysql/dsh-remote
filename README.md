@@ -10,7 +10,8 @@ The harness Web UI intentionally binds `127.0.0.1` (the CLI rejects `--host 0.0.
 
 - **Connect** a remote host with **password or SSH key** (SSH/SFTP via `ssh2`).
 - **Pick a remote workspace** — a remote directory the active session treats as its project root.
-- **Model tools** — `rw_info`, `rw_connect`, `rw_pick_workspace`, `rw_list_dir`, `rw_read_file`, `rw_exec`.
+- **Model tools** — `rw_info`, `rw_connect`, `rw_pick_workspace`, `rw_list_dir`, `rw_read_file`, `rw_exec`, `rw_sync`.
+- **Local mirror** — picking a remote workspace also creates a **real local directory** (`~/.dsh/remote-workspaces/<host>/<base>-<hash>`) that mirrors it over SFTP. Because that path passes `fs.realpath`, the DSH **native workspace selector** can pick it and `createWorkspace({ path })` adopts it — so the browser/Session workspace sees the remote project as a normal local workspace, while dsh-remote keeps it in sync with the remote.
 - **Settings → 远程工作区** — enter host/login, connect, browse the remote filesystem, set the workspace, all from the UI.
 - The current remote workspace (`user@host:/path`) is injected into every system prompt so the agent knows the working root.
 

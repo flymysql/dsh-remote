@@ -10,7 +10,8 @@ DSH Web 界面刻意只监听 `127.0.0.1`（`--host 0.0.0.0` 被安全地拒绝�
 
 - **连接远程**：支持**密码或 SSH key**（基于 `ssh2`）。
 - **选取远程工作区**：把远程某个目录当作本会话的项目根。
-- **模型工具**：`rw_info`、`rw_connect`、`rw_pick_workspace`、`rw_list_dir`、`rw_read_file`、`rw_exec`。
+- **模型工具**：`rw_info`、`rw_connect`、`rw_pick_workspace`、`rw_list_dir`、`rw_read_file`、`rw_exec`、`rw_sync`。
+- **本地镜像**：选远程工作区时会在本地 `~/.dsh/remote-workspaces/<host>/<base>-<hash>` 生成一个**真实本地目录**并经 SFTP 镜像。该路径通过 `fs.realpath`，因此 DSH 原生工作区选择器能选中它、`createWorkspace({path})` 能把它收养——浏览器/会话里的工作区把它当普通本地工作区，同时 dsh-remote 与远程保持同步。
 - **设置 → 远程工作区**：输入主机与登录方式→连接→浏览远程文件系统→设为工作区。
 - 当前远程工作区（`user@host:/path`）会注入每次系统提示，让 Agent 明确知道工作根目录。
 
