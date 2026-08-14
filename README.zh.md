@@ -10,7 +10,7 @@ DSH Web 界面刻意只监听 `127.0.0.1`（`--host 0.0.0.0` 被安全地拒绝�
 
 - **连接远程**：支持**密码或 SSH key**（基于 `ssh2`）。
 - **选取远程工作区**：把远程某个目录当作本会话的项目根。
-- **模型工具**：`remote_info`、`remote_connect`、`remote_pick_workspace`、`remote_list_dir`、`remote_read_file`、`remote_exec`。
+- **模型工具**：`rw_info`、`rw_connect`、`rw_pick_workspace`、`rw_list_dir`、`rw_read_file`、`rw_exec`。
 - **设置 → 远程工作区**：输入主机与登录方式→连接→浏览远程文件系统→设为工作区。
 - 当前远程工作区（`user@host:/path`）会注入每次系统提示，让 Agent 明确知道工作根目录。
 
@@ -46,15 +46,15 @@ dsh plugin --profile web add dsh-remote
 ### 2. 连接并选工作区
 
 - **UI**：设置 → 远程工作区 → 填 host/port/user +（密码或 key 路径）→ **连接远程** → 输入远程路径并按 **设为远程工作区**（或用 **列目录** 浏览）。
-- **让 Agent 做**：`remote_connect(host)` 之后 `remote_pick_workspace(path=/…/project)`；随时可用 `/remote` 看状态。
+- **让 Agent 做**：`rw_connect(host)` 之后 `rw_pick_workspace(path=/…/project)`；随时可用 `/remote` 看状态。
 
 ### 3. 在远程工作区里工作
 
 Agent 使用：
 ```
-remote_list_dir(path?)
-remote_read_file(path=…)
-remote_exec(command=…)
+rw_list_dir(path?)
+rw_read_file(path=…)
+rw_exec(command=…)
 ```
 由于工作区路径在系统提示里，Agent 会把它当作工作根，组合这些工具对远程项目做查看/构建/测试。
 

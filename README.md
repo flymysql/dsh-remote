@@ -10,7 +10,7 @@ The harness Web UI intentionally binds `127.0.0.1` (the CLI rejects `--host 0.0.
 
 - **Connect** a remote host with **password or SSH key** (SSH/SFTP via `ssh2`).
 - **Pick a remote workspace** — a remote directory the active session treats as its project root.
-- **Model tools** — `remote_info`, `remote_connect`, `remote_pick_workspace`, `remote_list_dir`, `remote_read_file`, `remote_exec`.
+- **Model tools** — `rw_info`, `rw_connect`, `rw_pick_workspace`, `rw_list_dir`, `rw_read_file`, `rw_exec`.
 - **Settings → 远程工作区** — enter host/login, connect, browse the remote filesystem, set the workspace, all from the UI.
 - The current remote workspace (`user@host:/path`) is injected into every system prompt so the agent knows the working root.
 
@@ -46,16 +46,16 @@ If `host` is empty the plugin starts disconnected and you connect at runtime.
 ### 2. Connect + pick a workspace
 
 - **From the UI**: Settings → 远程工作区 → enter host/port/user + (password or key path) → **连接远程** → type a remote path and **设为远程工作区** (or **列目录** to browse).
-- **From the agent**: ask it to `remote_connect(host)`, then `remote_pick_workspace(path=/…/project)`. You can also use `/remote` to see the current status.
+- **From the agent**: ask it to `rw_connect(host)`, then `rw_pick_workspace(path=/…/project)`. You can also use `/remote` to see the current status.
 
 ### 3. Work in the remote workspace
 
 The agent uses:
 
 ```
-remote_list_dir(path?)      # list a remote dir (defaults to the workspace)
-remote_read_file(path=-…)   # read a remote file (paged)
-remote_exec(command=…)      # run any shell command on the remote
+rw_list_dir(path?)      # list a remote dir (defaults to the workspace)
+rw_read_file(path=-…)   # read a remote file (paged)
+rw_exec(command=…)      # run any shell command on the remote
 ```
 
 Because the workspace path is in the system prompt, the agent treats it as the working root and combines these tools to inspect/build/test the remote project.
