@@ -1,7 +1,7 @@
 {
   "name": "dsh-remote",
-  "version": "0.1.4",
-  "description": "Remote-access assistant for DeepSeek Harness: /remote command and a settings page that print the exact SSH tunnel / reverse-tunnel / reverse-proxy commands for this instance (harness intentionally binds loopback only).",
+  "version": "0.2.0",
+  "description": "Remote-work assistant for DeepSeek Harness: connect SSH (password or key) to a remote host, pick a remote workspace directory, and operate on it with remote_list_dir / remote_read_file / remote_exec tools from the agent and a settings-page browser.",
   "keywords": [
     "deepseek-harness",
     "dsh",
@@ -38,9 +38,12 @@
   "peerDependencies": {
     "@deepseek-ai/dsh-commands": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-host-webserver": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-system-prompt": "^0.1.0-rc.6",
     "@deepseek-ai/cordis": "^4.0.1"
   },
   "dependencies": {
+    "ssh2": "^1.16.0",
     "@deepseek-ai/schemastery": "^3.18.1"
   }
 }

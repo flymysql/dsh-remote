@@ -1,80 +1,82 @@
 # dsh-remote
 
-为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）打造的**远程接入助手**插件。
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）的远程工作助手。
 
-Harness 的 Web GUI **刻意只监听 `127.0.0.1`**——CLI 直接拒绝 `--host 0.0.0.0`（安全设计：GUI 无鉴权、Agent 能执行代码，绑全网等于把远程代码执行暴露给网络）。所以远程访问本质上是个**隧道工作流**，这个插件把它变成"复制粘贴"：
+连接一台 SSH 主机，选取一个**远程工作区**目录，让 Agent 在不离开 harness 的情况下直接对它操作——列目录、读文件、跑命令。
 
-- **`/remote` 斜杠命令** —— 直接打印本实例的精确隧道命令
-- **设置 → 远程访问** —— 实时端口、局域网 IP、trusted hosts 与带一键复制的命令块
-- 覆盖三条官方支持的路径：SSH 本地转发（`ssh -L`）、保活（`autossh`）、反向隧道（`ssh -R`，NAT 友好）、反向代理直达（`--trusted-host`）
+DSH Web 界面刻意只监听 `127.0.0.1`（`--host 0.0.0.0` 被安全地拒绝）。这个插件的思路相反：**由你主动向外连**到远程主机，在远程目录里工作。
+
+## 能力
+
+- **连接远程**：支持**密码或 SSH key**（基于 `ssh2`）。
+- **选取远程工作区**：把远程某个目录当作本会话的项目根。
+- **模型工具**：`remote_info`、`remote_connect`、`remote_pick_workspace`、`remote_list_dir`、`remote_read_file`、`remote_exec`。
+- **设置 → 远程工作区**：输入主机与登录方式→连接→浏览远程文件系统→设为工作区。
+- 当前远程工作区（`user@host:/path`）会注入每次系统提示，让 Agent 明确知道工作根目录。
 
 ## 安装
 
 ```bash
-npm install dsh-remote
+dsh plugin --profile web add dsh-remote
 ```
 
-在你的 profile `cordis.yml`（或 `cordis.patch.yml`）里加一行：
+（bundle 安装；行内容是 `id: dsh-remote`、`name: dsh-remote`。）
 
-```yaml
-- id: dsh-remote
-  name: dsh-remote
-```
+## 使用
 
-## 用法
+### 1. 可选：在配置里设默认主机
 
-### 聊天里
-
-输入 `/remote`（可选带 `/remote user@host`）：
-
-```
-/remote root@9.134.186.191
-```
-
-输出：
-
-```
-## dsh-remote — remote access
-
-Web GUI: http://127.0.0.1:3080
-
-### Tunnel from your PC (recommended — harness stays loopback)
-ssh -N -L 18080:127.0.0.1:3080 root@9.134.186.191
-autossh -M 0 -N -L 18080:127.0.0.1:3080 root@9.134.186.191
-
-### Reverse tunnel (remote pushes out; NAT-friendly)
-ssh -N -R 3080:127.0.0.1:3080 root@9.134.186.191
-
-### Direct web access behind a reverse proxy (add auth yourself!)
-dsh --profile web --port 3080 --trusted-host <your-public-host>
-```
-
-在你 PC 上跑 `ssh -N -L ...` 那行，然后浏览器打开 **http://127.0.0.1:18080**。因为浏览器源仍是 loopback，harness 的 `/api` 信任围栏直接放行、无需任何额外参数——且连接走 SSH 加密认证。
-
-### 设置页
-
-设置 → 远程访问：同样的信息 + 本机局域网 IP，每个命令一键复制；输入 `user@host` 可按目标重新生成命令。
-
-## 配置
-
-| 键 | 类型 | 默认 | 含义 |
-| --- | --- | --- | --- |
-| `localPort` | int | 18080 | 生成的 `ssh -L` / `autossh` 命令里的本机端口（PC 侧） |
+`cordis.patch.yml`：
 
 ```yaml
 - id: dsh-remote
   name: dsh-remote
   config:
-    localPort: 20080
+    host: 10.0.0.8
+    port: 22
+    username: dev
+    privateKeyPath: C:/Users/you/.ssh/id_rsa
+    # 或用密码登录：
+    # password: '…'
+    workspace: /home/dev/project
 ```
 
-## 为什么不能直接绑 0.0.0.0？
+若 `host` 为空，插件启动时处于断开状态，可在运行时连接。
 
-Harness 刻意拒绝 `--host 0.0.0.0`（报错原文：`intentionally not supported yet for safety: it would expose remote code execution to the network`）。GUI 没有登录鉴权，而 Agent 能在沙箱里执行代码——绑全网 = 把远程代码执行交给网段里任何人。隧道（SSH 或带鉴权的反向代理）才是官方支持的方式，这正是本插件自动化的东西。
+### 2. 连接并选工作区
 
-## 浏览器页面
+- **UI**：设置 → 远程工作区 → 填 host/port/user +（密码或 key 路径）→ **连接远程** → 输入远程路径并按 **设为远程工作区**（或用 **列目录** 浏览）。
+- **让 Agent 做**：`remote_connect(host)` 之后 `remote_pick_workspace(path=/…/project)`；随时可用 `/remote` 看状态。
 
-设置 → 远程访问。页面通过 harness 官方 `webServer` 服务拉取 `GET /dsh-remote/info`（同源 JSON 路由）。
+### 3. 在远程工作区里工作
+
+Agent 使用：
+```
+remote_list_dir(path?)
+remote_read_file(path=…)
+remote_exec(command=…)
+```
+由于工作区路径在系统提示里，Agent 会把它当作工作根，组合这些工具对远程项目做查看/构建/测试。
+
+## 配置
+
+| 键 | 类型 | 默认 | 说明 |
+| --- | --- | --- | --- |
+| `host` | string | `''` | 远程 SSH 主机（空=断开） |
+| `port` | int | `22` | 远程 SSH 端口 |
+| `username` | string | `''` | 登录用户 |
+| `password` | string | `''` | SSH 密码（非空则覆盖 key） |
+| `privateKeyPath` | string | `''` | 私钥绝对路径；空=`~/.ssh/id_rsa` |
+| `passphrase` | string | `''` | 私钥口令（若加密） |
+| `workspace` | string | `''` | 初始远程工作区目录 |
+| `commandTimeoutMs` | int | 20000 | 单条命令超时 |
+| `connectTimeoutMs` | int | 15000 | SSH 连接超时 |
+
+## 浏览器页
+
+设置 → 远程工作区：连接表单（host/port/user/密码|key）、目录浏览（`/dsh-remote/ls`）、「设为远程工作区」（`/dsh-remote/workspace`）。全部走 harness `webServer` 的同源 JSON 路由；SSH 池在 host 端，凭据只在本地回环上提交。
+
+**安全提醒**：把远程凭据交给插件，等于允许 Agent 以你的用户身份在该主机上执行 shell 命令。只对可信主机开放。
 
 ## License
 
