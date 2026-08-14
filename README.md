@@ -1,33 +1,56 @@
 # dsh-remote
 
-Remote-work assistant for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH).
+**Remote-work assistant for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH).**
 
-Connect an SSH host, pick a **remote workspace** directory, and let the agent operate on it — list dirs, read files, run commands — without leaving the harness.
+Manage several SSH machines, then pick a **remote workspace** (or a **local** one) and let the agent operate right there without leaving the harness — listing files, reading code, running builds & commands over the remote host, and keeping that remote directory mirrored into a real local workspace object.
 
-The harness Web UI intentionally binds `127.0.0.1` (the CLI rejects `--host 0.0.0.0` for safety). This plugin goes the other way: **you connect out** to a remote host over SSH and work in a remote directory.
+The harness Web UI intentionally binds `127.0.0.1` (the CLI rejects `--host 0.0.0.0` for safety). This plugin goes the other way: **you connect out** to the machines you maintain, pick a workspace, and work in it through the normal DSH workspace + agent fs flows — no changes to `dsh-workspace` or the harness core.
 
-## What it gives you
+## Screen previews
 
-- **Connect** a remote host with **password or SSH key** (SSH/SFTP via `ssh2`).
-- **Pick a remote workspace** — a remote directory the active session treats as its project root.
-- **Model tools** — `rw_info`, `rw_connect`, `rw_pick_workspace`, `rw_list_dir`, `rw_read_file`, `rw_exec`, `rw_sync`.
-- **Local mirror** — picking a remote workspace also creates a **real local directory** (`~/.dsh/remote-workspaces/<host>/<base>-<hash>`) that mirrors it over SFTP. Because that path passes `fs.realpath`, the DSH **native workspace selector** can pick it and `createWorkspace({ path })` adopts it — so the browser/Session workspace sees the remote project as a normal local workspace, while dsh-remote keeps it in sync with the remote.
-- **Settings → 远程工作区** — enter host/login, connect, browse the remote filesystem, set the workspace, all from the UI.
-- The current remote workspace (`user@host:/path`) is injected into every system prompt so the agent knows the working root.
+Settings → **远程工作区** — a multi-machine SSH registry (add / edit / delete / set-current, password stored locally):
+
+<img src="./docs/ui-settings.svg" alt="dsh-remote settings — multi-machine registry" width="720"/>
+
+The native **"Add workspace" / "Select workspace"** flow — one dialog, two tabs (本地 local / 远程 remote):
+
+<img src="./docs/ui-picker.svg" alt="dsh-remote workspace picker — 本机 (native OS folder) + 远程 (machine → directory)" width="720"/>
+
+---
+
+## Features
+
+- **Multi-machine SSH** — save any number of hosts (`host`/`port`/`user` + **private key** or **password**). Passwords are stored locally and never shown back in the UI. Switch with one click in Settings.
+- **Two-tab workspace picker** (fills the native "Add workspace" flow):
+  - **本机 / Local** — opens the **native OS folder chooser** over the host, or lets you type a local path → adopted directly as a normal DSH local workspace (local workspaces fully coexist).
+  - **远程 / Remote** — pick a **machine**, then browse its directories (or type a path) 🡺 on confirm it creates a **real local mirror** (`~/.dsh/remote-workspaces/<host>/<base>-<hash>`) that passes `fs.realpath` → the harness adopts it as a real workspace while dsh-remote keeps it synced over SFTP.
+- **Bidirectional SFTP sync** — `rw_sync` (remote → mirror) and `rw_push` (mirror → remote) round-trip your local-mirror edits back to the machine.
+- **Model tools** — `rw_info`, `rw_connect`, `rw_pick_workspace`, `rw_list_dir`, `rw_read_file`, `rw_exec`, `rw_sync`, `rw_push`.
+- The active `user@host:/path` is injected into every system prompt so the agent knows its working root.
+- **No official `dsh-workspace` core is modified** — everything is delivered as a normal plugin (directory-flow holes filled by the client half at `priority -100`).
 
 ## Install
 
 ```bash
-dsh plugin --profile web add dsh-remote
+dsh plugin add dsh-remote            # add the bundle
 ```
 
-(adds the bundle; the row is `id: dsh-remote`, `name: dsh-remote`).
+(or `npm install dsh-remote` + add `- id: dsh-remote / name: dsh-remote` in `cordis.patch.yml`).
 
-## Usage
+## Quick start
 
-### 1. Configure a default host (optional)
+1. **Add a machine** — Settings → 远程工作区 → add host/port/user + key or password → (optional) set it current.
+2. **Open a workspace** — click **Add workspace** in the sidebar / conversation:
+   - **本机** → system folder chooser (or type a local path) → local workspace.
+   - **远程** → choose the machine → browse to a remote directory (or type `/path`) → "设为远程工作区" ⇒ a local mirror workspace is created and adopted.
+3. **Work with the agent** — treat it like any workspace:
+   - `rw_list_dir(path?)`/`rw_read_file` — inspect remote files
+   - `rw_exec(command)` — run remote shell commands
+   - `rw_sync` / `rw_push` — pull/push the local mirror to and from the remote
 
-In `cordis.patch.yml`:
+## CLI defaults (optional)
+
+Provide a default machine in `cordis.patch.yml`:
 
 ```yaml
 - id: dsh-remote
@@ -37,49 +60,28 @@ In `cordis.patch.yml`:
     port: 22
     username: dev
     privateKeyPath: C:/Users/you/.ssh/id_rsa
-    # OR use password login:
-    # password: '…'
+    # or password: '…'
     workspace: /home/dev/project
 ```
 
-If `host` is empty the plugin starts disconnected and you connect at runtime.
-
-### 2. Connect + pick a workspace
-
-- **From the UI**: Settings → 远程工作区 → enter host/port/user + (password or key path) → **连接远程** → type a remote path and **设为远程工作区** (or **列目录** to browse).
-- **From the agent**: ask it to `rw_connect(host)`, then `rw_pick_workspace(path=/…/project)`. You can also use `/remote` to see the current status.
-
-### 3. Work in the remote workspace
-
-The agent uses:
-
-```
-rw_list_dir(path?)      # list a remote dir (defaults to the workspace)
-rw_read_file(path=-…)   # read a remote file (paged)
-rw_exec(command=…)      # run any shell command on the remote
-```
-
-Because the workspace path is in the system prompt, the agent treats it as the working root and combines these tools to inspect/build/test the remote project.
+If `host` is empty the plugin starts disconnected and you configure machines in the UI.
 
 ## Configuration
 
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `host` | string | `''` | Remote SSH host (empty = start disconnected) |
-| `port` | int | `22` | Remote SSH port |
-| `username` | string | `''` | SSH login user |
-| `password` | string | `''` | SSH password (overrides the key when non-empty) |
-| `privateKeyPath` | string | `''` | Absolute key path; empty → `~/.ssh/id_rsa` |
-| `passphrase` | string | `''` | Key passphrase if encrypted |
-| `workspace` | string | `''` | Initial remote workspace dir |
-| `commandTimeoutMs` | int | 20000 | Per remote command timeout |
+| `host` | string | `''` | default SSH host (else start disconnected) |
+| `port` | int | `22` | default SSH port |
+| `username` | string | `''` | default SSH user |
+| `password` | string | `''` | default SSH password (non-empty overrides key) |
+| `privateKeyPath` | string | `''` | private key path (`~/.ssh/id_rsa` when empty) |
+| `workspace` | string | `''` | default remote workspace path |
+| `commandTimeoutMs` | int | 20000 | per remote command timeout |
 | `connectTimeoutMs` | int | 15000 | SSH connect timeout |
 
-## Browser page
+## Safety
 
-Settings → 远程工作区: connect form (host/port/user/password|key), directory browse (`/dsh-remote/ls`), and "设为远程工作区" (`/dsh-remote/workspace`). All same-origin JSON routes on the harness `webServer`; the SSH pool lives in the host half, so credentials are only posted to loopback.
-
-**Safety note**: giving the plugin remote credentials lets the agent run shell commands on that host **as your user**. Grant only on hosts you trust.
+Giving the plugin a machine's credentials lets the agent run **shell commands as your user** on that host. Only add machines you trust. Passwords are saved on the local machine file; treat it as sensitive (you may lock file ACLs).
 
 ## License
 
