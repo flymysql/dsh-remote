@@ -1,6 +1,6 @@
 {
   "name": "dsh-remote",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Remote-access assistant for DeepSeek Harness: /remote command and a settings page that print the exact SSH tunnel / reverse-tunnel / reverse-proxy commands for this instance (harness intentionally binds loopback only).",
   "keywords": [
     "deepseek-harness",
