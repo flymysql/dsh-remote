@@ -1,0 +1,6 @@
+# dsh-remote bundle patch: inserts this plugin into a profile's layer stack.
+# Applied when a profile lists this bundle; rows reference the package by name so
+# Node resolution finds the installed code.
+- insert:
+    - id: dsh-remote
+      name: 'dsh-remote'
