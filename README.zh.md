@@ -67,6 +67,31 @@ dsh plugin add dsh-remote            # 添加 bundle
 
 若 `host` 为空，插件启动时处于断开状态，在 UI 里配置机器即可。
 
+## 常用命令（安装 / 查看 / 启动）
+
+DSH 的 `dsh` 可能不在某些 shell 的 PATH（比如 Windows PowerShell 里在某个仓库目录下），所以同时列出 `dsh` 与 `npx` 两种写法。操作都要用 `--profile <name>` 指定 profile（一般 `web`）：
+
+```bash
+# 安装（从 npm 拉到 profile）
+dsh plugin --profile web add dsh-remote
+# 同一效果：当 `dsh` 不在 PATH 时用 npx
+npx --yes @deepseek-ai/dsh plugin --profile web add dsh-remote
+
+# 确认已装
+dsh plugin --profile web list
+npx --yes @deepseek-ai/dsh plugin --profile web list
+
+# 启动 web 界面（重载 profile，新插件在启动时生效）
+dsh --profile web
+npx --yes @deepseek-ai/dsh --profile web   # 访问 http://127.0.0.1:3080
+
+# 迭代用本地源码替换 npm 版（便于改 dsh 插件代码后即测）
+npx --yes @deepseek-ai/dsh plugin --profile web add D:/path/to/dsh-remote
+npx --yes @deepseek-ai/dsh plugin --profile web remove dsh-remote   # 恢复用发行版
+```
+
+启动成功后，设置 →「远程工作区」会出现；「Add workspace」流程会带「本机 / 远程」两个 tab（见上方效果图）。
+
 ## 配置
 
 | 键 | 类型 | 默认 | 说明 |

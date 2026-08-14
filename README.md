@@ -66,6 +66,31 @@ Provide a default machine in `cordis.patch.yml`:
 
 If `host` is empty the plugin starts disconnected and you configure machines in the UI.
 
+## CLI quick reference
+
+Installing and driving DSH may live in different shells, so both the `dsh` binary and the `npx` form are shown. Always tell DSH **which profile** to use with `--profile <name>` (usually `web`).
+
+```bash
+# install the bundle into a profile (npm is pulled by pnpm; recommended)
+dsh plugin --profile web add dsh-remote
+# same but when `dsh` is not on PATH (e.g. Windows PowerShell inside a repo)
+npx --yes @deepseek-ai/dsh plugin --profile web add dsh-remote
+
+# confirm it is installed wire
+dsh plugin --profile web list
+npx --yes @deepseek-ai/dsh plugin --profile web list
+
+# start the web surface (reload profile; the plugin activates on boot)
+dsh --profile web
+npx --yes @deepseek-ai/dsh --profile web   # http://127.0.0.1:3080
+
+# use a local checkout instead of the npm version (dev iteration)
+npx --yes @deepseek-ai/dsh plugin --profile web add D:/work/dsh-community/dsh-remote
+npx --yes @deepseek-ai/dsh plugin --profile web remove dsh-remote   # back to release
+```
+
+After a successful start, `Settings → 远程工作区` appears and the "Add workspace" flow gains the 本机 / 远程 tabs (screenshots above).
+
 ## Configuration
 
 | Key | Type | Default | Meaning |
