@@ -9,7 +9,7 @@
   <!-- m1 -->
   <rect x="34" y="102" width="692" height="34" rx="6" fill="none" stroke="#3f3f46"/>
   <text x="46" y="124" font-family="ui-monospace,monospace" font-size="12" fill="#e4e4e7">编译机1</text>
-  <text x="126" y="124" font-family="ui-monospace,monospace" font-size="11" fill="#a1a1aa">jimmycppliu@10.0.0.8:22</text>
+  <text x="126" y="124" font-family="ui-monospace,monospace" font-size="11" fill="#a1a1aa">user@203.0.113.10:22</text>
   <text x="330" y="124" font-family="system-ui,sans-serif" font-size="11" fill="#4caf7d">· 当前</text>
   <rect x="500" y="106" width="52" height="26" rx="6" fill="#27272a" stroke="#3f3f46"/>
   <text x="526" y="123" font-family="system-ui,sans-serif" font-size="11" fill="#e4e4e7" text-anchor="middle">编辑</text>
@@ -20,7 +20,7 @@
   <!-- m2 -->
   <rect x="34" y="142" width="692" height="34" rx="6" fill="none" stroke="#3f3f46"/>
   <text x="46" y="164" font-family="ui-monospace,monospace" font-size="12" fill="#e4e4e7">编译机2</text>
-  <text x="126" y="164" font-family="ui-monospace,monospace" font-size="11" fill="#a1a1aa">root@9.134.186.191:36000 🔒</text>
+  <text x="126" y="164" font-family="ui-monospace,monospace" font-size="11" fill="#a1a1aa">ops@198.51.100.7:2202 🔒</text>
   <text x="330" y="164" font-family="system-ui,sans-serif" font-size="11" fill="#71717a">非当前</text>
   <rect x="500" y="146" width="52" height="26" rx="6" fill="#27272a" stroke="#3f3f46"/>
   <text x="526" y="163" font-family="system-ui,sans-serif" font-size="11" fill="#e4e4e7" text-anchor="middle">编辑</text>

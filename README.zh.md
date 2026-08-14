@@ -53,16 +53,17 @@ dsh plugin add dsh-remote            # 添加 bundle
 可在 `cordis.patch.yml` 提供默认机：
 
 ```yaml
+# 示例：请换成你自己的机器
 - id: dsh-remote
   name: dsh-remote
   config:
-    host: 10.0.0.8
+    host: 203.0.113.10   # 或你的真实主机 / hostname
     port: 22
     username: dev
-    privateKeyPath: C:/Users/you/.ssh/id_rsa
+    privateKeyPath: ~/.ssh/id_rsa
     # 或用密码登录：
     # password: '…'
-    workspace: /home/dev/project
+    workspace: ~/project
 ```
 
 若 `host` 为空，插件启动时处于断开状态，在 UI 里配置机器即可。

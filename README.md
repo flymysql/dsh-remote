@@ -53,15 +53,16 @@ dsh plugin add dsh-remote            # add the bundle
 Provide a default machine in `cordis.patch.yml`:
 
 ```yaml
+# Example only — use values for your own machine.
 - id: dsh-remote
   name: dsh-remote
   config:
-    host: 10.0.0.8
+    host: 203.0.113.10   # or your real host / hostname
     port: 22
     username: dev
-    privateKeyPath: C:/Users/you/.ssh/id_rsa
+    privateKeyPath: ~/.ssh/id_rsa
     # or password: '…'
-    workspace: /home/dev/project
+    workspace: ~/project
 ```
 
 If `host` is empty the plugin starts disconnected and you configure machines in the UI.
@@ -85,7 +86,7 @@ dsh --profile web
 npx --yes @deepseek-ai/dsh --profile web   # http://127.0.0.1:3080
 
 # use a local checkout instead of the npm version (dev iteration)
-npx --yes @deepseek-ai/dsh plugin --profile web add D:/work/dsh-community/dsh-remote
+npx --yes @deepseek-ai/dsh plugin --profile web add /path/to/dsh-remote
 npx --yes @deepseek-ai/dsh plugin --profile web remove dsh-remote   # back to release
 ```
 
