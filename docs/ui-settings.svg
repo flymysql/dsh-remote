@@ -1,61 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="860" height="560" viewBox="0 0 860 560" font-family="system-ui,sans-serif">
-  <rect width="860" height="560" fill="#1a1a1e"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="560" viewBox="0 0 880 560" font-family="system-ui,sans-serif">
+  <rect width="880" height="560" fill="#151517"/>
 
-  <!-- title -->
-  <text x="24" y="40" font-size="16" fill="#e4e4e7" font-weight="600">远程工作区 · Multi-machine SSH</text>
-  <text x="24" y="62" font-size="11" fill="#71717a">维护多台远程主机（钥匙/密码本地保存）；工作区路径在「添加工作区」弹窗里选择。</text>
+  <!-- page title & subtitle -->
+  <text x="24" y="44" font-size="16" fill="#f4f4f5" font-weight="600">远程工作区</text>
+  <text x="24" y="66" font-size="12" fill="#9ca3af">管理多台 SSH 机器；密码本地保存、界面不回显。工作区路径在「添加工作区」弹窗里选择。</text>
 
-  <!-- add machine card -->
-  <rect x="24" y="80" width="812" height="150" rx="10" fill="#1c1c1f" stroke="#3a3a40"/>
-  <text x="40" y="112" font-size="13" fill="#e4e4e7" font-weight="600">添加机器</text>
-  <g font-size="12" fill="#a1a1aa">
-    <text x="40" y="150">名称</text>   <rect x="108" y="136" width="170" height="28" rx="6" fill="#141416" stroke="#3a3a40"/>
-    <text x="296" y="150">主机</text>  <rect x="360" y="136" width="190" height="28" rx="6" fill="#141416" stroke="#3a3a40"/>
-    <text x="566" y="150">端口</text>  <rect x="624" y="136" width="70" height="28" rx="6" fill="#141416" stroke="#3a3a40"/>
-    <text x="40" y="196">用户名</text> <rect x="108" y="182" width="140" height="28" rx="6" fill="#141416" stroke="#3a3a40"/>
-    <text x="264" y="196">认证</text>  <rect x="318" y="182" width="110" height="28" rx="6" fill="#141416" stroke="#3a3a40"/>
-    <rect x="440" y="182" width="110" height="28" rx="6" fill="#26262b" stroke="#3a3a40"/>
-    <text x="495" y="200" fill="#d4d4d8" text-anchor="middle">🔒 测定连接</text>
-    <rect x="562" y="182" width="110" height="28" rx="6" fill="#2563eb"/>
-    <text x="617" y="200" fill="#ffffff" text-anchor="middle">保存</text>
-  </g>
+  <!-- configured machines -->
+  <text x="24" y="100" font-size="13" fill="#e4e4e7" font-weight="600">已配置机器</text>
 
-  <!-- list label -->
-  <text x="24" y="252" font-size="13" fill="#e4e4e7" font-weight="600">已配置机器</text>
+  <!-- machine row 1 -->
+  <rect x="24" y="112" width="700" height="38" rx="8" fill="#1e1e22" stroke="#3a3a40"/>
+  <circle cx="46" cy="131" r="5" fill="#4caf50"/>
+  <text x="62" y="136" font-size="13" fill="#e4e4e7" font-weight="600">deploy-01</text>
+  <text x="150" y="136" font-size="12" fill="#a1a1aa">root@203.0.113.10:22</text>
+  <text x="360" y="136" font-size="11" fill="#4caf50">● 当前</text>
+  <text x="440" y="136" font-size="12" fill="#ef5350">删除</text>
+  <text x="500" y="136" font-size="12" fill="#3b82f6">设当前</text>
+  <text x="576" y="136" font-size="12" fill="#e48fbf">镜像…</text>
 
-  <!-- machine cards -->
-  <g>
-    <rect x="24" y="264" width="812" height="44" rx="8" fill="#141416" stroke="#3a3a40"/>
-    <circle cx="42" cy="286" r="5" fill="#4caf50"/>
-    <text x="60" y="290" font-size="13" fill="#e4e4e7" font-weight="600">deploy-01</text>
-    <text x="150" y="290" font-size="12" fill="#71717a">deploy@203.0.113.10:22 · /srv/app</text>
-    <text x="520" y="290" font-size="11" fill="#4caf50">● 当前</text>
-    <text x="600" y="290" font-size="12" fill="#90a4ae">编辑</text>
-    <text x="652" y="290" font-size="12" fill="#ef5350">删除</text>
-    <text x="706" y="290" font-size="12" fill="#3b82f6">设当前</text>
-    <text x="772" y="290" font-size="12" fill="#90a4ae">镜像…</text>
-  </g>
-  <g>
-    <rect x="24" y="316" width="812" height="44" rx="8" fill="#141416" stroke="#3a3a40"/>
-    <circle cx="42" cy="338" r="5" fill="#90a4ae"/>
-    <text x="60" y="342" font-size="13" fill="#e4e4e7" font-weight="600">build-02</text>
-    <text x="150" y="342" font-size="12" fill="#71717a">ops@198.51.100.7:2202 🔒 · (none)</text>
-    <text x="520" y="342" font-size="11" fill="#71717a">非当前</text>
-    <text x="600" y="342" font-size="12" fill="#a1a1aa">编辑</text>
-    <text x="652" y="342" font-size="12" fill="#ef5350">删除</text>
-    <text x="706" y="342" font-size="12" fill="#90a4ae">设当前</text>
-    <text x="772" y="342" font-size="12" fill="#90a4ae">镜像…</text>
-  </g>
+  <!-- machine row 2 -->
+  <rect x="24" y="158" width="700" height="38" rx="8" fill="#1e1e22" stroke="#3a3a40"/>
+  <circle cx="46" cy="177" r="5" fill="#6b7280"/>
+  <text x="62" y="182" font-size="13" fill="#e4e4e7" font-weight="600">build-02</text>
+  <text x="150" y="182" font-size="12" fill="#a1a1aa">ops@198.51.100.7:2202 🔒</text>
+  <text x="360" y="182" font-size="11" fill="#6b7280">非当前</text>
+  <text x="440" y="182" font-size="12" fill="#ef5350">删除</text>
+  <text x="500" y="182" font-size="12" fill="#a1a1aa">设当前</text>
+  <text x="576" y="182" font-size="12" fill="#a0a0a0">镜像…</text>
 
-  <!-- sync note -->
-  <text x="24" y="400" font-size="11" fill="#71717a">主机均为占位示例（不暴露真实内网地址）；密码本地保存、UI 不回显。</text>
-
-  <!-- tools card -->
-  <rect x="24" y="420" width="812" height="108" rx="12" fill="#1c1c1f" stroke="#3a3a40"/>
-  <text x="40" y="450" font-size="13" fill="#e4e4e7" font-weight="600">模型可用工具</text>
-  <g font-size="11" fill="#c4c4cc">
-    <text x="40" y="478">rw_connect · rw_info · rw_pick_workspace · rw_list_dir · rw_read_file</text>
-    <text x="40" y="500">rw_write_file · rw_exec · rw_sync · rw_push · rw_disconnect</text>
-    <text x="40" y="522" fill="#71717a">远程工作区随 /dsh-remote/ls 结构浏览</text>
-  </g>
+  <!-- footer note -->
+  <text x="24" y="230" font-size="11" fill="#6b7280">主机均为占位示例（不暴露真实内网地址）；密码只存本地、不回显。</text>
 </svg>

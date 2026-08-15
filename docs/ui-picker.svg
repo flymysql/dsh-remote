@@ -1,55 +1,49 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="860" height="560" viewBox="0 0 860 560" font-family="system-ui,sans-serif">
-  <!-- app backdrop -->
-  <rect width="860" height="560" fill="#1a1a1e"/>
-  <!-- dimmed app underneath -->
-  <rect x="0" y="0" width="860" height="60" fill="#161618"/>
-  <rect x="14" y="16" width="148" height="20" rx="4" fill="#222226"/>
-  <rect x="0" y="60" width="860" height="500" fill="#141416" opacity="0.35"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="600" viewBox="0 0 820 600" font-family="system-ui,sans-serif">
+  <!-- realistic DSH Web dark background with a faint sidebar -->
+  <rect width="820" height="600" fill="#151517"/>
+  <rect width="220" height="600" fill="#18181b"/>
+  <rect x="8" y="10" width="204" height="26" rx="6" fill="#232327"/>
+  <rect x="8" y="44" width="120" height="22" rx="5" fill="#1e1e22"/>
+  <text x="16" y="60" font-size="12" fill="#9ca3af">工作区</text>
+  <rect x="8" y="78" width="204" height="30" rx="6" fill="#1e1e22"/>
+  <text x="20" y="97" font-size="12" fill="#e4e4e7">data</text>
 
-  <!-- centered modal dialog -->
+  <!-- centered modal dialog (真实的「选择工作目录」弹窗) -->
   <g>
-    <rect x="150" y="70" width="560" height="420" rx="12" fill="#1c1c1f" stroke="#3a3a40" stroke-width="1"/>
-    <!-- dialog title row -->
-    <text x="178" y="104" font-size="15" fill="#e4e4e7" font-weight="600">选择工作目录</text>
-    <text x="664" y="102" font-size="12" fill="#a1a1aa" text-anchor="middle" style="cursor:pointer">关闭 ✕</text>
-    <line x1="150" y1="118" x2="710" y2="118" stroke="#2e2e34" stroke-width="1"/>
+    <rect x="234" y="26" width="576" height="548" rx="12" fill="#1c1c1f" stroke="#3a3a40" stroke-width="1"/>
+
+    <!-- modal header -->
+    <text x="258" y="58" font-size="14" fill="#f4f4f5" font-weight="600">选择工作目录</text>
+    <text x="778" y="56" font-size="12" fill="#a1a1aa" text-anchor="middle">关闭 ✕</text>
 
     <!-- tabs -->
-    <rect x="170" y="134" width="72" height="28" rx="7" fill="#3b82f6"/>
-    <text x="206" y="153" font-size="13" fill="#ffffff" font-weight="600" text-anchor="middle">本机</text>
-    <rect x="248" y="134" width="72" height="28" rx="7" fill="#26262b" stroke="#36363c"/>
-    <text x="284" y="153" font-size="13" fill="#c4c4cc" text-anchor="middle">远程</text>
+    <rect x="258" y="74" width="64" height="26" rx="6" fill="#2563eb"/>
+    <text x="290" y="92" font-size="12" fill="#ffffff" font-weight="600" text-anchor="middle">本机</text>
+    <rect x="326" y="74" width="64" height="26" rx="6" fill="#2a2a30" stroke="#3a3a40"/>
+    <text x="358" y="92" font-size="12" fill="#c4c4cc" text-anchor="middle">远程</text>
 
-    <!-- LOCAL tab body -->
-    <text x="170" y="196" font-size="12" fill="#a1a1aa">系统选择器优先；不可用时直接输入本机目录。</text>
-    <rect x="170" y="210" width="300" height="32" rx="6" fill="#141416" stroke="#3a3a40"/>
-    <text x="182" y="231" font-size="12" fill="#71717a">本机目录，如 /Users/you/project</text>
-    <rect x="478" y="210" width="120" height="32" rx="6" fill="#2563eb"/>
-    <text x="538" y="231" font-size="12" fill="#ffffff" text-anchor="middle">选用此本地路径</text>
-    <rect x="170" y="256" width="190" height="32" rx="6" fill="#26262b" stroke="#3a3a40"/>
-    <text x="265" y="277" font-size="12" fill="#d4d4d8" text-anchor="middle">打开系统文件夹选择器</text>
-    <!-- sidebar-like chip note -->
-    <text x="170" y="330" font-size="11" fill="#71717a">提示：也可用系统原生文件夹对话框逐级选择本机目录。</text>
+    <!-- LOCAL body -->
+    <text x="258" y="136" font-size="12" fill="#a1a1aa">系统选择器优先；不可用时直接输入本机目录。</text>
+    <rect x="258" y="152" width="300" height="32" rx="6" fill="#141416" stroke="#3a3a40"/>
+    <text x="270" y="173" font-size="12" fill="#71717a">本机目录，如 C:\Users\you\project</text>
+    <rect x="566" y="152" width="120" height="32" rx="6" fill="#2563eb"/>
+    <text x="626" y="173" font-size="12" fill="#ffffff" text-anchor="middle">选用此本地路径</text>
+    <rect x="258" y="198" width="190" height="32" rx="6" fill="#2a2a30" stroke="#3a3a40"/>
+    <text x="353" y="219" font-size="12" fill="#d4d4d8" text-anchor="middle">打开系统文件夹选择器</text>
+
+    <!-- REMOTE body (preview, placeholder host) -->
+    <text x="258" y="278" font-size="12" fill="#71717a">以下为「远程」tab 的效果（示例主机）</text>
+    <label>
+      <text x="258" y="312" font-size="12" fill="#c4c4cc">远程机器</text>
+      <rect x="340" y="296" width="250" height="30" rx="6" fill="#141416" stroke="#3a3a40"/>
+      <text x="352" y="316" font-size="12" fill="#e4e4e7">▾ deploy@203.0.113.10</text>
+    </label>
+    <rect x="606" y="296" width="80" height="30" rx="6" fill="#2a2a30" stroke="#3a3a40"/>
+    <text x="646" y="316" font-size="12" fill="#c4c4cc" text-anchor="middle">浏览…</text>
+    <text x="258" y="370" font-size="12" fill="#71717a">选中机器后面的路径框自动预填 / 并提供下一级补全</text>
 
     <!-- footer -->
-    <line x1="150" y1="360" x2="710" y2="360" stroke="#2e2e34" stroke-width="1"/>
-    <text x="170" y="396" font-size="12" fill="#a1a1aa">本机目录作为普通 DSH 本地工作区采纳。</text>
-    <text x="664" y="434" font-size="13" fill="#a1a1aa" style="cursor:pointer">取消</text>
-  </g>
-
-  <!-- floating caption legend -->
-  <rect x="740" y="70" width="104" height="360" rx="10" fill="#1c1c1f" stroke="#3a3a40"/>
-  <text x="752" y="96" font-size="12" fill="#e4e4e7" font-weight="600">当前</text>
-  <g font-size="11">
-    <text x="752" y="122" fill="#9ccc65">● 本机</text>
-    <text x="752" y="146" fill="#e4e4e7">默认选中本地 tab</text>
-    <line x1="752" y1="162" x2="828" y2="162" stroke="#2e2e34"/>
-    <text x="752" y="184" fill="#90a4ae">远程 tab</text>
-    <text x="764" y="204" fill="#c4c4cc">预填 / + 自动补全</text>
-    <text x="764" y="224" fill="#c4c4cc">选目录 → 逐级继续</text>
-    <line x1="752" y1="240" x2="828" y2="240" stroke="#2e2e34"/>
-    <text x="752" y="262" fill="#ef5350">● 贴实际</text>
-    <text x="764" y="284" fill="#c4c4cc">居中弹窗 · 不透明</text>
-    <text x="764" y="304" fill="#c4c4cc">宿主占位，不漏内网 IP</text>
+    <line x1="234" y1="512" x2="810" y2="512" stroke="#2e2e34"/>
+    <text x="258" y="548" font-size="11" fill="#a1a1aa">占位主机，仅为展示；密码本地保存、界面不回显。</text>
   </g>
 </svg>
