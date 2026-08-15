@@ -4,6 +4,10 @@
 
 # dsh-remote
 
+[![npm version](https://img.shields.io/npm/v/dsh-remote)](https://www.npmjs.com/package/dsh-remote)
+[![license](https://img.shields.io/github/license/flymysql/dsh-remote)](LICENSE)
+[![dsh-plugin](https://img.shields.io/badge/topic-dsh--plugin-7a)](https://github.com/topics/dsh-plugin)
+
 **为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）打造的远程工作助手。**
 
 维护多台 SSH 机器，然后在「选择工作区」时选一个**远程工作区**（或**本地工作区**），Agent 就能在不离开 harness 的情况下直接操作——列文件、读代码、在远程主机上跑构建/命令，并把远程目录镜像成一个真实的本地工作区对象。
@@ -124,3 +128,7 @@ npx --yes @deepseek-ai/dsh plugin --profile web remove dsh-remote   # 恢复用�
 ## License
 
 MIT
+
+## 变更记录
+
+见 [CHANGELOG.md](./CHANGELOG.md)。
