@@ -18,7 +18,7 @@ DSH 的 Web 界面刻意只监听 `127.0.0.1`（CLI 为安全拒绝 `--host 0.0.
 
 设置 → **远程工作区** —— 多机 SSH 列表（增/删/改/设为当前，密码本地保存、不回显）：
 
-<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/ui-settings.svg" alt="dsh-remote 设置页 — 多机列表" width="720"/>
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/ui-settings-panel.png" alt="dsh-remote 设置页 — 多机列表（浅色主题，主机已打码）" width="720"/>
 
 原生 **「Add workspace / 选择工作区」** 流程 —— **居中弹窗**、两个 tab，**默认落在「本机」**；切到 **「远程」**：
 
