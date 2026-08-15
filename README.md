@@ -20,7 +20,9 @@ The native **"Add workspace" / "Select workspace"** flow — a centered modal, t
 
 - **远程** — a **machine `<select>`**, a path field that **auto-prefills `/` and live-completes** directories (picking one immediately reveals its next level, OS/VSCode-style), plus a **浏览…** floating browser that fills the field without committing — you review, edit, then **设为远程工作区**.
 
-<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/ui-picker.svg" alt="dsh-remote workspace picker — centered modal; 本机 (local) tab by default; 远程 machine → prefilled root path + autocomplete" width="720"/>
+Real capture (host scrubbed to a placeholder):
+
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/ui-picker-panel.png" alt="dsh-remote workspace picker — real dialog; 本机 (local) tab; 远程 machine select + prefilled root path + autocomplete" width="720"/>
 
 ---
 

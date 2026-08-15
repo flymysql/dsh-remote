@@ -20,7 +20,9 @@ DSH 的 Web 界面刻意只监听 `127.0.0.1`（CLI 为安全拒绝 `--host 0.0.
 
 - **远程** —— 一个**机器下拉**；路径输入框**自动预填 `/` 并实时补全目录**（点选一个目录后**立即列出它的下一级**，像系统/VSCode 逐级选目录）；另外有**「浏览…」浮窗**，选中仅回填到输入框（不直接提交），你复核 / 修改后点「设为远程工作区」。
 
-<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/ui-picker.svg" alt="dsh-remote 工作区选择 — 居中弹窗；默认本机 tab；远程：机器 → 预填根路径 + 自动补全" width="720"/>
+真实截图（机器已打码为占位）：
+
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/ui-picker-panel.png" alt="dsh-remote 工作区选择 — 真实弹窗；默认本机 tab；远程：机器下拉 + 预填根路径 + 自动补全" width="720"/>
 
 ---
 
