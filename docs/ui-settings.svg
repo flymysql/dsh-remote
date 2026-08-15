@@ -1,46 +1,46 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="760" height="430" viewBox="0 0 760 430">
-  <rect width="760" height="430" fill="#18181b"/>
-  <text x="20" y="34" font-family="system-ui,sans-serif" font-size="16" fill="#fafafa" font-weight="600">远程工作区（dsh-remote）— 多机 SSH 列表</text>
-  <text x="20" y="56" font-family="system-ui,sans-serif" font-size="11" fill="#a1a1aa">维护多台 SSH 机器，密码本地保存；工作区路径在选工作区时选。</text>
+  <rect width="760" height="430" fill="#ffffff"/>
+  <text x="20" y="34" font-family="system-ui,sans-serif" font-size="16" fill="#18181b" font-weight="600">远程工作区（dsh-remote）— 多机 SSH 列表</text>
+  <text x="20" y="56" font-family="system-ui,sans-serif" font-size="11" fill="#52525b">维护多台 SSH 机器，密码本地保存；工作区路径在选工作区时选。</text>
 
   <!-- 已配置 -->
-  <rect x="20" y="72" width="720" height="148" rx="8" fill="#1f1f23" stroke="#3f3f46"/>
-  <text x="34" y="94" font-family="system-ui,sans-serif" font-size="12" fill="#e4e4e7" font-weight="600">已配置机器</text>
+  <rect x="20" y="72" width="720" height="148" rx="8" fill="#f4f4f5" stroke="#d4d4d8"/>
+  <text x="34" y="94" font-family="system-ui,sans-serif" font-size="12" fill="#18181b" font-weight="600">已配置机器</text>
   <!-- m1 -->
-  <rect x="34" y="102" width="692" height="34" rx="6" fill="none" stroke="#3f3f46"/>
-  <text x="46" y="124" font-family="ui-monospace,monospace" font-size="12" fill="#e4e4e7">编译机1</text>
-  <text x="126" y="124" font-family="ui-monospace,monospace" font-size="11" fill="#a1a1aa">user@203.0.113.10:22</text>
-  <text x="330" y="124" font-family="system-ui,sans-serif" font-size="11" fill="#4caf7d">· 当前</text>
-  <rect x="500" y="106" width="52" height="26" rx="6" fill="#27272a" stroke="#3f3f46"/>
-  <text x="526" y="123" font-family="system-ui,sans-serif" font-size="11" fill="#e4e4e7" text-anchor="middle">编辑</text>
-  <rect x="562" y="106" width="52" height="26" rx="6" fill="#4c2d2a" stroke="#7f1d1d"/>
-  <text x="588" y="123" font-family="system-ui,sans-serif" font-size="11" fill="#fca5a5" text-anchor="middle">删除</text>
+  <rect x="34" y="102" width="692" height="34" rx="6" fill="#ffffff" stroke="#d4d4d8"/>
+  <text x="46" y="124" font-family="ui-monospace,monospace" font-size="12" fill="#18181b">编译机1</text>
+  <text x="126" y="124" font-family="ui-monospace,monospace" font-size="11" fill="#52525b">user@203.0.113.10:22</text>
+  <text x="330" y="124" font-family="system-ui,sans-serif" font-size="11" fill="#15803d">· 当前</text>
+  <rect x="500" y="106" width="52" height="26" rx="6" fill="#e4e4e7" stroke="#cbd5e1"/>
+  <text x="526" y="123" font-family="system-ui,sans-serif" font-size="11" fill="#3f3f46" text-anchor="middle">编辑</text>
+  <rect x="562" y="106" width="52" height="26" rx="6" fill="#fecaca" stroke="#fca5a5"/>
+  <text x="588" y="123" font-family="system-ui,sans-serif" font-size="11" fill="#b91c1c" text-anchor="middle">删除</text>
   <rect x="624" y="106" width="90" height="26" rx="6" fill="#2563eb"/>
-  <text x="669" y="123" font-family="system-ui,sans-serif" font-size="11" fill="#fff" text-anchor="middle">设为当前</text>
+  <text x="669" y="123" font-family="system-ui,sans-serif" font-size="11" fill="#ffffff" text-anchor="middle">设为当前</text>
   <!-- m2 -->
-  <rect x="34" y="142" width="692" height="34" rx="6" fill="none" stroke="#3f3f46"/>
-  <text x="46" y="164" font-family="ui-monospace,monospace" font-size="12" fill="#e4e4e7">编译机2</text>
-  <text x="126" y="164" font-family="ui-monospace,monospace" font-size="11" fill="#a1a1aa">ops@198.51.100.7:2202 🔒</text>
+  <rect x="34" y="142" width="692" height="34" rx="6" fill="#ffffff" stroke="#d4d4d8"/>
+  <text x="46" y="164" font-family="ui-monospace,monospace" font-size="12" fill="#18181b">编译机2</text>
+  <text x="126" y="164" font-family="ui-monospace,monospace" font-size="11" fill="#52525b">ops@198.51.100.7:2202 🔒</text>
   <text x="330" y="164" font-family="system-ui,sans-serif" font-size="11" fill="#71717a">非当前</text>
-  <rect x="500" y="146" width="52" height="26" rx="6" fill="#27272a" stroke="#3f3f46"/>
-  <text x="526" y="163" font-family="system-ui,sans-serif" font-size="11" fill="#e4e4e7" text-anchor="middle">编辑</text>
-  <rect x="562" y="146" width="52" height="26" rx="6" fill="#4c2d2a" stroke="#7f1d1d"/>
-  <text x="588" y="163" font-family="system-ui,sans-serif" font-size="11" fill="#fca5a5" text-anchor="middle">删除</text>
-  <rect x="624" y="146" width="90" height="26" rx="6" fill="#27272a" stroke="#3f3f46"/>
-  <text x="669" y="163" font-family="system-ui,sans-serif" font-size="11" fill="#e4e4e7" text-anchor="middle">设为当前</text>
+  <rect x="500" y="146" width="52" height="26" rx="6" fill="#e4e4e7" stroke="#cbd5e1"/>
+  <text x="526" y="163" font-family="system-ui,sans-serif" font-size="11" fill="#3f3f46" text-anchor="middle">编辑</text>
+  <rect x="562" y="146" width="52" height="26" rx="6" fill="#fecaca" stroke="#fca5a5"/>
+  <text x="588" y="163" font-family="system-ui,sans-serif" font-size="11" fill="#b91c1c" text-anchor="middle">删除</text>
+  <rect x="624" y="146" width="90" height="26" rx="6" fill="#e4e4e7" stroke="#cbd5e1"/>
+  <text x="669" y="163" font-family="system-ui,sans-serif" font-size="11" fill="#3f3f46" text-anchor="middle">设为当前</text>
 
   <!-- 添加 -->
-  <rect x="20" y="228" width="720" height="150" rx="8" fill="#1f1f23" stroke="#3f3f46"/>
-  <text x="34" y="250" font-family="system-ui,sans-serif" font-size="12" fill="#e4e4e7" font-weight="600">添加机器</text>
-  <text x="40" y="288" font-family="system-ui,sans-serif" font-size="11" fill="#a1a1aa">名称</text>
-  <rect x="120" y="274" width="180" height="24" rx="6" fill="#27272a" stroke="#3f3f46"/>
-  <text x="40" y="328" font-family="system-ui,sans-serif" font-size="11" fill="#a1a1aa">主机</text>
-  <rect x="120" y="314" width="180" height="24" rx="6" fill="#27272a" stroke="#3f3f46"/>
-  <text x="340" y="328" font-family="system-ui,sans-serif" font-size="11" fill="#a1a1aa">端口</text>
-  <rect x="420" y="314" width="70" height="24" rx="6" fill="#27272a" stroke="#3f3f46"/>
-  <text x="565" y="328" font-family="system-ui,sans-serif" font-size="11" fill="#a1a1aa">用户</text>
-  <rect x="640" y="314" width="86" height="24" rx="6" fill="#27272a" stroke="#3f3f46"/>
-  <text x="470" y="270" font-family="ui-monospace,monospace" font-size="11" fill="#a1a1aa">密码 / 私钥（保存）</text>
+  <rect x="20" y="228" width="720" height="150" rx="8" fill="#f4f4f5" stroke="#d4d4d8"/>
+  <text x="34" y="250" font-family="system-ui,sans-serif" font-size="12" fill="#18181b" font-weight="600">添加机器</text>
+  <text x="40" y="288" font-family="system-ui,sans-serif" font-size="11" fill="#52525b">名称</text>
+  <rect x="120" y="274" width="180" height="24" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="40" y="328" font-family="system-ui,sans-serif" font-size="11" fill="#52525b">主机</text>
+  <rect x="120" y="314" width="180" height="24" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="340" y="328" font-family="system-ui,sans-serif" font-size="11" fill="#52525b">端口</text>
+  <rect x="420" y="314" width="70" height="24" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="565" y="328" font-family="system-ui,sans-serif" font-size="11" fill="#52525b">用户</text>
+  <rect x="640" y="314" width="86" height="24" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="470" y="270" font-family="ui-monospace,monospace" font-size="11" fill="#71717a">密码 / 私钥（保存）</text>
   <rect x="622" y="254" width="56" height="24" rx="6" fill="#2563eb"/>
-  <text x="650" y="270" font-family="system-ui,sans-serif" font-size="11" fill="#fff" text-anchor="middle">保存</text>
+  <text x="650" y="270" font-family="system-ui,sans-serif" font-size="11" fill="#ffffff" text-anchor="middle">保存</text>
 </svg>
