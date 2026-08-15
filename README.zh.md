@@ -29,7 +29,9 @@ DSH 的 Web 界面刻意只监听 `127.0.0.1`（CLI 为安全拒绝 `--host 0.0.
   - **本机** —— 走 **host 端原生系统文件夹对话框**选本地目录（或直接输入本地路径）→ 直接成为普通 DSH 本地工作区（与本地工作区共存）。
   - **远程** —— 先**选机器**，再浏览其目录（或输入路径）🡺 确定后会创建**真实本地镜像**（`~/.dsh/remote-workspaces/<host>/<basename>-<hash>`，`fs.realpath` 通过）→ harness 把它当真实工作区收养，同时 dsh-remote 通过 SFTP 保持同步。
 - **双向 SFTP 同步** —— `rw_sync`（远程→镜像）、`rw_push`（镜像→远程），本地镜像改动可回传机器。
-- **模型工具** —— `rw_info`、`rw_connect`、`rw_pick_workspace`、`rw_list_dir`、`rw_read_file`、`rw_exec`、`rw_sync`、`rw_push`。
+- **模型工具** —— `rw_info`、`rw_connect`、`rw_pick_workspace`、`rw_list_dir`、`rw_read_file`、`rw_write_file`、`rw_exec`、`rw_sync`、`rw_push`、`rw_disconnect`。
+- **直接写远程文件** —— `rw_write_file` 直接创建/覆盖远程文件（自动建父目录），单个文件改动不必绕本地镜像来回同步。
+- **连接体检** —— 设置页提供「测试连接」按钮，在保存机器之前先验证 host/user/密码/私钥是否可用。
 - 当前 `user@host:/path` 会注入每次系统提示，让 Agent 明确自己的工作根。
 - **不改任何 `dsh-workspace` 官方代码** —— 全部作为普通插件实现（client 半以 `priority -100` 填充 directory-flow holes）。
 
@@ -49,6 +51,7 @@ dsh plugin add dsh-remote            # 添加 bundle
    - **远程** → 选机器 → 浏览到远程目录（或输入 `/path`）→ 「设为远程工作区」⇒ 创建并收养一个本地镜像工作区。
 3. **让 Agent 工作** —— 把它当普通工作区用：
    - `rw_list_dir(path?)` / `rw_read_file` —— 查看远程文件
+   - `rw_write_file(path, content)` —— 直接创建或覆盖远程文件
    - `rw_exec(command)` —— 在远程执行命令
    - `rw_sync` / `rw_push` —— 拉取/推送本地镜像 <-> 远程
 

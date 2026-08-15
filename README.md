@@ -29,7 +29,9 @@ The native **"Add workspace" / "Select workspace"** flow — one dialog, two tab
   - **本机 / Local** — opens the **native OS folder chooser** over the host, or lets you type a local path → adopted directly as a normal DSH local workspace (local workspaces fully coexist).
   - **远程 / Remote** — pick a **machine**, then browse its directories (or type a path) 🡺 on confirm it creates a **real local mirror** (`~/.dsh/remote-workspaces/<host>/<base>-<hash>`) that passes `fs.realpath` → the harness adopts it as a real workspace while dsh-remote keeps it synced over SFTP.
 - **Bidirectional SFTP sync** — `rw_sync` (remote → mirror) and `rw_push` (mirror → remote) round-trip your local-mirror edits back to the machine.
-- **Model tools** — `rw_info`, `rw_connect`, `rw_pick_workspace`, `rw_list_dir`, `rw_read_file`, `rw_exec`, `rw_sync`, `rw_push`.
+- **Model tools** — `rw_info`, `rw_connect`, `rw_pick_workspace`, `rw_list_dir`, `rw_read_file`, `rw_write_file`, `rw_exec`, `rw_sync`, `rw_push`, `rw_disconnect`.
+- **Write directly to a remote file** — `rw_write_file` creates or overwrites a remote file (making parent directories), so you don't have to round-trip through a local mirror for a single-file edit.
+- **Connection health** — a **「测试连接」 test-connection** button in the Settings page validates host/user/key/password before you save a machine.
 - The active `user@host:/path` is injected into every system prompt so the agent knows its working root.
 - **No official `dsh-workspace` core is modified** — everything is delivered as a normal plugin (directory-flow holes filled by the client half at `priority -100`).
 
@@ -49,6 +51,7 @@ dsh plugin add dsh-remote            # add the bundle
    - **远程** → choose the machine → browse to a remote directory (or type `/path`) → "设为远程工作区" ⇒ a local mirror workspace is created and adopted.
 3. **Work with the agent** — treat it like any workspace:
    - `rw_list_dir(path?)`/`rw_read_file` — inspect remote files
+   - `rw_write_file(path, content)` — create or overwrite a remote file directly
    - `rw_exec(command)` — run remote shell commands
    - `rw_sync` / `rw_push` — pull/push the local mirror to and from the remote
 
