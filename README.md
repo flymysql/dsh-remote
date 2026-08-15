@@ -1,3 +1,7 @@
+**English** · [中文](./README.zh.md)
+
+---
+
 # dsh-remote
 
 **Remote-work assistant for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH).**
