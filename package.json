@@ -1,7 +1,17 @@
 {
   "name": "dsh-remote",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Remote-work assistant for DeepSeek Harness: connect SSH (password or key), pick a remote workspace, operate on it with rw_pick_workspace / rw_list_dir / rw_read_file / rw_exec / rw_sync tools, and mirror it to a real local directory (SFTP) so the DSH native workspace can adopt it.",
+  "license": "MIT",
+  "author": "flymysql <flyphp@outlook.com>",
+  "homepage": "https://github.com/flymysql/dsh-remote",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flymysql/dsh-remote.git"
+  },
+  "bugs": {
+    "url": "https://github.com/flymysql/dsh-remote/issues"
+  },
   "keywords": [
     "deepseek-harness",
     "dsh",
@@ -23,7 +33,6 @@
     "lib",
     "cordis.patch.yml"
   ],
-  "license": "MIT",
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
