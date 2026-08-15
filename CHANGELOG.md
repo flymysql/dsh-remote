@@ -2,6 +2,14 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.5.5 — 2026-08-15
+- **Compliance fixes from the WhaleHarness audit** (https://github.com/flymysql/dsh-remote/issues/1):
+  - Tool schemas no longer put `required: true` on leaf properties — required fields are now
+    declared as a top-level `required: [ ... ]` array (the DSH-supported form).
+  - Removed the implicit `~/.ssh/id_rsa` private-key default. `privateKeyPath` is now used
+    **only when explicitly provided**; otherwise the plugin requires a password and fails with a
+    clear message instead of silently reading a real key off disk.
+
 ## 0.5.4 — 2026-08-15
 
 - **Publish metadata** — added `homepage` / `repository` / `author` / `bugs` so the
