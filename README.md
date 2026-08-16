@@ -18,7 +18,7 @@ The harness Web UI intentionally binds `127.0.0.1` (the CLI rejects `--host 0.0.
 
 Settings → **远程工作区** — a multi-machine SSH registry (add / edit / delete / set-current, password stored locally):
 
-<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/ui-settings-panel.png" alt="dsh-remote settings — multi-machine registry (light theme, host scrubbed)" width="720"/>
+<img src="https://cdn.jsdelivr.net/gh/flymysql/dsh-remote@main/docs/ui-settings-panel.png" alt="dsh-remote settings — multi-machine registry (light theme, host scrubbed)" width="720"/>
 
 The native **"Add workspace" / "Select workspace"** flow — a centered modal, two tabs, opens on **本机 (local)**; switch to **远程 (remote)**:
 
@@ -26,7 +26,7 @@ The native **"Add workspace" / "Select workspace"** flow — a centered modal, t
 
 Real capture (host scrubbed to a placeholder):
 
-<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/ui-picker-panel.png" alt="dsh-remote workspace picker — real dialog; 本机 (local) tab; 远程 machine select + prefilled root path + autocomplete" width="720"/>
+<img src="https://cdn.jsdelivr.net/gh/flymysql/dsh-remote@main/docs/ui-picker-panel.png" alt="dsh-remote workspace picker — real dialog; 本机 (local) tab; 远程 machine select + prefilled root path + autocomplete" width="720"/>
 
 ---
 
