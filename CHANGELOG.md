@@ -2,6 +2,14 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.5.7 — 2026-08-15
+- **Fix boot crash (regression in 0.5.5/0.5.6):** tool schemas again use the DSH value-schema
+  DSL form — `required: true` on leaf properties (the compiler derives the `required[]` array).
+  The 0.5.5 "fix" moved `required` to a top-level array, which the DSL rejects
+  (`schema.required is not supported by the value schema DSL`), making `dsh web` fail to boot
+  with dsh-remote installed. Verified against the official `valueSchemaSpecToJsonSchema`
+  compiler for both `parameters` and `output` schemas.
+
 ## 0.5.6 — 2026-08-15
 - README previews now load from the jsDelivr CDN (`cdn.jsdelivr.net/gh/...`) instead of
   `raw.githubusercontent.com`, which is blocked/unstable in many networks. npm page README
