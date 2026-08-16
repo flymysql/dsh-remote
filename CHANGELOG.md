@@ -2,6 +2,11 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.5.6 — 2026-08-15
+- README previews now load from the jsDelivr CDN (`cdn.jsdelivr.net/gh/...`) instead of
+  `raw.githubusercontent.com`, which is blocked/unstable in many networks. npm page README
+  updated to match.
+
 ## 0.5.5 — 2026-08-15
 - **Compliance fixes from the WhaleHarness audit** (https://github.com/flymysql/dsh-remote/issues/1):
   - Tool schemas no longer put `required: true` on leaf properties — required fields are now
