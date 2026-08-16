@@ -5,6 +5,21 @@ This file is for the author; nothing here is shown in the README install flow.
 
 ---
 
+## 0. Status checklist (2026-08-15)
+
+| Channel | Status |
+|---|---|
+| npm `dsh-remote` | ✅ latest 0.5.6, full history 0.1.0→0.5.6 |
+| GitHub topics (`dsh-plugin`, `deepseek-harness`, `remote`, `ssh`, `tunnel`, `plugin`) | ✅ set |
+| GitHub Releases | ✅ v0.5.2 / v0.5.4 / v0.5.5 |
+| awesome-dsh-plugin/awesome-dsh-plugin | ✅ listed (EN+zh), PR #323 **merged** |
+| AdamPlatin123/awesome-dsh-plugins (auto radar) | ✅ auto-listed (snapshot lags; auto-refreshes) |
+| Blog posts | ✅ docs/blog/showcase-{en,zh}.md |
+| Official Discussions showcase | ⏳ **TODO (manual, no public API)** |
+| README / npm previews | ✅ jsDelivr CDN (raw.githubusercontent.com blocked in many networks) |
+| WhaleHarness audit (issue #1) | ✅ fixed in 0.5.5; awaiting re-review |
+
+
 ## 0. GitHub repo — set Topics
 
 `github.com/flymysql/dsh-remote` → repo **About** (gear top-right) → **Topics**, add:
@@ -47,6 +62,11 @@ dsh plugin add dsh-remote
 Post to: `https://github.com/deepseek-ai/deepseek-harness/discussions`
 
 ### English
+
+> ⚠️ The ONLY remaining manual step (no public GitHub API for Discussions). Post at:
+> `https://github.com/deepseek-ai/deepseek-harness/discussions` → New discussion.
+> Suggested category: **Show and tell** (or General). English version below; Chinese version
+> further down.
 
 ```markdown
 ## Showcase: dsh-remote — a remote-work assistant plugin
