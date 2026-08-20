@@ -41,6 +41,32 @@ while ((m = otherRe.exec(src))) {
   }
 }
 
+// ── 3) 工具名必须 rw_ 前缀（避免与内置工具命名空间冲突）──────────────────
+const TOOL_NAME = /^rw_[a-z][a-z0-9_]*$/u
+const toolRe = /defineTool\(\{\s*name:\s*'([^']+)'/g
+let tTotal = 0
+while ((m = toolRe.exec(src))) {
+  tTotal++
+  if (!TOOL_NAME.test(m[1])) {
+    fail++
+    console.log(`  ✗ ${file}:${lineOf(src, m.index)}: tool name '${m[1]}' must match ${TOOL_NAME}`)
+  }
+}
+console.log(`  tool-name lint: ${tTotal} defineTool(s) checked`)
+
+// ── 4) JSON 路由必须挂在 /dsh-remote/ 前缀下（防路由命名漂移）─────────────
+const ROUTE_PREFIX = /^\/dsh-remote\//u
+const routeRe = /path:\s*'(\/[^']*)'/g
+let rTotal = 0
+while ((m = routeRe.exec(src))) {
+  rTotal++
+  if (!ROUTE_PREFIX.test(m[1])) {
+    fail++
+    console.log(`  ✗ ${file}:${lineOf(src, m.index)}: route path '${m[1]}' must start with /dsh-remote/`)
+  }
+}
+console.log(`  route-prefix lint: ${rTotal} route(s) checked`)
+
 function lineOf(text, idx) {
   return text.slice(0, idx).split('\n').length
 }

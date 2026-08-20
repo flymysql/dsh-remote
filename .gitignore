@@ -7,6 +7,8 @@ dist/
 dev-harness/
 pnpm-lock.yaml
 pnpm-workspace.yaml
-node_modules/
 
 *.tgz
+
+# npm cache workaround artifacts
+.npm-cache/
