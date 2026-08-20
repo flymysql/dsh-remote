@@ -2,6 +2,20 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.1 — 2026-08-21
+### 新功能：版本更新提示 + 手动/自动更新模式
+- **设置页新增「更新」区块**：显示当前版本 / 最新版本（自动查询 npm registry）、
+  「检查更新」按钮、发现新版本时「立即更新」按钮。
+- **更新模式可选**：`手动`（默认，仅点检查时查询）、`自动`（加载时 + 每 6 小时
+  静默应用新版本）、`关闭`。模式写入安装目录 `update-mode` 文件，重启后保留。
+- **更新机制**：零构建插件 = 下载 npm tarball → 内置 tar 解析（zlib gunzip +
+  迷你 ustar reader，见 lib/update.js）→ 校验版本 → 原子替换 lib/*.js +
+  cordis.patch.yml + package.json，写 `.dsh-remote-updated` 标记；host 半重启、
+  client 半刷新后生效。
+- 失败安全：下载/解析/校验任一步失败即中止，不动现有文件；auto 模式错误静默。
+- 验证：tar 解析器对真实 tarball 解出 package/lib 正确；fetchLatestVersion 真实
+  查询 npm 返回最新版；check.mjs 通过。
+
 ## 0.8.0 — 2026-08-21
 ### 大版本：远程 = 一等公民（设计文档全量落地）
 按「状态一致性 → 工具完备 → 同步安全 → 企业网络 → 打磨」五条主线实施：
