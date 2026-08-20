@@ -2,6 +2,22 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.7.5 — 2026-08-21
+### 新功能：版本更新提示 + 手动/自动更新模式
+- **设置页新增「更新」区块**：显示当前版本 / 最新版本（自动检查 npm registry）、
+  「检查更新」按钮、发现新版本时「立即更新」按钮。
+- **更新模式可选**：`手动`（默认，仅在设置页点检查时查询）、`自动`（加载时 +
+  每 6 小时自动检查并静默应用新版本）、`关闭`（不检查）。模式选择写入插件安装
+  目录的 `update-mode` 文件，重启后保留。
+- **更新机制**：零构建插件 = 下载 npm tarball → 内置 tar 解析（node zlib gunzip +
+  迷你 ustar 解析）→ 校验版本号 → 原子替换 `lib/*.js` + `cordis.patch.yml` +
+  `package.json`，写 `.dsh-remote-updated` 标记；host 半下次启动、client 半刷新
+  页面后生效。
+- 失败安全：下载/解析/校验任一步失败即中止，不破坏现有文件；auto 模式所有
+  错误静默吞掉，绝不拖垮插件运行。
+- 验证：tar 解析器对真实 0.7.4 tarball 解出 7 个条目、package.json 版本正确、
+  lib/client.js + lib/index.js 齐全；check.mjs 通过。
+
 ## 0.7.4 — 2026-08-21
 ### 新功能：设置页 / 工作区弹窗角落引导链接
 - **设置页底部**：新增「⭐ 去 GitHub 点个 Star · 💬 反馈建议 / 提 issue」引导行
