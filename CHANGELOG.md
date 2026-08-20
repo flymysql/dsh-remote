@@ -2,6 +2,15 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.2 — 2026-08-21
+### 修复：设置页 UI 拥挤 + updateMode schema 兼容
+- **设置页排版优化**：表单行增加上下间距（row 统一 marginBottom 8）；跳板
+  「端口/用户/密码」拆成两行并 flex-wrap，不再溢出；跳板私钥独立一行；
+  checkbox 行与底部操作按钮行补间距 + 自动换行；机器列表「设为当前」按钮
+  nowrap；工作区弹窗路径行 flex-wrap。
+- **兼容修复**：`updateMode` 改用 `z.string()`（schemastery 3.18 无 `.enum`），
+  在读取处以 manual/auto/off 白名单校验，避免插件树加载失败。
+
 ## 0.8.1 — 2026-08-21
 ### 新功能：版本更新提示 + 手动/自动更新模式
 - **设置页新增「更新」区块**：显示当前版本 / 最新版本（自动查询 npm registry）、
