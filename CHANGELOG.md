@@ -2,6 +2,21 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.7.3 — 2026-08-21
+### 修复：远程目录读取间歇性失败（"Channel open failure: open failed"）
+- **现象**：浏览远程目录（远程文件侧边栏 / `rw_list_dir` / `rw_sync`）偶发
+  `browse failed: ssh sftp failed: (SSH) Channel open failure: open failed`。
+- **根因**：连接池持有"僵尸连接"——SSH 连接在服务器端已死（空闲超时 / 网络
+  重置），但 keepalive 尚未触发 close 事件，池里的 `client` 仍被复用；对死连接
+  调 `client.sftp()` / `client.exec()` 打开新通道时服务器拒绝，报 channel open
+  failure，且旧连接永远不被清理，故障持续。
+- **修复**：新增 `SshPool.invalidate()`——当 `sftp()` / `exec()` 通道打开失败
+  且错误匹配 `channel open failure|open failed` 时，丢弃缓存 client（end + epoch
+  失效）并在**全新连接上重试一次**；持续性错误仍正常报错。exec 的流处理提取为
+  `runStream()`，SFTP 包装提取为 `wrapSftp()`，避免重连路径重复代码。
+- 验证：单元测试（僵尸连接 → invalidate → 新连接重试成功 ✅）+ 真实 SSH 集成
+  测试（readdir 87 entries ✅）。
+
 ## 0.7.2 — 2026-08-20
 ### 新功能：内嵌 dsh-better-sidebar，一条命令装齐
 - **`dsh plugin add dsh-remote` 自动带出侧边栏**：`dsh-better-sidebar` 从可选
