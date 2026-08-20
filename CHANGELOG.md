@@ -13,9 +13,13 @@ All notable changes to **dsh-remote**.
   已提供），内嵌行自动禁用，避免两个实例同时注册 `/sidebar/api` 导致整个插件树
   启动失败。
 - 说明：若你已单独安装侧边栏，升级后无需卸载——guard 保证只挂载一份。
-- 验证（verify9）：全新 profile `dsh plugin add dsh-remote` → pnpm 自动装
-  better-sidebar → 侧边栏「🌐 远程文件」tab 可用；已单独装侧边栏的 profile 升级后
-  无重复挂载。
+- **要求 `nodeLinker: hoisted`**：loader 从 profile 根解析插件包，内嵌侧边栏
+  必须能在顶层 `node_modules` 解析到。这是 DSH profile 的默认 linker；若
+  `pnpm-workspace.yaml` 被重写丢失该行，需补回 `nodeLinker: hoisted` 并
+  `pnpm install` 一次（否则报 `Cannot find package 'dsh-better-sidebar'`）。
+- 验证（verify9）：全新 profile `dsh plugin add dsh-remote`（nodeLinker:
+  hoisted）→ pnpm 自动装 better-sidebar 并提升到顶层 → boot 成功、侧边栏
+  「🌐 远程文件」tab 可用；已单独装侧边栏的 profile 升级后无重复挂载。
 
 ## 0.7.1 — 2026-08-20
 ### 修复：侧边栏显示本地镜像而非远程文件（issue #8 反馈）

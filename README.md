@@ -63,6 +63,14 @@ remote file viewer show up in the sidebar with no extra step. If you already
 have the sidebar installed on its own, the embedded copy backs off (no double
 mount).
 
+> **Requires the profile's pnpm linker to be `hoisted`** (the DSH profile
+> default, `nodeLinker: hoisted` in `pnpm-workspace.yaml`). The loader resolves
+> plugin packages from the profile root, so the sidebar must be reachable in
+> the top-level `node_modules`. If your `pnpm-workspace.yaml` was rewritten
+> without `nodeLinker: hoisted`, add it back (`nodeLinker: hoisted`) and run
+> `pnpm install` once — otherwise the embedded sidebar row fails with
+> `Cannot find package 'dsh-better-sidebar'`.
+
 (or `npm install dsh-remote` + add `- id: dsh-remote / name: dsh-remote` in `cordis.patch.yml`).
 
 ## Quick start

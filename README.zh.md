@@ -58,6 +58,13 @@ dsh plugin add dsh-remote            # 添加 bundle
 远程文件查看器即可直接用，无需额外步骤。如果你已单独安装过该侧边栏，内嵌副本
 会自动退避（不会重复挂载）。
 
+> **要求 profile 的 pnpm linker 为 `hoisted`**（DSH profile 默认，
+> `pnpm-workspace.yaml` 里 `nodeLinker: hoisted`）。loader 从 profile 根解析
+> 插件包，侧边栏必须能在顶层 `node_modules` 被解析到。如果你的
+> `pnpm-workspace.yaml` 被重写丢掉了 `nodeLinker: hoisted`，请补回并执行一次
+> `pnpm install` —— 否则内嵌侧边栏行会报
+> `Cannot find package 'dsh-better-sidebar'`。
+
 （或 `npm install dsh-remote`，再在 `cordis.patch.yml` 加 `- id: dsh-remote / name: dsh-remote`。）
 
 ## 快速上手
