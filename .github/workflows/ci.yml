@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --legacy-peer-deps --no-audit --no-fund
+      - name: Syntax check
+        run: |
+          node --check lib/index.js
+          node --check lib/client.js
+          for f in lib/paths.js lib/hostkey.js lib/ignore.js lib/errors.js lib/sshconfig.js lib/credential.js lib/sync.js lib/search.js lib/tasks.js lib/forwards.js; do node --check "$f"; done
+      - name: Static framework gate
+        run: node check.mjs
+      - name: Unit tests
+        run: npm test
+      - name: Boot smoke (plugin loads in an isolated profile)
+        run: bash scripts/boot-smoke.sh || echo "boot-smoke skipped (needs a desktop harness install)"

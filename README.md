@@ -32,23 +32,27 @@ Real capture (host scrubbed to a placeholder):
 
 ## Features
 
-- **Multi-machine SSH** — save any number of hosts (`host`/`port`/`user` + **private key** or **password**). Passwords are stored locally and never shown back in the UI. Switch with one click in Settings.
+- **Multi-machine SSH** — save any number of hosts (`host`/`port`/`user` + **private key** or **password**). Passwords are stored locally and never shown back in the UI. Switch with one click in Settings. Per-machine **passphrase / host-key mode / SSH agent / keyboard-interactive (OTP) / proxy jump (bastion)** and an **optional OS-keychain password** (`加密保存密码` — macOS Keychain / Windows DPAPI / Linux secret-tool).
+- **`~/.ssh/config` import** — the Settings page lists your `Host` aliases; one click fills the form (path reference only, the plugin never reads key material).
 - **Two-tab workspace picker** (fills the native "Add workspace" flow):
-  - **本机 / Local** — opens the **native OS folder chooser** over the host, or lets you type a local path → adopted directly as a normal DSH local workspace (local workspaces fully coexist). The chooser uses the DSH `directoryPicker` service when available and otherwise falls back to the plugin's own native picker (macOS `osascript` / Linux `zenity`→`kdialog`) — so it works even when the framework service isn't registered on the desktop boot path.
-  - **远程 / Remote** — the picker is a **centered modal** (never squeezed into a narrow sidebar). Pick a **machine** → the path field is **pre-filled with `/`** and live **autocompletes** directories; **selecting a directory immediately lists its next level** (OS/VSCode-style cascade). A **浏览…** floating browser (opaque, height-capped, scrollable, follows symlinks) fills the field without committing — you review, edit, then confirm. On confirm it creates a **real local mirror** under `$DSH_HOME/remote-workspaces/<host>-<user>-<port>/<base>` (a short path-hash is appended only when a different remote path already took the same basename) that passes `fs.realpath` → the harness adopts it as a real workspace while dsh-remote keeps it synced over SFTP. The chosen workspace is persisted on the machine, so it survives restarts.
-- **Bidirectional SFTP sync** — `rw_sync` (remote → mirror) and `rw_push` (mirror → remote) round-trip your local-mirror edits back to the machine. Both are **incremental**: files whose size + mtime already match are skipped, and a per-file size cap prevents accidental big-binary downloads. Directory sweeps run with bounded parallelism.
-- **Model tools** — `rw_info`, `rw_connect`, `rw_pick_workspace`, `rw_list_dir`, `rw_read_file`, `rw_write_file`, `rw_exec` (runs in the current workspace by default, or `cwd=<path>`), `rw_search` (portable recursive grep), `rw_download`, `rw_upload`, `rw_sync`, `rw_push`, `rw_disconnect`.
-- **Write directly to a remote file** — `rw_write_file` creates or overwrites a remote file (making parent directories), so you don't have to round-trip through a local mirror for a single-file edit. `rw_download` / `rw_upload` move a single file either way when you need the real bytes.
-- **Connection health** — a **「测试连接」 test-connection** button in the Settings page validates host/user/key/password before you save a machine.
-- The active `user@host:/path` is injected into every system prompt so the agent knows its working root.
+  - **本机 / Local** — opens the **native OS folder chooser** over the host (macOS `osascript` / Linux `zenity`→`kdialog` / **Windows `FolderBrowserDialog`**), or lets you type a local path → adopted directly as a normal DSH local workspace.
+  - **远程 / Remote** — the picker is a **centered modal**. Pick a **machine** → the path field is **pre-filled with `/`** and live **autocompletes** directories; selecting a directory immediately lists its next level. A **浏览…** floating browser (shows **size + mtime**, dirs first, follows symlinks) fills the field without committing. **最近 workspaces** quick-pick, **`~` 主目录** shortcut and **新建目录** are one click away. On confirm it creates a **real local mirror** under `$DSH_HOME/remote-workspaces/<host>-<user>-<port>/<base>` that passes `fs.realpath` → the harness adopts it as a real workspace while dsh-remote keeps it synced over SFTP.
+- **Bidirectional SFTP sync, conflict-aware** — `rw_sync` (remote → mirror) and `rw_push` (mirror → remote) are **three-way** (remote vs local vs last-synced snapshot): files changed on both sides are **reported as conflicts and never silently overwritten** (`force=true` overrides). Both support **dry-run**, **background tasks**, and honor **gitignore-style ignore rules** (`.dsh-remote-ignore` under `remote-workspaces`, defaults cover `.git/node_modules/target/dist/build/…`).
+- **Model tools** — 20 tools, all Windows/POSIX portable via SFTP: `rw_info`, `rw_connect` (with `save`), `rw_pick_workspace`, `rw_list_dir` (size+mtime), `rw_stat`, `rw_read_file` (encoding-aware: utf-8/gbk), `rw_write_file`, **`rw_edit`** (literal replace + mtime optimistic lock), `rw_append`, `rw_mkdir`, `rw_remove` (recursive, bounded), `rw_move`, `rw_exec` (pty/env), **`rw_search`** (SFTP tree walk — works on Windows too, honors ignore rules, context lines), `rw_download`/`rw_upload` (streaming fastGet/fastPut + size caps), **`rw_forward`** (SSH tunnels), `rw_sync`, `rw_push`, `rw_disconnect`.
+- **Port forwarding panel** — create/start/stop/remove **local** (`127.0.0.1:port → remote`) and **reverse** (`remote → local`) tunnels in the Settings page or via `rw_forward`; definitions persist, auto-restart on reconnect when enabled, all tunnels stop on disconnect.
+- **Sidebar remote editing** — the better-sidebar remote file tab is now **editable**: click **编辑** → edit → **保存到远程** with an mtime optimistic lock (409 + "重新读取" on concurrent change). The explorer rows show file sizes and have a **right-click menu** (下载到本地镜像 / 重命名 / 删除 / 新建目录).
+- **Command audit log** — every `rw_exec`/write/remove/move/forward is appended to `$DSH_HOME/remote-workspaces/audit.log` (time · user@host · op · exit code · command); the Settings page shows the last 30.
+- **Async long tasks** — `rw_sync`/`rw_push` with `async: true` return a `taskId`; progress/result/cancel via `/dsh-remote/task` (single-flight queue).
+- **Connection health** — a **「测试连接」** button validates host/user/key/password (with per-category error hints: auth / network / host key / timeout) before you save a machine; latency is cached on the machine record.
+- The active `user@host:/path` is injected into every system prompt (plus active forwards).
 - **No official `dsh-workspace` core is modified** — everything is delivered as a normal plugin (directory-flow holes filled by the client half at `priority -100`).
-- **Cross-platform remotes** — commands use portable POSIX forms (`ls -la`, `sed -n`, `find … -exec grep`), so the same plugin works against macOS/BSD as well as GNU/Linux hosts.
+- **Cross-platform remotes** — all file access is SFTP-protocol-level (no shell dependency), so Linux/macOS/Windows remotes all work for listing, reading, writing, searching and syncing.
 - **Host-key verification (TOFU)** — every SSH connect verifies the host key
   (`hostKeyMode: accept-new`): first connect records it, a later CHANGE is rejected
   as a possible man-in-the-middle. `verify` also refuses hosts never seen before;
   `off` disables it. Stored at `$DSH_HOME/remote-workspaces/known_hosts.json`; reset
   with `/remote forget-key`.
-- **Data lives under the harness home** — machines + mirrors follow `$DSH_HOME` (the desktop app sets it to its own `userData/harness`); pre-0.6 data under `~/.dsh/remote-workspaces` is migrated automatically on first run.
+- **Data lives under the harness home** — machines + mirrors follow `$DSH_HOME`; pre-0.6 data under `~/.dsh/remote-workspaces` is migrated automatically on first run.
 
 ## Install
 
@@ -81,10 +85,12 @@ mount).
    - **远程** → choose the machine → browse to a remote directory (or type `/path`) → "设为远程工作区" ⇒ a local mirror workspace is created and adopted.
 3. **Work with the agent** — treat it like any workspace:
    - `rw_list_dir(path?)`/`rw_read_file` — inspect remote files
-   - `rw_write_file(path, content)` — create or overwrite a remote file directly
-   - `rw_search(pattern, path?)` — grep remote files
-   - `rw_exec(command, cwd?)` — run remote shell commands (defaults to the workspace dir)
-   - `rw_sync` / `rw_push` — pull/push the local mirror to and from the remote
+   - `rw_write_file(path, content)` / `rw_edit(path, old, new)` — create / patch a remote file directly
+   - `rw_stat(path)` / `rw_mkdir(path)` / `rw_remove(path, recursive?)` / `rw_move(path, dest)` — manage remote paths
+   - `rw_search(pattern, path?)` — grep remote files (SFTP walk, Windows OK)
+   - `rw_exec(command, cwd?, pty?)` — run remote shell commands (defaults to the workspace dir)
+   - `rw_forward(listenPort, targetHost?, targetPort?)` — open an SSH tunnel
+   - `rw_sync(dryRun?/force?/async?)` / `rw_push(dryRun?/force?/async?)` — conflict-aware mirror pull/push
 
 ## CLI defaults (optional)
 
@@ -171,15 +177,40 @@ and should be done only when you intend to release.
 | `username` | string | `''` | default SSH user |
 | `password` | string | `''` | default SSH password (non-empty overrides key) |
 | `privateKeyPath` | string | `''` | private key path (used only when explicitly provided) |
+| `passphrase` | string | `''` | passphrase for an encrypted private key |
 | `workspace` | string | `''` | default remote workspace path |
 | `commandTimeoutMs` | int | 20000 | per remote command timeout |
 | `connectTimeoutMs` | int | 15000 | SSH connect timeout |
-| `maxFileBytes` | int | 52428800 | skip mirroring files larger than this (0 = no cap) |
+| `maxFileBytes` | int | 52428800 | skip mirroring/reading files larger than this (0 = no cap) |
 | `hostKeyMode` | string | `accept-new` | host-key policy: `accept-new` (TOFU), `verify` (reject unknown hosts), `off` (skip) |
+| `useAgent` | bool | `false` | authenticate via the OpenSSH agent (`SSH_AUTH_SOCK`) |
+| `keyboardInteractive` | bool | `false` | allow keyboard-interactive auth (OTP/MFA) with the configured password |
+| `proxy` | object | — | jump host: `{ host, port?, username?, password?, privateKeyPath? }` |
+| `autoPush` | bool | `false` | auto-push edited mirror files back to the remote (watcher, debounced) |
+| `auditLog` | bool | `true` | append executed commands to `$DSH_HOME/remote-workspaces/audit.log` |
+| `encoding` | string | `utf-8` | text encoding for remote file reads/writes (e.g. `gbk`) |
+
+## FAQ / troubleshooting
+
+**Host key 变了 / 提示可能中间人** — 主机重装过或密钥更换过：`/remote-forget-key`（或设置页 → 机器 → 重新信任），下次连接重新记录。
+
+**连接报"认证失败"** — 检查用户名/密码/私钥路径；私钥加密了要填 Passphrase；公司机器要求 OTP/动态码时勾选 keyboard-interactive。
+
+**连不上内网机器** — 走跳板机：机器表单里填「跳板机」主机（也可以先把它本身配成一台机器）。主机不可达类错误会给出分类提示。
+
+**rw_sync/rw_push 报冲突** — 远端和本地都改过同一个文件时会跳过并列出冲突（绝不静默覆盖）。处理：手动合并后重新同步，或用 `force=true` 以一边为准。
+
+**Windows 远程** — 列表/读写/搜索/同步全部走 SFTP 协议，不依赖 POSIX shell；中文文件用 `encoding=gbk` 读。
+
+**镜像里没有某个目录** — 默认 ignore 规则（`.git`、`node_modules`、`target` 等）会跳过；在 `$DSH_HOME/remote-workspaces/.dsh-remote-ignore` 加 `!` 之外的条目即可调整（gitignore 语法）。
+
+**侧边栏远程文件保存失败（409）** — 远端文件在你打开后已被改动，重新读取后再编辑（mtime 乐观锁保护）。
+
+**密码怎么加密保存** — 机器表单勾选「加密保存密码」：macOS 用系统钥匙串（security），Windows 用 DPAPI，Linux 需要 secret-tool（libsecret）；后端不可用时自动回退明文。
 
 ## Safety
 
-Giving the plugin a machine's credentials lets the agent run **shell commands as your user** on that host. Only add machines you trust. Passwords are saved on the local machine file; treat it as sensitive (you may lock file ACLs).
+Giving the plugin a machine's credentials lets the agent run **shell commands as your user** on that host. Only add machines you trust. Passwords are saved on the local machine file (or the OS keychain when enabled); treat it as sensitive (you may lock file ACLs). Every executed command is recorded in the audit log when `auditLog` is on — review it from the Settings page.
 
 ## License
 
