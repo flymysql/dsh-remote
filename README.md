@@ -34,14 +34,21 @@ Real capture (host scrubbed to a placeholder):
 
 - **Multi-machine SSH** — save any number of hosts (`host`/`port`/`user` + **private key** or **password**). Passwords are stored locally and never shown back in the UI. Switch with one click in Settings.
 - **Two-tab workspace picker** (fills the native "Add workspace" flow):
-  - **本机 / Local** — opens the **native OS folder chooser** over the host, or lets you type a local path → adopted directly as a normal DSH local workspace (local workspaces fully coexist).
-  - **远程 / Remote** — the picker is a **centered modal** (never squeezed into a narrow sidebar). Pick a **machine** → the path field is **pre-filled with `/`** and live **autocompletes** directories; **selecting a directory immediately lists its next level** (OS/VSCode-style cascade). A **浏览…** floating browser (opaque, height-capped, scrollable, follows symlinks) fills the field without committing — you review, edit, then confirm. On confirm it creates a **real local mirror** (`~/.dsh/remote-workspaces/<host>/<base>-<hash>`) that passes `fs.realpath` → the harness adopts it as a real workspace while dsh-remote keeps it synced over SFTP.
-- **Bidirectional SFTP sync** — `rw_sync` (remote → mirror) and `rw_push` (mirror → remote) round-trip your local-mirror edits back to the machine.
-- **Model tools** — `rw_info`, `rw_connect`, `rw_pick_workspace`, `rw_list_dir`, `rw_read_file`, `rw_write_file`, `rw_exec`, `rw_sync`, `rw_push`, `rw_disconnect`.
-- **Write directly to a remote file** — `rw_write_file` creates or overwrites a remote file (making parent directories), so you don't have to round-trip through a local mirror for a single-file edit.
+  - **本机 / Local** — opens the **native OS folder chooser** over the host, or lets you type a local path → adopted directly as a normal DSH local workspace (local workspaces fully coexist). The chooser uses the DSH `directoryPicker` service when available and otherwise falls back to the plugin's own native picker (macOS `osascript` / Linux `zenity`→`kdialog`) — so it works even when the framework service isn't registered on the desktop boot path.
+  - **远程 / Remote** — the picker is a **centered modal** (never squeezed into a narrow sidebar). Pick a **machine** → the path field is **pre-filled with `/`** and live **autocompletes** directories; **selecting a directory immediately lists its next level** (OS/VSCode-style cascade). A **浏览…** floating browser (opaque, height-capped, scrollable, follows symlinks) fills the field without committing — you review, edit, then confirm. On confirm it creates a **real local mirror** under `$DSH_HOME/remote-workspaces/<host>-<user>-<port>/<base>` (a short path-hash is appended only when a different remote path already took the same basename) that passes `fs.realpath` → the harness adopts it as a real workspace while dsh-remote keeps it synced over SFTP. The chosen workspace is persisted on the machine, so it survives restarts.
+- **Bidirectional SFTP sync** — `rw_sync` (remote → mirror) and `rw_push` (mirror → remote) round-trip your local-mirror edits back to the machine. Both are **incremental**: files whose size + mtime already match are skipped, and a per-file size cap prevents accidental big-binary downloads. Directory sweeps run with bounded parallelism.
+- **Model tools** — `rw_info`, `rw_connect`, `rw_pick_workspace`, `rw_list_dir`, `rw_read_file`, `rw_write_file`, `rw_exec` (runs in the current workspace by default, or `cwd=<path>`), `rw_search` (portable recursive grep), `rw_download`, `rw_upload`, `rw_sync`, `rw_push`, `rw_disconnect`.
+- **Write directly to a remote file** — `rw_write_file` creates or overwrites a remote file (making parent directories), so you don't have to round-trip through a local mirror for a single-file edit. `rw_download` / `rw_upload` move a single file either way when you need the real bytes.
 - **Connection health** — a **「测试连接」 test-connection** button in the Settings page validates host/user/key/password before you save a machine.
 - The active `user@host:/path` is injected into every system prompt so the agent knows its working root.
 - **No official `dsh-workspace` core is modified** — everything is delivered as a normal plugin (directory-flow holes filled by the client half at `priority -100`).
+- **Cross-platform remotes** — commands use portable POSIX forms (`ls -la`, `sed -n`, `find … -exec grep`), so the same plugin works against macOS/BSD as well as GNU/Linux hosts.
+- **Host-key verification (TOFU)** — every SSH connect verifies the host key
+  (`hostKeyMode: accept-new`): first connect records it, a later CHANGE is rejected
+  as a possible man-in-the-middle. `verify` also refuses hosts never seen before;
+  `off` disables it. Stored at `$DSH_HOME/remote-workspaces/known_hosts.json`; reset
+  with `/remote forget-key`.
+- **Data lives under the harness home** — machines + mirrors follow `$DSH_HOME` (the desktop app sets it to its own `userData/harness`); pre-0.6 data under `~/.dsh/remote-workspaces` is migrated automatically on first run.
 
 ## Install
 
@@ -60,7 +67,8 @@ dsh plugin add dsh-remote            # add the bundle
 3. **Work with the agent** — treat it like any workspace:
    - `rw_list_dir(path?)`/`rw_read_file` — inspect remote files
    - `rw_write_file(path, content)` — create or overwrite a remote file directly
-   - `rw_exec(command)` — run remote shell commands
+   - `rw_search(pattern, path?)` — grep remote files
+   - `rw_exec(command, cwd?)` — run remote shell commands (defaults to the workspace dir)
    - `rw_sync` / `rw_push` — pull/push the local mirror to and from the remote
 
 ## CLI defaults (optional)
@@ -107,6 +115,38 @@ npx --yes @deepseek-ai/dsh plugin --profile web remove dsh-remote   # back to re
 
 After a successful start, `Settings → 远程工作区` appears and the "Add workspace" flow gains the 本机 / 远程 tabs (screenshots above).
 
+## Development (sandbox, not product)
+
+Iterate **in the sandbox**, never by hand-editing a product profile — the
+product profile is re-managed by the plugin manager and reverts hand-deployed
+files on reinstall. Use the helper script:
+
+```bash
+scripts/dev-run.sh --restart   # start / restart the isolated sandbox
+scripts/dev-run.sh --stop      # stop it
+scripts/dev-run.sh --status    # is it running?
+```
+
+- Runs its own DSH instance (`dev-harness/harness` inside this repo) with the
+  plugin copied in from `lib/` — it boots through the same `bin.js web --patch`
+  path as the desktop app, so the sandbox reproduces the product boot behavior.
+- The sandbox web UI serves on `http://127.0.0.1:50599` and the plugin routes
+  are live immediately (e.g. `GET /dsh-remote/machines`).
+- **Host-half changes** (`lib/index.js`) need a sandbox restart (`--restart`);
+  **client-half changes** (`lib/client.js`) need a page refresh.
+- Node ESM resolves dependencies from the importing file's real path, so the
+  script **copies** `lib/` (hardlink copy, `cp -al`) into the sandbox profile
+  instead of symlinking — a symlink breaks `@deepseek-ai/*` resolution.
+- Run `scripts/check.mjs` (static framework-constraint gate: command-name
+  regex, …) before every commit; `scripts/boot-smoke.sh` boots an isolated
+  instance to prove the plugin still starts.
+- Full rules live in `scripts/dev-standards.md` (command names, cordis service
+  access via `ctx.get()` only, optional framework services may never register,
+  verify third-party callback contracts against the real runtime, …).
+
+Deploying to a product profile is a separate, explicit action (`./sync.sh`)
+and should be done only when you intend to release.
+
 ## Configuration
 
 | Key | Type | Default | Meaning |
@@ -115,10 +155,12 @@ After a successful start, `Settings → 远程工作区` appears and the "Add wo
 | `port` | int | `22` | default SSH port |
 | `username` | string | `''` | default SSH user |
 | `password` | string | `''` | default SSH password (non-empty overrides key) |
-| `privateKeyPath` | string | `''` | private key path (`~/.ssh/id_rsa` when empty) |
+| `privateKeyPath` | string | `''` | private key path (used only when explicitly provided) |
 | `workspace` | string | `''` | default remote workspace path |
 | `commandTimeoutMs` | int | 20000 | per remote command timeout |
 | `connectTimeoutMs` | int | 15000 | SSH connect timeout |
+| `maxFileBytes` | int | 52428800 | skip mirroring files larger than this (0 = no cap) |
+| `hostKeyMode` | string | `accept-new` | host-key policy: `accept-new` (TOFU), `verify` (reject unknown hosts), `off` (skip) |
 
 ## Safety
 
