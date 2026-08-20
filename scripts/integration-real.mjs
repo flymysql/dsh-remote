@@ -58,6 +58,11 @@ function makeCtx() {
     effect(fn) { effects.push(fn) },
     inject() {},
   }
+  // The plugin accesses injected services as ctx properties (cordis inject).
+  ctx.tools = toolsSvc
+  ctx.systemPrompt = systemPrompt
+  ctx.webServer = webServer
+  ctx.commands = commandsSvc
   return { ctx, tools, commands, promptSections, routes, effects }
 }
 

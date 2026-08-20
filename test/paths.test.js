@@ -63,12 +63,16 @@ test('truncate + shortHash', () => {
   assert.notEqual(shortHash('a'), shortHash('b'))
 })
 
-test('mkdirRemoteDirs creates every level (POSIX + Windows)', async () => {
+test('mkdirRemoteDirs creates parents AND the target (POSIX + Windows)', async () => {
   const made = []
   const sftp = { mkdir: async (p) => made.push(p) }
-  await mkdirRemoteDirs(sftp, '/a/b/c.txt')
+  await mkdirRemoteDirs(sftp, '/a/b/c')
+  assert.deepEqual(made, ['/a', '/a/b', '/a/b/c'])
+  made.length = 0
+  // File callers pass the parent dir so the file path itself is never a dir.
+  await mkdirRemoteDirs(sftp, remoteDirname('/a/b/f.txt'))
   assert.deepEqual(made, ['/a', '/a/b'])
   made.length = 0
-  await mkdirRemoteDirs(sftp, 'D:\\x\\y\\f.txt')
-  assert.deepEqual(made, ['D:\\', 'D:\\x', 'D:\\x\\y'])
+  await mkdirRemoteDirs(sftp, 'D:\\x\\y\\z')
+  assert.deepEqual(made, ['D:\\', 'D:\\x', 'D:\\x\\y', 'D:\\x\\y\\z'])
 })
