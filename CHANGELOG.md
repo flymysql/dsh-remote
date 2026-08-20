@@ -2,6 +2,31 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.6.8 — 2026-08-20
+### Windows 远程（cmd.exe / PowerShell）兼容
+- **修复 issue #5「不兼容 Windows SSH 连接」**：远程机器为 Windows 时输入
+  `D:\Code` 报 `not a directory (or unreachable): /D:\Code`。
+- **根因**：`normalizeRemotePath` 按 POSIX 处理路径，把 `D:\Code` 破坏成
+  `/D:\Code`；目录校验用 `if [ -d ]`（POSIX shell 语法），Windows 默认
+  cmd.exe 下不可用。
+- **路径层**：`normalizeRemotePath` 现支持 Windows 盘符（`D:\`、`C:/`）与
+  UNC（`\\server\share`）路径，保留盘符与反斜杠分隔；`remoteDirname` /
+  `remotePathBase` / `joinRemotePath` 同步支持两种分隔符。
+- **SFTP 层**：新增 `toSftpPath`（`D:\Code` → `/D:/Code`，Win32-OpenSSH
+  sftp-server 的 POSIX 风格）；`pool.sftp()` 所有方法自动转换路径并加
+  超时保护（避免卡死的服务器挂住工具调用）。
+- **浏览/校验**：`listDirStructured` 与 `rw_list_dir` 改用 **SFTP readdir**
+  （协议级，不再依赖远程 `ls`）；目录存在性校验 `isRemoteDir` 用 SFTP
+  stat 替代 `if [ -d ]`（rw_pick_workspace / workspace 路由 / mirror 路由）。
+- **读写**：`rw_read_file` 从 `sed -n` 改为 SFTP readFile（分页不变）；
+  `rw_write_file` / `rw_upload` 的 mkdir -p 用共享 `mkdirRemoteDirs`（支持
+  `D:\a\b` 逐级创建）；`rw_search` 对 Windows 路径给出 PowerShell 提示。
+- **连接探针**：`rw_info` / `rw_connect` 的 `echo ok; hostname; pwd` 改为
+  `echo ok`（`;` 分隔在 cmd.exe 不可用）。
+- 客户端 `lib/client.js`：远程目录浏览的路径拼接/补全支持反斜杠分隔符。
+- POSIX 行为零回归（34 项单测通过：路径归一化 / dirname / SFTP 转换 /
+  mkdir 链 / 回归）。
+
 ## 0.6.7 — 2026-08-20
 ### 远程目录浏览崩溃修复 + TOFU 主机指纹校验复活
 - 修复「远程」目录选择器点浏览报 `The "data" argument must be of type string or
