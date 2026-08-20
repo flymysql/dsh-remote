@@ -2,6 +2,74 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.0 — 2026-08-21
+### 大版本：远程 = 一等公民（设计文档全量落地）
+按「状态一致性 → 工具完备 → 同步安全 → 企业网络 → 打磨」五条主线实施：
+
+**状态一致性与正确性（P0）**
+- 单一状态源：`rw_connect` 默认 `save:true` 把机器 upsert 进注册表并设为当前，
+  工具/UI/系统提示三者的"当前机器"永远一致；`rw_pick_workspace` 把工作区持久化到
+  **实际连接**的机器（修复旧 bug：工具连 A 机却把 workspace 存到注册表当前 B 机）。
+  新增 `activeSource: machine|ephemeral|config` 状态字段。
+- 设置页表单补全：passphrase / 默认工作区 / hostKeyMode / SSH agent /
+  keyboard-interactive / 跳板机 / 加密保存密码；机器行显示最近测试延迟。
+- Windows 宿主本机目录选择器（PowerShell FolderBrowserDialog）。
+- 大文件保护：`rw_read_file` 先 stat 超限即拒绝；`rw_download`/`rw_upload` 走
+  fastGet/fastPut 流式落盘；侧边栏 `/dsh-remote/read` 大文件只预览头部。
+
+**Agent 工具完备（P1）**
+- 新增 6 个工具：`rw_stat` / `rw_edit`（字面替换 + mtime 乐观锁）/
+  `rw_append` / `rw_mkdir` / `rw_remove`（recursive 有界）/ `rw_move`。
+- `rw_search` 重写为 **SFTP 遍历搜索**（lib/search.js）：Windows 远程可用、
+  忽略规则生效、支持 glob/contextLines/maxMatches，不再依赖 POSIX find+grep。
+- `rw_exec` 支持 `pty` / `env`；错误统一走分类提示（auth/network/hostkey/timeout）。
+
+**同步安全（P1）**
+- `rw_sync`/`rw_push` 升级为**三方冲突检测**（lib/sync.js：远端 vs 本地 vs
+  上次同步快照）：任一侧改过的文件不再被静默覆盖——报冲突 + 路径 + 原因，
+  `force=true` 覆盖；`dryRun` 预演；`async:true` 后台任务（lib/tasks.js）。
+- **gitignore 式忽略规则**（lib/ignore.js）：默认跳过 .git/node_modules/target/
+  dist/build 等，用户文件 `$DSH_HOME/remote-workspaces/.dsh-remote-ignore`；
+  新增 `/remote-ignore` 命令查看。
+- 镜像同步状态快照 `.dsh-remote-sync-state.json`（原子写，pull 后对齐本地 mtime、
+  push 后对齐远端 mtime，保证下次同步增量跳过）。
+
+**企业网络（P2）**
+- **端口转发**（lib/forwards.js + `rw_forward` + 设置页面板）：本地→远端 /
+  远端→本地(reverse)，定义持久化、可自动重连、断连全部清理。
+- **跳板机 ProxyJump**：机器可配置 proxy（经跳板 forwardOut 到目标），TOFU 双段
+  校验；test-connect 支持带跳板探测。
+- **认证扩展**：SSH agent（SSH_AUTH_SOCK）、keyboard-interactive（OTP）、
+  从 ~/.ssh/config 导入（只引用私钥路径，绝不读密钥内容）。
+- **OS 钥匙串密码**（lib/credential.js）：macOS Keychain / Windows DPAPI /
+  Linux secret-tool，可选、失败自动回退明文。
+
+**打磨（P3）**
+- **侧边栏远程文件可编辑**：编辑 → 保存到远程（`POST /dsh-remote/write` +
+  mtime 乐观锁，409 提示重读）；explorer 右键菜单（下载到镜像/重命名/删除/
+  新建目录）；行内显示文件大小、目录优先排序。
+- **命令审计日志** audit.log（时间|user@host|op|exit|command），设置页展示最近 30 条。
+- **编码支持**：rw_read_file/rw_write_file/read/write 路由支持 `gbk` 等（iconv-lite）。
+- **书签/快捷**：每机最近工作区（picker 内"最近"一键进入 + 设置页快速切换）、
+  `~` 主目录快捷、浏览弹层"新建目录"。
+- **测试与 CI**：`test/` 45 项单测（node:test：路径/忽略规则/错误分类/ssh config/
+  三方同步冲突/TOFU 指纹回归/SFTP 搜索/任务管理/单文件推送，mock SFTP + 真实本地
+  目录）；`scripts/integration-real.mjs` 真实主机集成实测（mock ctx 驱动 apply +
+  真实 SSH，覆盖 status/test-connect/ls/read/write+乐观锁/fs/search/sync/forward/
+  audit/forget-key）；check.mjs 扩展（工具名 rw_ 前缀、路由 /dsh-remote/ 前缀扫描）；
+  `.github/workflows/ci.yml`。
+- 配置新增：`useAgent` / `keyboardInteractive` / `proxy` / `autoPush` / `auditLog` /
+  `encoding` / `passphrase`。
+- 依赖新增：`iconv-lite`；随 0.7.2 已内嵌 `dsh-better-sidebar`。
+- 健壮性：移植 0.7.3 的 stale-connection 恢复（channel open failure 时
+  `invalidate()` + 新连接重试一次，exec/sftp 双路径）；迁移旧数据仅在本机默认
+  DSH_HOME 时执行（显式 DSH_HOME 指向他处时不再搬走该目录下的真实数据）。
+- 真实主机实测（root@9.134.186.191:36000，45/45 通过）发现并修复 3 个问题：
+  Config 的 `z.object(...).optional()` 在 schemastery 3.18.1（部署同版本）不存在
+  （会导致插件加载失败，改为全字段默认值）；`mkdirRemoteDirs` 不建目标目录
+  （rw_mkdir/fs mkdir 无效，改为真 mkdir -p，文件类调用点传父目录）；反向转发
+  误用 `openssh_forwardIn`（ssh2 ≥1.16 为 stream-local，改回 `forwardIn`）。
+
 ## 0.7.4 — 2026-08-21
 ### 新功能：设置页 / 工作区弹窗角落引导链接
 - **设置页底部**：新增「⭐ 去 GitHub 点个 Star · 💬 反馈建议 / 提 issue」引导行
