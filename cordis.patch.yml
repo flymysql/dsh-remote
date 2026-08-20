@@ -1,6 +1,24 @@
 # dsh-remote bundle patch: inserts this plugin into a profile's layer stack.
 # Applied when a profile lists this bundle; rows reference the package by name so
 # Node resolution finds the installed code.
+#
+# Since v0.7.2 dsh-remote ships dsh-better-sidebar as a hard dependency and
+# mounts it here, so `dsh plugin add dsh-remote` brings up the sidebar with
+# zero extra steps. The sidebar row uses a DEDICATED id (`dsh-remote-sidebar`)
+# and a guard so it backs off when another *enabled* entry already mounts
+# `dsh-better-sidebar` (e.g. the user installed the sidebar bundle on its own,
+# or an aggregate bundle owns it) — two enabled mounts would both register
+# /sidebar/api and fail the whole plugin tree at boot.
+#
+# Note on loader order: `ctx.loader.entries()` sees only rows processed BEFORE
+# this one. If the sidebar bundle precedes this bundle in dsh.profile.bundles
+# (a manual reorder), its own row is already enabled and this guard disables
+# the embedded row; in the standard install order (`dsh plugin add` appends
+# new bundles last) this row registers first and the standalone sidebar row's
+# own guard then disables itself. Either way only one mount survives.
 - insert:
     - id: dsh-remote
       name: 'dsh-remote'
+    - id: dsh-remote-sidebar
+      name: 'dsh-better-sidebar'
+      disabled: !!js "[...ctx.loader.entries()].some((e) => e.options.name === 'dsh-better-sidebar' && !e.disabled)"

@@ -2,6 +2,21 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.7.2 — 2026-08-20
+### 新功能：内嵌 dsh-better-sidebar，一条命令装齐
+- **`dsh plugin add dsh-remote` 自动带出侧边栏**：`dsh-better-sidebar` 从可选
+  集成升级为**硬依赖**（`dependencies`），安装 dsh-remote 时自动装上；`cordis.patch.yml`
+  同时挂载两个插件（`dsh-remote` + `dsh-remote-sidebar`），无需再单独
+  `dsh plugin add dsh-better-sidebar`。
+- **防重复挂载**：内嵌侧边栏行使用独立 id `dsh-remote-sidebar` 并带 guard——
+  若已存在其他 enabled 的 `dsh-better-sidebar` 条目（用户单独装过、或聚合 bundle
+  已提供），内嵌行自动禁用，避免两个实例同时注册 `/sidebar/api` 导致整个插件树
+  启动失败。
+- 说明：若你已单独安装侧边栏，升级后无需卸载——guard 保证只挂载一份。
+- 验证（verify9）：全新 profile `dsh plugin add dsh-remote` → pnpm 自动装
+  better-sidebar → 侧边栏「🌐 远程文件」tab 可用；已单独装侧边栏的 profile 升级后
+  无重复挂载。
+
 ## 0.7.1 — 2026-08-20
 ### 修复：侧边栏显示本地镜像而非远程文件（issue #8 反馈）
 - **现象**：安装 dsh-better-sidebar 后，侧边栏（better-sidebar 右侧面板）默认

@@ -52,6 +52,12 @@ DSH 的 Web 界面刻意只监听 `127.0.0.1`（CLI 为安全拒绝 `--host 0.0.
 dsh plugin add dsh-remote            # 添加 bundle
 ```
 
+一条命令装齐：从 **v0.7.2** 起，侧边栏
+（[dsh-better-sidebar](https://www.npmjs.com/package/dsh-better-sidebar)）是
+**硬依赖并自动挂载** —— 装完 dsh-remote 后，侧边栏里的「🌐 远程文件」目录树和
+远程文件查看器即可直接用，无需额外步骤。如果你已单独安装过该侧边栏，内嵌副本
+会自动退避（不会重复挂载）。
+
 （或 `npm install dsh-remote`，再在 `cordis.patch.yml` 加 `- id: dsh-remote / name: dsh-remote`。）
 
 ## 快速上手

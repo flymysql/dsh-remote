@@ -56,6 +56,13 @@ Real capture (host scrubbed to a placeholder):
 dsh plugin add dsh-remote            # add the bundle
 ```
 
+One command installs everything: since **v0.7.2** the sidebar
+([dsh-better-sidebar](https://www.npmjs.com/package/dsh-better-sidebar)) is a
+hard dependency and is mounted automatically — the 🌐 remote-file explorer and
+remote file viewer show up in the sidebar with no extra step. If you already
+have the sidebar installed on its own, the embedded copy backs off (no double
+mount).
+
 (or `npm install dsh-remote` + add `- id: dsh-remote / name: dsh-remote` in `cordis.patch.yml`).
 
 ## Quick start
