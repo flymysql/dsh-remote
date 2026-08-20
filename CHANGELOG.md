@@ -2,6 +2,26 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.7.0 — 2026-08-20
+### 新功能：dsh-better-sidebar 远程文件浏览（issue #8）
+- **解决 issue #8「是否支持在 dsh-better-sidebar 中显示 ssh 远程主机的文件」**：
+  之前 dsh-better-sidebar 的文件列表显示的是**本地 SFTP 镜像目录**，现在
+  dsh-remote 注册两个侧边栏 tab，实时显示**远程主机**的文件：
+- **`dsh-remote:explorer`（远程文件 🌐 tab）**：实时远程文件树——目录展开走
+  `/dsh-remote/ls`（SSH 直连，不是本地镜像）；顶部显示当前远程工作区与
+  主机；「…」按钮可打开目录选择器切换工作区；面包屑跳转上级目录。
+- **`dsh-remote:file`（远程文件 tab）**：explorer 点文件打开，通过
+  `/dsh-remote/read`（SFTP 实时读）渲染文本（UTF-8/CRLF→LF，256KB 截断），
+  二进制文件显示大小与提示。**只读**——侧边栏编辑器保存会写本地 fs，
+  远程文件若可编辑会静默存进镜像，所以编辑保持在 rw_* 工具/镜像工作流。
+- **设计取舍**：不注册 file viewer（better-sidebar 的 viewer 匹配按扩展名/
+  优先级，无法区分远程/本地路径，catch-all 会劫持所有本地文件打开）；
+  改为专用 tab，只从 explorer 打开。
+- dsh-better-sidebar 未安装时优雅跳过（`ctx.get('betterSidebar')` 守卫），
+  现有功能零回归。
+- 依赖：dsh-better-sidebar **v0.4.0+**（`registerTab` API；issue 报告者用的
+  v0.14.0 验证通过）。
+
 ## 0.6.9 — 2026-08-20
 ### 修复 issue #4「选择目录时，如果有子目录时，选择框会遮挡确定菜单」
 - **现象**：远程目录自动补全下拉从路径输入框向下绝对定位展开（`top: 100%`），
