@@ -2,6 +2,16 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.7.4 — 2026-08-21
+### 新功能：设置页 / 工作区弹窗角落引导链接
+- **设置页底部**：新增「⭐ 去 GitHub 点个 Star · 💬 反馈建议 / 提 issue」引导行
+  （含版本号），低调置底、不影响任何表单操作。
+- **选择工作目录弹窗底部**：新增居中角落「⭐ Star dsh-remote · 提建议 / 报问题」
+  链接，同样不遮挡确认按钮。
+- 目的：把 star / issue 回流入口放到用户高频路径上，提升社区活跃度。
+- 验证：语法 + check.mjs 通过；链接 `target=_blank` + `rel=noopener`，弹窗内
+  点击不会触发 backdrop 关闭。
+
 ## 0.7.3 — 2026-08-21
 ### 修复：远程目录读取间歇性失败（"Channel open failure: open failed"）
 - **现象**：浏览远程目录（远程文件侧边栏 / `rw_list_dir` / `rw_sync`）偶发
