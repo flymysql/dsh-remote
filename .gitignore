@@ -7,4 +7,6 @@ dist/
 dev-harness/
 pnpm-lock.yaml
 pnpm-workspace.yaml
-node_modules/\n*.tgz
+node_modules/
+
+*.tgz
