@@ -2,6 +2,24 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.7.1 — 2026-08-20
+### 修复：侧边栏显示本地镜像而非远程文件（issue #8 反馈）
+- **现象**：安装 dsh-better-sidebar 后，侧边栏（better-sidebar 右侧面板）默认
+  打开的是内置「文件」tab，显示**本地镜像目录**，而不是远程主机的文件。
+- **修复**（纯客户端）：
+  1. **有远程工作区时自动打开「🌐远程文件」tab** —— 注册 explorer 后监听
+     better-sidebar snapshot，一旦有活动 session 且已配置远程工作区，就用
+     `openTab`（带 path seed）把远程文件树打开到右侧面板并**激活**（内置
+     `openTabInActivePane` 会把新 tab 设为 active），用户打开侧边栏直接看到
+     远程文件，无需再点底部面板的卡片。
+  2. **explorer 打开时自动加载目录** —— `refreshStatus` 首次设 levels 时立即
+     `loadDir(workspace, 0)`，修复之前打开 explorer 显示「（空目录）」直到
+     手动点 ↻ 的问题。
+- 验证（verify8：dsh-better-sidebar@0.14.0 + dsh-remote 0.7.1）：
+  - 右侧面板 tab 条：`Files 🌐远程文件`，远程文件激活显示
+  - 内容：`远程工作区: /home/mmdev (root@9.134.186.191)` + 远程目录（gcc7）
+  - 点击 gcc7 进入显示其子目录（lib64/libexec/bin/lib/include/share）
+
 ## 0.7.0 — 2026-08-20
 ### 新功能：dsh-better-sidebar 远程文件浏览（issue #8）
 - **解决 issue #8「是否支持在 dsh-better-sidebar 中显示 ssh 远程主机的文件」**：
