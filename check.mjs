@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const src = readFileSync(path.join(here, 'lib', 'index.js'), 'utf8')
+const src = readFileSync(path.join(here, 'lib', 'index.js'), 'utf8').replace(/\r\n/g, '\n')
 const file = path.relative(process.cwd(), path.join(here, 'lib', 'index.js'))
 
 let fail = 0
@@ -66,6 +66,28 @@ while ((m = routeRe.exec(src))) {
   }
 }
 console.log(`  route-prefix lint: ${rTotal} route(s) checked`)
+
+// ── 5) defineTool 参数里 type:'object' 必须显式 additionalProperties ──────
+// 依据：@deepseek-ai/dsh-tools runSchemaCompiler() case "object"：
+//   没有显式 boolean additionalProperties 直接 authorError，导致插件树加载失败
+//   （用户 dsh 0.1.0-rc.8 启动崩溃，issue #9）。只在 defineTool({...}) 参数块内检查。
+const toolBlocks = [...src.matchAll(/defineTool\(\{[\s\S]*?\n    \}\)/g)].map(m => m[0])
+let sTotal = 0
+for (const toolBlock of toolBlocks) {
+  const paramsMatch = toolBlock.match(/parameters:\s*\{([\s\S]*?)\n      \},\n      output:/)
+  if (!paramsMatch) continue
+  const paramsBody = paramsMatch[1]
+  for (const m of paramsBody.matchAll(/type:\s*'object'/g)) {
+    sTotal++
+    const lineNo = lineOf(src, m.index + src.indexOf(toolBlock))
+    if (!/additionalProperties:\s*(?:true|false)/.test(paramsBody)) {
+      fail++
+      console.log(`  ✗ ${file}:${lineNo}: type:'object' param must declare additionalProperties: true|false`)
+    }
+  }
+}
+if (sTotal) console.log(`  object-schema lint: ${sTotal} type:'object' param(s) checked`)
+else console.log('  object-schema lint: no type:\'object\' params found')
 
 function lineOf(text, idx) {
   return text.slice(0, idx).split('\n').length

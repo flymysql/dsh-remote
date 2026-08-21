@@ -2,6 +2,19 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.4 — 2026-08-21
+### 修复：dsh 0.1.0-rc.8 安装 0.8.3 启动崩溃（issue #9）
+- **现象**：`dsh web` 启动报 `unsupported JSON schema: parameters.env.additionalProperties
+  must be explicitly true or false`，插件树加载失败、整个 Harness 无法启动。
+- **根因**：`rw_exec` 工具的 `env` 参数 schema 是 `{ type: 'object' }`，没有显式
+  `additionalProperties`。dsh 0.1.0-rc.8 内嵌的 dsh-tools（0.1.0-rc.8）schema 编译器
+  强制 `type:'object'` 必须显式声明 `additionalProperties: true|false`，缺失即抛
+  `JsonSchemaError`（0.7.1/0.6.7 能启动是因为它们自带/解析到宽松的 dsh-tools 版本）。
+- **修复**：`rw_exec.env` 补上 `additionalProperties: true`（env 是任意 key 的环境变量
+  映射，语义上就是 open map）。
+- **回归防护**：`check.mjs` 新增「defineTool 参数里 `type:'object'` 必须显式
+  `additionalProperties`」静态检查，部署前闸门会拦截同类问题。
+
 ## 0.8.3 — 2026-08-21
 ### 新功能：添加机器表单折叠高级配置
 - 基础字段（名称 / 主机 / 端口 / 用户 / 密码）始终可见，覆盖最常见的
