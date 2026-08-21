@@ -2,6 +2,36 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.5 — 2026-08-21
+### 新功能：侧边栏远程文件树跟随会话工作区 + 目录选择器补全体验
+- **远程文件 tab 跟随会话工作区**：每个会话的「远程文件」侧边栏目录不再固定显示
+  机器级默认 workspace，而是跟随会话自身 cwd。新增 host 端点
+  `GET /dsh-remote/resolve-mirror?local=<abs>|?sessionId=<id>`：遍历
+  `$DSH_HOME/remote-workspaces/` 下各镜像目录的 `.dsh-remote-meta.json`，把会话 cwd
+  （镜像目录）映射回真实远程路径；`?sessionId=` 时优先读 host sessions 服务的
+  `header.cwd`，活跃会话查不到（历史会话）时走会话日志兜底——按 sessionId 定位
+  `$DSH_HOME/sessions/**/<sessionId>/session.jsonl.zstd`（或 .jsonl/.gz），解第一帧
+  zstd 读 header.cwd。无匹配回退机器 workspace。
+- **侧边栏远程文件树形展开**：RemoteExplorerTab 从「面包屑 + 单级列表」重写为树形
+  文件树，与 better-sidebar 内置本地文件树交互一致——目录点击展开/收起（📂/📁，
+  黑色 SVG 图标）、子目录递归、缩进、右键菜单（打开/下载到本地镜像/重命名/删除）；
+  根目录默认展开显示第一级；行 hover 高亮。数据走 `/dsh-remote/ls`，条目用
+  joinRemote 补绝对路径。展开状态复用框架 `expanded`/`onToggleDir`，与本地树
+  互不干扰。
+- **新会话自动打开远程文件 tab**：auto-open 的集成级单例 flag 改为按 sessionId
+  记忆（`autoOpenedFor` Set），每个会话独立 auto-open 一次，修复「新会话没有
+  远程文件页签、旧会话才有」的问题。
+- **会话 cwd 时序修复**：RemoteExplorerTab 的 `refreshStatus` 依赖改为
+  `[scopeCwd, sessionId]`——better-sidebar 的 scope.cwd 可能异步到达（fetchedCwd
+  经 `api.sessionCwd` 拉取），原先空依赖只在挂载时解析一次，cwd 落地后不重新解析，
+  导致所有会话都显示机器 workspace；现在切换会话 / cwd 落地都会自动重新
+  resolve-mirror，A 工作区会话显示 A、B 工作区会话显示 B。
+- **目录选择器补全体验**：选择子目录后路径自动补全尾部 `/`（或 Windows `\`），
+  可继续输入下一级；选择子目录后弹出的下一级候选不再只列目录（原来过滤掉文件，
+  看起来列表不齐），改为目录+文件全部显示，与输入时的补全一致。
+- **UI 视觉**：树行文字改为跟随主题的正文字色（去掉绿色强调），文件图标统一为
+  黑色 SVG。
+
 ## 0.8.4 — 2026-08-21
 ### 修复：dsh 0.1.0-rc.8 安装 0.8.3 启动崩溃（issue #9）
 - **现象**：`dsh web` 启动报 `unsupported JSON schema: parameters.env.additionalProperties
