@@ -5,20 +5,49 @@
 # Since v0.7.2 dsh-remote ships dsh-better-sidebar as a hard dependency and
 # mounts it here, so `dsh plugin add dsh-remote` brings up the sidebar with
 # zero extra steps. The sidebar row uses a DEDICATED id (`dsh-remote-sidebar`)
-# and a guard so it backs off when another entry already mounts
-# `dsh-better-sidebar` (e.g. the user installed the sidebar bundle on its own,
-# or an aggregate bundle owns it) — two enabled mounts would both register
-# /sidebar/api and fail the whole plugin tree at boot.
+# and a guard so it backs off when another row mounts `dsh-better-sidebar`
+# (e.g. the user installed the sidebar bundle on its own, or an aggregate
+# bundle owns it) — two enabled mounts would both register /sidebar/api and
+# fail the whole plugin tree at boot.
 #
-# The guard checks EXISTENCE only (id + name), never the `disabled` property of
-# other rows: reading another row's disabled inside this row's disabled
-# expression would recursively re-enter the loader and overflow the stack
-# (dsh-better-sidebar's own row carries a disabled expression too, so the two
-# would ping-pong). Existence is sufficient — the standalone row is only ever
-# created when the user (or an aggregate bundle) explicitly mounts the sidebar.
+# Order-independence (issue #12): the guard must NOT depend on
+# `ctx.loader.entries()` creation order. The loader creates entries in bundle
+# order and each row's disabled expression is evaluated at creation time, when
+# only rows created BEFORE it are visible — so with
+# `bundles: [..., "dsh-remote", "dsh-better-sidebar", ...]` (standalone sidebar
+# installed after dsh-remote, the normal `dsh plugin add` append order) both
+# rows saw no other sidebar mount and BOTH started, crashing boot with
+# `duplicate prefix route "/sidebar/api"`.
+#
+# Instead we scan the COMPOSED PATCH STACK — the include entry's
+# `config.patches` (every bundle layer in `dsh.profile.bundles` order, then the
+# profile/home/overlay layers) — for any OTHER row that mounts
+# `dsh-better-sidebar`. That data is fully materialized before any row guard
+# evaluates, so the outcome is identical no matter where the standalone bundle
+# sits in the bundle list. It is also pure data: it never reads another row's
+# `disabled` (reading another row's disabled expression would recursively
+# re-enter the loader — dsh-better-sidebar's own row carries one too, so the
+# two would ping-pong), so no recursion is possible. The old entries()-based
+# check is kept as a belt-and-suspenders fallback for rows not visible in the
+# patch stack (e.g. an entry injected at runtime by HMR or another plugin).
 - insert:
     - id: dsh-remote
       name: 'dsh-remote'
     - id: dsh-remote-sidebar
       name: 'dsh-better-sidebar'
-      disabled: !!js "[...ctx.loader.entries()].some((e) => e.options.name === 'dsh-better-sidebar' && e.options.id !== 'dsh-remote-sidebar')"
+      disabled: !!js >-
+        (function () {
+          try {
+            const inc = ctx.loader && ctx.loader.resolve && ctx.loader.resolve('include')
+            const patches = inc && inc.subtree && inc.subtree.config && inc.subtree.config.patches
+            if (Array.isArray(patches)) {
+              for (const p of patches) {
+                if (!p || !Array.isArray(p.insert)) continue
+                for (const row of p.insert) {
+                  if (row && row.name === 'dsh-better-sidebar' && row.id !== 'dsh-remote-sidebar') return true
+                }
+              }
+            }
+          } catch (e) {}
+          return [...ctx.loader.entries()].some((e) => e.options.name === 'dsh-better-sidebar' && e.options.id !== 'dsh-remote-sidebar')
+        })()

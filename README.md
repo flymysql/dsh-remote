@@ -65,7 +65,15 @@ One command installs everything: since **v0.7.2** the sidebar
 hard dependency and is mounted automatically — the 🌐 remote-file explorer and
 remote file viewer show up in the sidebar with no extra step. If you already
 have the sidebar installed on its own, the embedded copy backs off (no double
-mount).
+mount) — regardless of whether the standalone bundle is listed **before or
+after** `dsh-remote` in `dsh.profile.bundles` (order-independent guard since
+0.8.7; earlier versions crashed boot with `duplicate prefix route
+"/sidebar/api"` when the standalone bundle came after `dsh-remote`).
+
+> **Upgrading from ≤0.8.6 with a standalone sidebar?** You may keep the
+> standalone `dsh-better-sidebar` bundle (any order) — 0.8.7+ no longer
+> crashes. Or remove it from `bundles` and let dsh-remote mount the embedded
+> copy (version ^0.14.0).
 
 > **Requires the profile's pnpm linker to be `hoisted`** (the DSH profile
 > default, `nodeLinker: hoisted` in `pnpm-workspace.yaml`). The loader resolves
@@ -82,6 +90,9 @@ mount).
 1. **Add a machine** — Settings → 远程工作区 → add host/port/user + key or password → (optional) set it current.
 2. **Open a workspace** — click **Add workspace** in the sidebar / conversation:
    - **本机** → system folder chooser (or type a local path) → local workspace.
+     On hosts without a usable OS dialog (DSH Desktop's browse backend, headless
+     SSH hosts without zenity/kdialog) the in-app directory browser pops up
+     instead — breadcrumbs, Windows drive switch, new-folder, pick-and-fill.
    - **远程** → choose the machine → browse to a remote directory (or type `/path`) → "设为远程工作区" ⇒ a local mirror workspace is created and adopted.
 3. **Work with the agent** — treat it like any workspace:
    - `rw_list_dir(path?)`/`rw_read_file` — inspect remote files

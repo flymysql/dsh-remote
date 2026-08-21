@@ -2,6 +2,31 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.7 — 2026-08-21
+### 修复：内嵌侧边栏 guard 与 bundle 顺序无关（issue #12）+ 本机目录选择器支持 browse 后端（issue #11）
+- **issue #12 — 自动挂载 better-sidebar 的守卫失效导致启动崩溃**：当 profile 显式装有
+  独立 `dsh-better-sidebar` 且排在 `dsh-remote` **之后**时，两个 better-sidebar 实例同时
+  启用，第二个注册 `/sidebar/api` 报 `duplicate prefix route`，整个插件树启动失败。
+  - **根因**：loader 按 bundle 顺序创建条目，每行的 `!!js` disabled 表达式在创建时求值，
+    只能看到**排在自己前面**的行。`dsh-remote-sidebar` 的 guard 查不到后面的独立
+    better-sidebar，两边都认为自己没有对手 → 双挂载。
+  - **修复**：guard 不再依赖 `ctx.loader.entries()` 的创建顺序，改为扫描**已合成的 patch
+    栈**（`include.subtree.config.patches`，即所有 bundle 层 + profile/home/overlay 层的
+    全部插入行）——该数据在任意行 guard 求值前已完整物化，因此无论独立 better-sidebar
+    排在 bundle 列表的什么位置结果都一致。纯数据访问、不读其它行的 `disabled`，无递归。
+    原 `entries()` 检查保留作兜底（覆盖运行时注入的行）。
+  - **验证**：`bundles: [..., "dsh-remote", "dsh-better-sidebar"]`（复现原崩溃）与
+    `[..., "dsh-better-sidebar", "dsh-remote"]` 均正常启动、侧边栏仅挂载一份。
+- **issue #11 — 本机目录选择器在 DSH Desktop（browse 后端）不可用**：桌面版启动器在
+  win32 故意挂载 browse 后端（native 后端的 Win32 对话框 worker 在 Electron 壳里
+  无法运行），但插件只认 `kind === 'native'`，导致 browse 能力被完全忽略。
+  - **修复**（合入 PR #10）：`local-pick` 按能力分支 native → 自持 OS 对话框
+    （PowerShell/osascript/zenity-kdialog）→ browse 兜底；新增 `GET /dsh-remote/local-list`
+    与 `POST /dsh-remote/local-mkdir` 代理 browse 后端，客户端新增本机目录浏览浮层
+    （面包屑 / 盘符切换 / 新建目录 / 选择回填），无显示器宿主也能选目录。
+  - **验证**：DSH Desktop（win32）本机 tab 正常弹出系统文件夹选择器；无 zenity/kdialog
+    的 Linux 宿主走应用内目录浏览器。
+
 ## 0.8.6 — 2026-08-21
 ### 修复：设置页底部版本号硬编码为 v0.8.3
 - **现象**：设置页底部「dsh-remote v0.8.3」永远显示 0.8.3，即使安装的是更新版本。
