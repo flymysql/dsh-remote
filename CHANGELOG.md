@@ -2,6 +2,41 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.8 — 2026-08-24
+### 修复：Remote context 改为 session 级隔离，保存的机器不再自动成为全局 Agent 上下文（issue #13）
+
+**核心语义变化：`Saved Connections ≠ Active Remote Context`。** 保存 SSH 机器只是备用连接；
+只有用户显式「设为当前」（或调用 `rw_connect`）才会激活 remote context。普通本地 session
+不再被任何已保存/当前机器拖入远程上下文。
+
+- **问题 1 — 没有「当前无远程上下文」状态**：旧逻辑 `currentId` 为空时 fallback 到第一台
+  机器、添加第一台机器自动设为 current、删除当前机器后自动换到另一台，导致「保存了一台
+  SSH 机器」几乎等价于「Agent 永远有一个 remote context」。
+  - **修复**：`loadMachines` 不再 fallback；add/update 不再自动设 current（保留原有
+    `currentId` 字段）；删除当前机器后 `currentId` 置 null（不自动换机）；`/dsh-remote/
+    current` 支持 `{ id: '' }` 显式「active remote = none」；设置页新增「取消设为当前」
+    按钮。`currentId: null` 会持久化（`explicitNone`），重启后配置级默认 host 也不会
+    静默重新激活被用户取消的上下文。
+- **问题 2 — 切换/删除远程 workspace 后侧边栏仍显示旧远程目录**：`resolve-mirror` 对
+  非 mirror 的 session cwd fallback 到 `machine.workspace`，把别台机器记住的默认目录
+  显示到本地 session 的「远程文件」tab。
+  - **修复**：`resolve-mirror` 不再 fallback —— 非 mirror session 返回
+    `remotePath: ''`、`mode: 'local'`；侧边栏 `RemoteExplorerTab` 也不再回退到
+    `status().workspace`，本地 session 显示「当前会话未使用远程工作区」；新 session 的
+    「远程文件」tab 只在 session 确为远程时自动打开。
+- **问题 3 — 本地 session 突然自动分析远程项目**：system prompt 只要有 `config.host +
+  workspace` 就注入「Current remote workspace: user@host:/path … Treat this directory as
+  the working root」，完全不看当前 session 是否真的选择了该 remote workspace。
+  - **修复**：prompt 注入改为 session-aware —— section 的 `text()` 按本次 assembly 的
+    `context.agent.session.header.cwd` 判断，只有 cwd 能映射到 dsh-remote mirror（即用户
+    确实把远程 mirror 选为 session 工作区）时才注入；普通本地 session 不注入 remote
+    段落，模型自然也不会被引导去调用 `rw_*`。
+- **配套**：`/dsh-remote/status` 新增 `sessionMode` / `sessionRemotePath`（支持
+  `?sessionId=` 按 session 查询）；`rw_info` 输出增加「Session remote context」行并说明
+  session-scoped 语义；机器注册表纯逻辑抽到 `lib/registry.js` 并新增 `test/registry.test.js`
+  （56 项测试全绿，覆盖：不 fallback、不自动激活、删除不换机、explicitNone 持久化、
+  keepCurrentKey 保留语义）。
+
 ## 0.8.7 — 2026-08-21
 ### 修复：内嵌侧边栏 guard 与 bundle 顺序无关（issue #12）+ 本机目录选择器支持 browse 后端（issue #11）
 - **issue #12 — 自动挂载 better-sidebar 的守卫失效导致启动崩溃**：当 profile 显式装有

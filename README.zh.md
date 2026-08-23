@@ -70,6 +70,9 @@ dsh plugin add dsh-remote            # 添加 bundle
 ## 快速上手
 
 1. **加一台机器** —— 设置 → 远程工作区 → 填 host/port/user + 密码或 key →（可选）设为当前。
+   > **保存 ≠ 激活（v0.8.8+）**：保存的机器只是备用连接，不会自动进入任何 session 的
+   > remote context。只有「设为当前」（或 Agent 显式调用 `rw_connect`）才激活当前机器；
+   > 「取消设为当前」可回到 `active remote = none`。
 2. **选工作区** —— 点侧边栏/会话的 **Add workspace**：
    - **本机** → 系统文件夹选择（或输入本地路径）→ 本地工作区。
    - **远程** → 选机器 → 浏览到远程目录（或输入 `/path`）→ 「设为远程工作区」⇒ 创建并收养一个本地镜像工作区。
@@ -79,6 +82,12 @@ dsh plugin add dsh-remote            # 添加 bundle
    - `rw_search(pattern, path?)` —— 远程 grep
    - `rw_exec(command, cwd?)` —— 在远程执行命令（默认在工作区目录）
    - `rw_sync` / `rw_push` —— 拉取/推送本地镜像 <-> 远程
+
+> **Remote context 是 session 级的（v0.8.8+）**：system prompt 只会在**当前 session 的
+> cwd 位于某个远程 mirror 内**（即你把远程目录选成了这个 session 的工作区）时注入
+> 「Remote workspace」段落；普通本地 session 不注入、侧边栏「远程文件」也不显示任何
+> 机器默认目录，模型不会主动调用 `rw_*`。混合访问（本地 + 远程同屏比较）请通过显式
+> 选择远程工作区进行。
 
 ## 可选：CLI 默认机
 
