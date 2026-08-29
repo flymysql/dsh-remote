@@ -35,7 +35,9 @@ DSH 的 Web 界面刻意只监听 `127.0.0.1`（CLI 为安全拒绝 `--host 0.0.
 - **多机 SSH** —— 可存任意多台主机（host/port/user + **私钥**或**密码**）。密码只存在本地，界面不回显；在设置里一键切当前机。
 - **双 tab 工作区选择器**（填充原生「Add workspace」流程）：
   - **本机** —— 走 **host 端原生系统文件夹对话框**选本地目录（或直接输入本地路径）→ 直接成为普通 DSH 本地工作区（与本地工作区共存）。优先用 DSH 的 `directoryPicker` 服务，服务缺失时**回退到插件自持的原生选择器**（macOS `osascript` / Linux `zenity`→`kdialog`）——桌面启动路径上框架服务不注册也能用。
-  - **远程** —— 选择器是**居中弹窗**（窄侧边栏也不会被挤压）。先**选机器** → 路径框**自动预填 `/`** 并**实时补全**目录；**选中一个目录立即列出它下一级**（OS/VSCode 式级联）。另有 **「浏览…」浮层**（不透明、定高、内部滚动、跟随软链），选中**回填输入框不提交**，你复核/修改后再确定。确定会创建**真实本地镜像**（`$DSH_HOME/remote-workspaces/<host>-<user>-<port>/<basename>`；仅当同主机上**别的远端路径**已占用同名 basename 时才追加短路径 hash）→ harness 把它当真实工作区收养，同时 dsh-remote 通过 SFTP 保持同步。所选工作区会**持久化到该机器**，重启不丢。
+  - **远程** —— 选择器是**居中弹窗**（窄侧边栏也不会被挤压）。先**选机器** → Windows 主机根级显示 **「此电脑」多盘视图**（`C:\`、`D:\`、`E:\`…，而不是 Git Bash 的 MSYS 根），路径框**实时补全**目录（支持 `C:\Users\…` 或 `/c/Users/…` 任意写法，Windows 路径在底层自动改写为 Git Bash 形式）；**选中一个目录立即列出它下一级**（OS/VSCode 式级联）。另有 **「浏览…」文件选择式浮层**（Windows 面包屑 `此电脑 / C:\ / Users / dev` 可点击跳级、驱动器行、大小/时间、跟随软链），选中**回填输入框不提交**，你复核/修改后再确定；「回上一级」任意深度可用（包括浮层直接打开在路径栏当前路径时）。**最近工作区**快捷入口、**`~` 主目录**、**新建目录**一键可达。确定会创建**真实本地镜像**（`$DSH_HOME/remote-workspaces/<host>-<user>-<port>/<basename>`；仅当同主机上**别的远端路径**已占用同名 basename 时才追加短路径 hash）→ harness 把它当真实工作区收养，同时 dsh-remote 通过 SFTP 保持同步。所选工作区会**持久化到该机器**，重启不丢。
+- **Git Bash 默认终端（Windows 主机）** —— 自动探测远程平台（`cmd /c ver`，附 `uname -s` 的 MINGW/MSYS 探测兜底）；Windows 机器自动定位 Git Bash（`config.shell` 可显式指定或 `native` 关闭），所有命令经 `bash -s` 从 SSH 通道 stdin 管道执行，不依赖 cmd/PowerShell，也不受引号/反斜杠转义困扰；`rw_exec` 默认在 Git Bash 形式的 cwd（`/c/Users/…`）下执行。`/dsh-remote/status`、`rw_info`、设置页「测试连接」都会报告检测到的平台与 shell。
+- **Windows 路径自动改写** —— 用户输入 `C:\Users\dev\project`（或 `C:/…`、`/c/…`、`/C:/…`）时底层自动规范为 Git Bash 形式 `/c/Users/dev/project` 执行；工作区存储与展示为 Windows 形式 `C:\Users\dev\project`。模型工具全部接受并展示两种写法；SFTP 访问使用 Win32-OpenSSH 的 `/D:/…` 形式（见 `toSftpPath`）。
 - **双向 SFTP 同步（增量）** —— `rw_sync`（远程→镜像）、`rw_push`（镜像→远程），本地镜像改动可回传机器。两者都会**跳过 size+mtime 未变化的文件**，并有**单文件大小上限**防误拉大二进制；目录遍历带**有界并发**。
 - **模型工具** —— `rw_info`、`rw_connect`、`rw_pick_workspace`、`rw_list_dir`、`rw_read_file`、`rw_write_file`、`rw_exec`（默认在工作区目录执行，可传 `cwd=`）、`rw_search`（可移植递归 grep）、`rw_download`、`rw_upload`、`rw_sync`、`rw_push`、`rw_disconnect`。
 - **直接写远程文件** —— `rw_write_file` 直接创建/覆盖远程文件（自动建父目录），单个文件改动不必绕本地镜像来回同步；`rw_download` / `rw_upload` 可单文件双向取真字节。
@@ -170,6 +172,7 @@ scripts/dev-run.sh --status    # 是否在运行
 | `password` | string | `''` | 默认 SSH 密码（非空覆盖 key） |
 | `privateKeyPath` | string | `''` | 私钥路径（仅在显式提供时使用） |
 | `workspace` | string | `''` | 默认远程工作区路径 |
+| `shell` | string | `''` | 远程命令终端策略：`''`=自动检测（Windows 找 Git Bash）、`'git-bash'`=优先 Git Bash、`'native'`=不包装、其他=显式 bash.exe 路径（如 `C:\Program Files\Git\bin\bash.exe`） |
 | `commandTimeoutMs` | int | 20000 | 单条远程命令超时 |
 | `connectTimeoutMs` | int | 15000 | SSH 连接超时 |
 | `maxFileBytes` | int | 52428800 | 镜像同步时跳过超过该大小的文件（0=不设上限） |
