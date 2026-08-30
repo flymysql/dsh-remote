@@ -59,7 +59,7 @@ export function makeSftp(fs) {
     readFile: (p) => Promise.resolve(fs.readFileSync(p)),
     writeFile: (p, buf) => { fs.writeFileSync(p, buf); return Promise.resolve() },
     fastGet: (p, lp) => { fs.writeFileSync('@local:' + lp, fs.readFileSync(p)); return Promise.resolve() },
-    fastPut: (p, lp) => { fs.writeFileSync(p, fs.readFileSync('@local:' + lp)); return Promise.resolve() },
+    fastPut: (lp, p) => { fs.writeFileSync(p, fs.readFileSync('@local:' + lp)); return Promise.resolve() },
   }
 }
 
