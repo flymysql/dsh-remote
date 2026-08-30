@@ -2,6 +2,28 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.9 — 2026-08-29
+### 新增：Git Bash 默认终端（Windows 主机）+ 「此电脑」多盘根视图 + Windows 路径自动改写；修复浏览浮层「回上一级」与路径栏残留上次选择
+
+- **Git Bash 默认终端** —— 连接后自动探测远程平台（`cmd /c ver`，附 `uname -s` 的
+  MINGW/MSYS 兜底）；Windows 机器自动定位 Git Bash（`config.shell` 可显式指定 bash.exe
+  路径、`'git-bash'` 或 `'native'` 关闭），所有命令经 `bash -s` 从 exec 通道 stdin 管道
+  执行 —— 不经过 cmd/PowerShell 解析，引号/反斜杠/换行内容原样执行。`rw_exec` 的 cwd
+  在 Git Bash 模式下自动改写为 `/c/Users/…` 挂载形式。`/dsh-remote/status`、`rw_info`、
+  设置页「测试连接」均报告检测到的 `platform` / `shell` / `gitBash`。
+- **「此电脑」多盘根视图** —— 远程选择器在 Windows 主机根级显示驱动器列表
+  （`C:\` `D:\` `E:\`…，经 `cmd /c fsutil fsinfo drives`，回退 `ls -d /[a-z]`），不再
+  显示 Git Bash 的 MSYS 根目录；平台探测未决时也尝试枚举（POSIX 主机自然回落）。
+- **Windows 路径自动改写** —— 输入 `C:\Users\…` / `C:/…` / `/c/…` / `/C:/…` 统一规范为
+  Git Bash 形式 `/c/Users/…` 供 shell 命令执行，工作区存储与展示为 Windows 形式
+  `C:\Users\…`；`/dsh-remote/ls` 条目携带完整展示形路径，客户端不再自行拼接路径。
+  `paths.js` 新增纯函数 `toShellPath` / `toDisplayPath`（含单测）。
+- **浏览浮层修复** —— 「回上一级」在任意深度可用：浮层直接打开在路径栏当前路径
+  （levels 仅一层）时，向上导航会加载父目录而非置灰；浏览弹层打开时与路径栏同步。
+- **路径栏修复** —— 选择器每次打开/切换 tab/切换机器时重置路径栏，不再残留上一次
+  在 DSH 页面选择的路径；面包屑 Windows 化（`此电脑 / C:\ / Users / dev` 可点击跳级）。
+- 新增配置项 `shell`；文档（README / README.zh / CHANGELOG）同步更新。
+
 ## 0.8.8 — 2026-08-24
 ### 修复：Remote context 改为 session 级隔离，保存的机器不再自动成为全局 Agent 上下文（issue #13）
 

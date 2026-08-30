@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   shq, normalizeRemotePath, joinRemotePath, remoteDirname, mkdirRemoteDirs,
-  toSftpPath, remotePathBase, truncate, shortHash, relPathUnder,
+  toSftpPath, toShellPath, toDisplayPath, remotePathBase, truncate, shortHash, relPathUnder,
 } from '../lib/paths.js'
 
 test('shq quotes single quotes', () => {
@@ -41,6 +41,36 @@ test('toSftpPath converts drive letters', () => {
   assert.equal(toSftpPath('/a/b'), '/a/b')
   assert.equal(toSftpPath('D:\\Code'), '/D:/Code')
   assert.equal(toSftpPath('C:/Users/x'), '/C:/Users/x')
+})
+
+test('toShellPath → Git Bash mount form', () => {
+  assert.equal(toShellPath('C:\\Users\\dev'), '/c/Users/dev')
+  assert.equal(toShellPath('C:/Users/dev'), '/c/Users/dev')
+  assert.equal(toShellPath('c:/Users/dev'), '/c/Users/dev')
+  assert.equal(toShellPath('/c/Users/dev'), '/c/Users/dev')
+  assert.equal(toShellPath('/C:/Users/dev'), '/c/Users/dev')
+  assert.equal(toShellPath('C:'), '/c')
+  assert.equal(toShellPath('C:\\'), '/c')
+  assert.equal(toShellPath('C:\\Program Files'), '/c/Program Files')
+  assert.equal(toShellPath('/c'), '/c')
+  // POSIX passthrough + collapse
+  assert.equal(toShellPath('/home/dev/code'), '/home/dev/code')
+  assert.equal(toShellPath('/a//b/../c'), '/a/c')
+  // UNC → //server/share
+  assert.equal(toShellPath('\\\\server\\share\\x'), '//server/share/x')
+})
+
+test('toDisplayPath → Windows native form', () => {
+  assert.equal(toDisplayPath('/c/Users/dev', 'windows'), 'C:\\Users\\dev')
+  assert.equal(toDisplayPath('/c', 'windows'), 'C:\\')
+  assert.equal(toDisplayPath('/C:/Users', 'windows'), 'C:\\Users')
+  assert.equal(toDisplayPath('C:/Users', 'windows'), 'C:\\Users')
+  assert.equal(toDisplayPath('', 'windows'), '')
+  // POSIX-looking paths are NOT rewritten
+  assert.equal(toDisplayPath('/home/dev', 'windows'), '/home/dev')
+  // POSIX remotes pass through unchanged
+  assert.equal(toDisplayPath('/c/Users', 'posix'), '/c/Users')
+  assert.equal(toDisplayPath('/home/dev', 'posix'), '/home/dev')
 })
 
 test('remotePathBase', () => {
