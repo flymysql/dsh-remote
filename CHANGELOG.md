@@ -2,6 +2,25 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.10 — 2026-08-31
+### 修复：`rw_upload` 自引入即坏 —— `sftp.fastPut` 参数顺序颠倒（ssh2 契约为 `fastPut(本地, 远程)`）
+
+- **根因**：`rw_upload` 调用的是 `sftp.fastPut(rp, lp)`，把**远程路径当本地路径**传给了
+  ssh2。ssh2 的真实签名是 `fastPut(localPath, remotePath)`（与
+  `fastGet(remotePath, localPath)` 恰好相反），于是 ssh2 尝试把远程路径当本地文件打开：
+  Windows 上 `/home/…` 按当前盘解析为
+  `C:\home\…` → `ENOENT: no such file or directory, open 'C:\home\…'`。即使传入
+  完全正确的 `localPath`（如 `D:/…`）也必然失败 —— 该工具自
+  0.6.x 引入以来从未成功过。`rw_push` / `rw_sync` / `rw_download` 走 `writeFile` /
+  `fastGet`，参数顺序本来就正确，不受影响。
+- **修复**：改为 `sftp.fastPut(lp, rp)`（本地在前）；SFTP wrapper 的参数名同步改为
+  `(lp, p)` 并注明 ssh2 契约，防止回归。
+- **回归测试**：新增 `test/upload.test.js` —— 原型替换 `ssh2.Client`（完全离线），
+  驱动真实 `apply()` + 连接池 + SFTP wrapper，断言 `fastPut` 收到 `(本地, 远程)` 顺序；
+  该测试对旧顺序如约失败。
+- **连带纠正**：`test/helpers.js` 的 `MemFs.fastPut` mock 此前也编码了颠倒的顺序
+  （潜在坑：任何基于它的测试都无法发现这类 bug），已纠正为真实契约。
+
 ## 0.8.9 — 2026-08-29
 ### 新增：Git Bash 默认终端（Windows 主机）+ 「此电脑」多盘根视图 + Windows 路径自动改写；修复浏览浮层「回上一级」与路径栏残留上次选择
 
