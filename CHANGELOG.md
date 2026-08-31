@@ -2,6 +2,21 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.11 — 2026-08-31
+### 新增：Web UI 国际化（i18n）—— zh / en 双语文案 + 英文回退（issue #14）
+
+- **词典**：`lib/client.js` 内置 `L.zh` / `L.en` 两套键集完全一致的文案词典
+  （设置页、目录选择器、远程文件侧边栏、文件查看/编辑等全部用户可见字符串）。
+- **跟随宿主语言**：通过 DSH 原生 client `locale` 服务（`ctx.locale.register`
+  注册 `dsh-remote` 命名空间 + `bind` 翻译函数），活动语言切换时文案实时更新；
+  宿主 locale 不可用时回退到浏览器语言（`navigator.languages`），再不行默认英文。
+- **英文回退链**：查找顺序 活动语言 → `en` → 原始 key（缺失文案保持可见，绝不空白）。
+- **宿主错误信息本地化**：`lib/index.js` 返回的已知中文错误（目录选择超时、选择器
+  程序缺失、Windows 无 `~` 解析、npm registry 不可达等）在客户端 `api()` / `apiRaw()`
+  层按词典翻译，非 zh 界面不再出现中文报错。
+- **回归测试**：新增 `test/i18n.test.js`（4 项）—— zh/en 键集一致、`tr()` 引用的
+  key 全部存在、无空翻译、zh/en 插值占位符集合一致。
+
 ## 0.8.10 — 2026-08-31
 ### 修复：`rw_upload` 自引入即坏 —— `sftp.fastPut` 参数顺序颠倒（ssh2 契约为 `fastPut(本地, 远程)`）
 
