@@ -2,6 +2,47 @@
 
 All notable changes to **dsh-remote**.
 
+## Unreleased
+### 修复：多远端会话互相抢占同一个 SSH 连接 —— 命令会被静默发往错误的主机（issue #25）
+
+- **根因**：SSH 连接与远程工作区都是**进程级单例**。插件经 `cordis.patch.yml` 挂进
+  host composition（非 preset `isolate` realm），整个进程只 `apply()` 一次，于是
+  `const pool = new SshPool(config)` 与 `wsPath() = config.workspace` 被所有会话共享。
+  任一会话切换机器时 `setTarget()` 改写共享的 `config` 身份**并调用 `this.close()`**
+  掐断另一会话正在用的连接。而 18 个 `rw_*` 工具全部写作 `execute(args)`，从不接 DSH
+  传入的第二个参数 `exec: ToolRunContext`，因此拿不到 `exec.agent.session` —— 只能认
+  pool 的当下状态。后果不是"连接被反复重建"这类性能问题，而是**命令静默发往错误主机**：
+  连接本身健康，只是连错了机器，所以没有任何报错。
+- **issue #13 只修了「读」的一半**：`sessionRemotePath()` / systemPrompt / resolve-mirror
+  端点确实按 `session.header.cwd` 反查镜像，所以*提示词*是对的；但*执行路径*一行未动。
+  读写不对称正是本问题的根因。
+- **修复**：
+  - 新增 `lib/binding.js`：`resolveMirror(local, root)` 从会话 cwd 反查其所属镜像的
+    `.dsh-remote-meta.json`，返回该镜像记录的 `host/port/username` 与 `remotePath`；
+    `poolKey(m)` 给出规范化的 `user@host:port` 连接键。
+  - **per-machine 连接池**：`machinePools: Map<poolKey, SshPool>` 取代单例。同一台机器
+    的多个会话仍共享一条连接（保留 keepalive / 断线重连模型），不同机器的会话彼此独立。
+  - **工具按会话绑定**：会话相关的 `rw_*` 接 `exec` 参数，经 `bindingFor(exec)` 解析出
+    「该用哪台机器 + 哪个工作区根」，不再读共享的 `config.host` / `wsPath()`。无法解析时
+    **明确报错而不回退到当前机器**（静默回退正是错投的来源）。
+  - `rw_connect` 保持"切换当前机器"语义；`rw_disconnect` 改为关闭**本会话自己**那条连接
+    （原先关的是当前机器的连接，对已绑定会话形同空操作）。
+  - **审计日志按真实目标机器归属**：`audit()` 新增 `target` 参数。原先记录的是*当前机器*
+    身份，会把操作错记到别的主机名下。
+  - **auto-push 按被监视镜像解析目标**：原先以"当前机器"为条件，另一会话切换后 watcher
+    会静默停止回传。
+  - **systemPrompt 身份错配**：原先把本会话的 remotePath 与*当前机器*的
+    `config.username@config.host` 拼在一起，可能给出一个并不存在的 host:path 组合。
+  - **Windows/Git Bash 次生竞态**：0.8.11 把 `platform` / `gitBashPath` / `shellMode`
+    挂在单例 pool 上并在 `setTarget()` 重置，Windows 与 Linux 会话会互相重置对方的 shell
+    探测结果。改为随各自的 per-machine pool 走，并在 `rw_exec` 决定 cwd 形式前先
+    `await detect()`（新建的池初始为 `unknown`，否则首条命令会漏掉 Git Bash 路径改写）。
+  - **凭据刷新**：复用已有池时从注册表重读密码/密钥/策略，使设置页的修改能到达早先创建的池。
+- **回归测试**：新增 `test/binding.test.js`（9 项）—— 两台机器各自解析到自己的 remotePath
+  且 pool 键不相等、嵌套路径归属、basename 冲突（`-<hash>` 后缀）区分、同名前缀兄弟目录
+  不误判、纯本地 cwd 无绑定、meta 损坏或缺 host 时跳过而不猜测、poolKey 按 host/user/port
+  分裂且默认端口归一。
+
 ## 0.8.11 — 2026-08-31
 ### 新增：Web UI 国际化（i18n）—— zh / en 双语文案 + 英文回退（issue #14）
 
