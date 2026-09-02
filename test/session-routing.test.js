@@ -162,9 +162,41 @@ test('a LOCAL session refuses instead of falling back to the active machine', as
       .then(() => null, (e) => String(e.message))
 
     assert.ok(err, 'a local session must not silently execute against a remote')
-    assert.match(err, /no remote workspace for this session/)
+    assert.match(err, /this session is LOCAL/)
     // The refusal must not have attempted any host.
     assert.ok(!/127\.0\.0\.(11|22)/.test(err), `refusal must not touch a machine: ${err}`)
+  } finally {
+    delete process.env.DSH_HOME
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('a LOCAL session is refused even when the ACTIVE machine has a workspace', async () => {
+  const { home } = makeHome()
+  try {
+    const { apply } = await loadPlugin(home)
+    const { ctx, tools } = makeCtx({ get: () => null, list: () => [] })
+    // The regression: the active machine carries a non-empty workspace, so a
+    // guard that only checks "is there a workspace?" passes and the local
+    // session inherits another session's machine. Every session-scoped tool
+    // must refuse on the SESSION's own binding instead.
+    await apply(ctx, { ...CONFIG, host: '127.0.0.22', username: 'Administrator', workspace: 'C:\\work\\tool' })
+
+    const localCwd = '/root/some/local/repo'
+    const cases = [
+      ['rw_exec', { command: 'hostname' }],
+      ['rw_write_file', { path: '/tmp/evil', content: 'x' }],
+      ['rw_remove', { path: '/tmp/victim' }],
+      ['rw_move', { path: '/tmp/a', dest: '/tmp/b' }],
+      ['rw_read_file', { path: '/etc/hostname' }],
+      ['rw_list_dir', {}],
+    ]
+    for (const [name, args] of cases) {
+      const err = await tools.get(name).execute(args, execFor(localCwd)).then(() => null, (e) => String(e.message))
+      assert.ok(err, `${name} must refuse a local session`)
+      assert.match(err, /this session is LOCAL/, `${name} gave: ${err}`)
+      assert.ok(!/ECONNREFUSED|ETIMEDOUT|handshake/i.test(err), `${name} must refuse BEFORE connecting: ${err}`)
+    }
   } finally {
     delete process.env.DSH_HOME
     rmSync(home, { recursive: true, force: true })
