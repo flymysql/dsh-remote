@@ -38,10 +38,16 @@ All notable changes to **dsh-remote**.
     探测结果。改为随各自的 per-machine pool 走，并在 `rw_exec` 决定 cwd 形式前先
     `await detect()`（新建的池初始为 `unknown`，否则首条命令会漏掉 Git Bash 路径改写）。
   - **凭据刷新**：复用已有池时从注册表重读密码/密钥/策略，使设置页的修改能到达早先创建的池。
-- **回归测试**：新增 `test/binding.test.js`（9 项）—— 两台机器各自解析到自己的 remotePath
-  且 pool 键不相等、嵌套路径归属、basename 冲突（`-<hash>` 后缀）区分、同名前缀兄弟目录
-  不误判、纯本地 cwd 无绑定、meta 损坏或缺 host 时跳过而不猜测、poolKey 按 host/user/port
-  分裂且默认端口归一。
+- **回归测试**：
+  - `test/binding.test.js`（9 项）—— 两台机器各自解析到自己的 remotePath 且 pool 键不相等、
+    嵌套路径归属、basename 冲突（`-<hash>` 后缀）区分、同名前缀兄弟目录不误判、纯本地 cwd
+    无绑定、meta 损坏或缺 host 时跳过而不猜测、poolKey 按 host/user/port 分裂且默认端口归一。
+  - `test/session-routing.test.js`（5 项）—— 走**真实 `apply()`** 注册出的 `rw_*` 工具，
+    用隔离 `DSH_HOME` + 两个镜像验证端到端路由：两会话各打到自己的主机、A/B/A/B 交替
+    互不改道、绑定会话用镜像工作区而非当前机器工作区、纯本地会话明确拒绝而不回退、
+    同机器两工作区共享一个 pool 键但工作区根独立。
+    这 5 项**在修复前的 0.8.11 上有 4 项失败**（断言输出显示绑定到 `.11` 的会话把命令
+    发到了 `.22`，即错投本身），修复后全部通过 —— 这是该修复的判别性证据。
 
 ## 0.8.11 — 2026-08-31
 ### 新增：Web UI 国际化（i18n）—— zh / en 双语文案 + 英文回退（issue #14）
