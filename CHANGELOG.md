@@ -2,7 +2,7 @@
 
 All notable changes to **dsh-remote**.
 
-## Unreleased
+## 0.8.12 — 2026-09-03
 ### 修复：多远端会话互相抢占同一个 SSH 连接 —— 命令会被静默发往错误的主机（issue #25）
 
 - **根因**：SSH 连接与远程工作区都是**进程级单例**。插件经 `cordis.patch.yml` 挂进
@@ -48,6 +48,9 @@ All notable changes to **dsh-remote**.
     同机器两工作区共享一个 pool 键但工作区根独立。
     这 5 项**在修复前的 0.8.11 上有 4 项失败**（断言输出显示绑定到 `.11` 的会话把命令
     发到了 `.22`，即错投本身），修复后全部通过 —— 这是该修复的判别性证据。
+  - **维护补充**：`machineRecordFor()` 同时把 `rw_connect save:false` 的**临时连接**
+    （ephemeral）视为凭据来源 —— 否则在临时连接上 `rw_pick_workspace` 建立镜像后，
+    后续会话解析同一身份会得到空凭据的池而无法连接。凭据刷新逻辑保持一致。
 
 ## 0.8.11 — 2026-08-31
 ### 新增：Web UI 国际化（i18n）—— zh / en 双语文案 + 英文回退（issue #14）
