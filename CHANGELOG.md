@@ -2,6 +2,27 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.13 — 2026-09-04
+### 修复：dsh 0.1.2-rc.1 上安装后启动报 "cannot get property \"workspaces\" without inject"（issue #26）
+
+- **现象**：`dsh 0.1.2-rc.1 + dsh-better-sidebar 0.18.0 + dsh-remote 0.8.12`，启动 dsh web
+  报 `Failed to load plugins — dsh-remote — failed to apply loader entry … (dsh-remote):
+  cannot get property "workspaces" without inject`，整个 client 半加载失败。
+- **根因**：`lib/client.js` 的 `apply()` 里
+  `WORKSPACES = (ctx.get && ctx.get('workspaces')) || ctx.workspaces` —— `ctx.get(name)` 是
+  可选查找（服务不在时返回 `undefined`），但第二段的 `|| ctx.workspaces` 是**裸属性读**。
+  dsh 0.1.2-rc.1 的 cordis 上下文代理对未声明/不可用服务的任何属性访问直接抛
+  `cannot get property "workspaces" without inject`（rc.8 及更早只是返回 undefined）。
+  该兜底本身还是死代码：`WORKSPACES` 全文件只有赋值、从无读取；`SESSIONS` 的读取点
+  （better-sidebar session cwd）已有 host 侧 `/dsh-remote/resolve-mirror?sessionId=` 兜底。
+- **修复**：删掉 `|| ctx.workspaces` 裸读兜底，`WORKSPACES/SESSIONS` 一律只走
+  `ctx.get`（可选、不抛），取不到就是 `null`。对 dsh 全版本兼容：rc.8 前行为不变，
+  0.1.2-rc.1+ 不再触发严格代理报错。
+- **验证**：独立 DSH_HOME + 0.1.2-rc.1 CLI + 新端口实例复现（页面报错与 issue 截图一致）
+  → 真包应用补丁后刷新，插件树干净加载（无 Failed banner、console 无异常、
+  `/dsh-remote/{machines,status,update-check}` 全部 200）→ `npm test` 79/79、
+  `check.mjs` OK。
+
 ## 0.8.12 — 2026-09-03
 ### 修复：多远端会话互相抢占同一个 SSH 连接 —— 命令会被静默发往错误的主机（issue #25）
 
