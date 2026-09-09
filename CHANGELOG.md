@@ -2,6 +2,41 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.14 — 2026-09-09
+### 修复：dsh 0.1.2-rc.1 上 Settings → 远程工作区 页面缺失（PR #28，issue #26 后续）
+
+- **现象**：dsh 0.1.2-rc.1 / 使用替换 workspace/sidebar 组件的 profile 上，Settings 里
+  看不到「远程工作区」页面；0.8.13 虽已消除启动报错，但 `apply()` 里
+  `if (slots === undefined) return` 的早退让注册永远不执行。
+- **根因**：
+  1. client 插件未声明硬依赖：`apply()` 需要 `slots`/`locale` 服务，但既没放进
+     `exports.inject` 也没等待，服务未就绪时注册被跳过；
+  2. `settings.section` 注册用了 `priority: 40`——rc.1 的 slot 列表按 **`order`** 排序
+     （`priority` 是死字段，缺省当 0），导致条目被排到最前/不生效；
+  3. 两个 directoryFlow 席位（`conversation.hero.workspace.directoryFlow` +
+     `sidebar.workspaces.directoryFlow`）嵌套在一个 `slots.inject` 里，任一席位缺失
+     会连带阻塞另一个；原生 `ui-workspace` 被替换时 `settings` 也受影响；
+  4. `WORKSPACES` 是纯死代码（只赋值从不读取）。
+- **修复**（来自贡献者 YiHui-Liu，PR #28）：
+  - `exports.inject = ['slots', 'locale']`：硬依赖声明，服务就绪才 apply；
+  - `settings.section` 改 `order: 40`（置于 dsh-remote-debug 之前、内置页之后）；
+  - 两个 directoryFlow 各自独立 `slots.inject`，互不阻塞；
+  - `sessions`/`betterSidebar` 用 `ctx.inject` 可选生命周期化，provider 卸载时清理
+    过期 sessions 引用；
+  - 删除 `WORKSPACES` 死代码与 `if (slots === undefined) return` 早退；
+  - client 清单 peer 从已废弃的 `dsh-client-runtime`/`dsh-client-ui-workspace` 换成
+    rc.1 实际提供的 `dsh-client-ui-renderer`/`dsh-client-locale` @0.1.2-rc.1；
+  - 新增 `test/client-lifecycle.test.js`：8 个 VM 全包回归测试（延迟注册、provider
+    移除/重加、dispose）。
+- **CI 修复**：main 自 0.8.10（bd61cc4b）起 CI 就红——`upload.test.js`/
+  `session-routing.test.js` 顶层 import `lib/index.js` → 静态 import
+  `@deepseek-ai/dsh-tools`（仅 peerDependency，`npm ci --legacy-peer-deps` 不装）→
+  `ERR_MODULE_NOT_FOUND`；其模块图还加载 `cordis`/`dsh-scope`/`dsh-llm`/
+  `dsh-session`/`dsh-timeout`。修复：这套 import-time 闭包声明为 devDependencies
+  （`files` 仅 lib+cordis.patch.yml，永不发布；生产仍由 dsh host 提供 peer）。
+- **验证**：干净 LF 检出 `npm ci --legacy-peer-deps` + `node --check` + `check.mjs` +
+  `npm test` 87/87 全绿（真实 GitHub Actions 亦绿）。
+
 ## 0.8.13 — 2026-09-04
 ### 修复：dsh 0.1.2-rc.1 上安装后启动报 "cannot get property \"workspaces\" without inject"（issue #26）
 
