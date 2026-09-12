@@ -65,6 +65,21 @@ dsh plugin add dsh-remote            # 添加 bundle
 > 该导出自 dsh-settings 0.1.2-alpha.2 起被移除，静态导入失败会让整个插件树加载失败
 > （issue #29）。
 
+> **⚠ 内嵌侧边栏对 harness 的要求（0.8.15+）：`dsh ≥ 0.1.2-rc.1`**。
+> `dsh-better-sidebar` 0.18.x 会 `import { SessionLogOffset } from "@deepseek-ai/dsh-session"`，
+> 该导出从 0.1.2-rc.1 才有。在更老的 harness（0.1.0-rc.x）上这个静态导入会失败，
+> loader 因此判定整个插件树加载失败 —— **dsh 直接起不来**。实测：`0.8.14 + 侧边栏 0.14.0`
+> 在 0.1.0-rc.8 上可以正常启动，`0.8.15 + 侧边栏 0.18.1` 不行；两者在 0.1.2-rc.1 上都正常。
+> 老 harness 上要么**留在 0.8.14**，要么在 profile 的 `cordis.patch.yml` 里关掉内嵌侧边栏行
+> 以保住 host 半（已在 0.1.0-rc.8 实测可启动，`rw_*` 工具照常可用，放弃的只是侧边栏 UI）：
+>
+> ```yaml
+> - id: dsh-remote-sidebar
+>   disabled: true
+> ```
+>
+> （同时不要再单独列出 `dsh-better-sidebar` bundle。）
+
 > **要求 profile 的 pnpm linker 为 `hoisted`**（DSH profile 默认，
 > `pnpm-workspace.yaml` 里 `nodeLinker: hoisted`）。loader 从 profile 根解析
 > 插件包，侧边栏必须能在顶层 `node_modules` 被解析到。如果你的

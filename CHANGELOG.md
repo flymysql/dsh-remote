@@ -48,6 +48,16 @@ All notable changes to **dsh-remote**.
   `registerTab` / `openTab(seed, scope)` / `getSnapshot` / `subscribeState`、
   `single` / `dedupeKey` 语义一致，`dsh.bundle.patch` 与 client 入口名不变。
   （在 dsh 0.1.5-rc.1+ 上可再评估 0.19.x。）
+- **⚠ 兼容性变化（新端口隔离实例实测）**：因为 0.18.x 会
+  `import { SessionLogOffset } from "@deepseek-ai/dsh-session"`（该导出从 dsh 0.1.2-rc.1 才有），
+  **0.8.15 起要求 `dsh ≥ 0.1.2-rc.1`**。实测四组组合：
+  | harness | 插件 | 结果 |
+  |---|---|---|
+  | 0.1.2-rc.1 | dsh-remote 0.8.15 + sidebar 0.18.1 | ✅ 启动，0 加载错误，路由全部正常 |
+  | 0.1.0-rc.8 | dsh-remote 0.8.14 + sidebar 0.14.0（改动前基线） | ✅ 启动 |
+  | 0.1.0-rc.8 | dsh-remote 0.8.15 + sidebar 0.18.1 | ❌ 启动失败（整个插件树，dsh 起不来） |
+  | 0.1.0-rc.8 | dsh-remote 0.8.15 + 关闭内嵌侧边栏行 | ✅ 启动，#30 的修复照常生效 |
+  老 harness 用户请留在 **0.8.14**，或按 README 关闭内嵌侧边栏行（`- id: dsh-remote-sidebar / disabled: true`）。
 
 ## 0.8.14 — 2026-09-09
 ### 修复：dsh 0.1.2-rc.1 上 Settings → 远程工作区 页面缺失（PR #28，issue #26 后续）

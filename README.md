@@ -79,6 +79,24 @@ after** `dsh-remote` in `dsh.profile.bundles` (order-independent guard since
 > `import { settingsNamespace } from "@deepseek-ai/dsh-settings"` broke once
 > dsh-settings 0.1.2-alpha.2 made that symbol private; issue #29).
 
+> **Harness requirement of the embedded sidebar (0.8.15+): `dsh ≥ 0.1.2-rc.1`.**
+> `dsh-better-sidebar` 0.18.x imports `SessionLogOffset` from
+> `@deepseek-ai/dsh-session`, which only exists from 0.1.2-rc.1 on. On an older
+> harness (0.1.0-rc.x) that import fails and the loader aborts the whole plugin
+> tree, so dsh does not start at all. Verified: 0.8.14 + sidebar 0.14.0 boots on
+> 0.1.0-rc.8, while 0.8.15 + sidebar 0.18.1 does not; both boot on 0.1.2-rc.1.
+> On an older harness either stay on **0.8.14**, or keep the host half by
+> disabling the embedded sidebar row in your profile's `cordis.patch.yml`
+> (verified working on 0.1.0-rc.8 — the `rw_*` tools keep working, the sidebar
+> UI is what you give up):
+>
+> ```yaml
+> - id: dsh-remote-sidebar
+>   disabled: true
+> ```
+>
+> (and do not list a standalone `dsh-better-sidebar` bundle either).
+
 > **Requires the profile's pnpm linker to be `hoisted`** (the DSH profile
 > default, `nodeLinker: hoisted` in `pnpm-workspace.yaml`). The loader resolves
 > plugin packages from the profile root, so the sidebar must be reachable in
