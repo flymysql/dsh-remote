@@ -75,7 +75,9 @@ after** `dsh-remote` in `dsh.profile.bundles` (order-independent guard since
 > **Upgrading from ≤0.8.6 with a standalone sidebar?** You may keep the
 > standalone `dsh-better-sidebar` bundle (any order) — 0.8.7+ no longer
 > crashes. Or remove it from `bundles` and let dsh-remote mount the embedded
-> copy (version ^0.14.0).
+> copy (version ^0.18.1 since 0.8.15 — earlier releases pinned 0.14.x, whose
+> `import { settingsNamespace } from "@deepseek-ai/dsh-settings"` broke once
+> dsh-settings 0.1.2-alpha.2 made that symbol private; issue #29).
 
 > **Requires the profile's pnpm linker to be `hoisted`** (the DSH profile
 > default, `nodeLinker: hoisted` in `pnpm-workspace.yaml`). The loader resolves

@@ -2,6 +2,53 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.15 — 2026-09-12
+### 修复：连接失败永远只显示空 HTTP 400（issue #30）+ 依赖改为 dsh-better-sidebar 0.18（issue #29）
+
+**issue #30 —— 失败路径自己先崩了，真正的错误永远发不出去**
+
+- **根因 1（主因）**：`/dsh-remote/test-connect` 与 `/dsh-remote/connect` 的
+  `const body/payload = JSON.parse(...)` 声明在 `try` 块**内部**，而 `catch` 里又读了
+  它 —— `try` 内的 `const` 在 `catch` 中不可见，所以只要连接失败，`catch` 自己先抛
+  `ReferenceError: body is not defined`，本该发出的
+  `{ok:false, error:"认证失败 / 端口不通 / …"}` 永远发不出去；harness 的
+  `dsh-host-webserver` 对 rejected handler 统一回空 body 的 400，前端只能显示
+  「HTTP 400」。密码错误、缺凭据、DNS 失败、非法 JSON 全都长一个样。
+  修复：`body`/`payload` 提到 `try` 之前用 `let` 声明并初始化为 `{}`，两个路由的
+  handler 现在**永不 reject**（test-connect → 200 + `{ok:false,error}`；
+  connect → 500 + 同结构；请求体非法 → 400 + 同结构，新增 `parseJsonObject()`）。
+- **根因 2**：`POST /dsh-remote/machines` 丢弃了 `saveSecret()` 的返回值 ——
+  Windows 上 DPAPI 脚本缺 `Add-Type -AssemblyName System.Security`
+  （PowerShell 5.1 不预加载），`ProtectedData` 直接「找不到类型」，密码被静默丢掉，
+  只留下 `credentialBackend:"windows"` 的空壳，之后每次连接必然失败。
+  修复：`credential.js` 两个 DPAPI 脚本都补上 `Add-Type`；新增
+  `persistPassword()` 统一凭据落盘决策 —— 密钥库失败时**回退明文**（`credentialBackend`
+  改回 `plain`）、经 `warning`/`warningDetail` 回传，设置页用
+  `settings.secretStoreFailed` 明确告知，不再静默保存一台没有凭据的机器。
+  诊断文本会剥离密码（`execFile` 的 error message 含完整命令行 argv）。
+- **验证**：新增 `test/route-errors.test.js`（10 个用例）直接驱动真实注册的路由
+  handler：失败探测 → 200 + JSON + 命中主机名、非法 JSON → 200/400 + JSON、
+  明文保存 → 落盘且有 `passwordSet` 且不回显密码、`persistPassword` 四条分支
+  （失败回退 / 成功不入库 / 抛出时脱敏 / plain 不碰密钥库）。
+  该文件在修复前 4/10 失败（正是 ReferenceError 路径），修复后全绿；
+  全量 `npm test` 97/97、`node --check` + `check.mjs` OK、
+  `npm ci --legacy-peer-deps` 用新 lockfile 可用。
+
+**issue #29 —— 依赖范围把自己锁在了会崩的旧版侧边栏上**
+
+- `@deepseek-ai/dsh-settings` 在 0.1.2-alpha.2 起移除了 `settingsNamespace` 导出
+  （改为私有的 `parseSettingsNamespace`），而 `dsh-better-sidebar` 直到 0.18.0
+  才适配：0.14.0 ~ 0.17.1 的 `lib/index.js` 仍然
+  `import { SettingsConflictError, settingsNamespace } from "@deepseek-ai/dsh-settings"`，
+  静态导入失败 → 整个插件树加载失败。dsh-remote 却把范围写成 `^0.14.0`
+  （只允许 <0.15.0），装不上已修复的版本。
+- **修复**：`dsh-better-sidebar` 依赖改为 `^0.18.1`（与 dsh-remote 自身
+  `^0.1.2-rc.1` 的 harness peer 线一致），并同步 `package-lock.json`。
+  集成面已核对 0.18.1 未变：服务名仍是 `ctx.provide('betterSidebar')`，
+  `registerTab` / `openTab(seed, scope)` / `getSnapshot` / `subscribeState`、
+  `single` / `dedupeKey` 语义一致，`dsh.bundle.patch` 与 client 入口名不变。
+  （在 dsh 0.1.5-rc.1+ 上可再评估 0.19.x。）
+
 ## 0.8.14 — 2026-09-09
 ### 修复：dsh 0.1.2-rc.1 上 Settings → 远程工作区 页面缺失（PR #28，issue #26 后续）
 
