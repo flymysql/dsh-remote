@@ -52,12 +52,16 @@ function dependencies(initial = []) {
   }
 }
 
-function loadClient() {
+function loadClient(protocol = 'https:') {
   let plugin
   const requests = []
-  const React = { createElement: (type, props, ...children) => ({ type, props, children }) }
+  const React = {
+    createElement: (type, props, ...children) => ({ type, props, children }),
+    useState: (value) => [value, () => {}],
+  }
   vm.runInNewContext(source, {
     window: {
+      location: { protocol },
       __ModuleLoader__: {
         load({ id, factory }) {
           assert.equal(id, 'dsh-remote')
@@ -69,6 +73,7 @@ function loadClient() {
       },
     },
     navigator: { languages: ['en'] },
+    URL,
     console,
     fetch: async (url, options) => {
       requests.push({ url, options })
@@ -114,12 +119,13 @@ function createHost(seats = [SETTINGS]) {
   services.set('slots', {
     inject(names, callback) { return ctx.own(slotsAvailable.inject(names, callback)) },
     register(meta, render) {
+      const registrationKey = meta.key ? meta.name + ':' + meta.key : meta.name
       assert.ok(slotsAvailable.values.has(meta.name), 'registration must wait for its seat')
-      assert.ok(!registrations.has(meta.name), 'no duplicate remote contribution')
+      assert.ok(!registrations.has(registrationKey), 'no duplicate remote contribution')
       const entry = { meta, render }
-      registrations.set(meta.name, entry)
+      registrations.set(registrationKey, entry)
       return () => {
-        if (registrations.get(meta.name) === entry) registrations.delete(meta.name)
+        if (registrations.get(registrationKey) === entry) registrations.delete(registrationKey)
       }
     },
   })
@@ -161,6 +167,52 @@ test('manifest requires the current renderer and locale, not native workspace pa
 test('client hard dependencies are slots and locale only', () => {
   assert.deepEqual([...loadClient().plugin.inject], ['slots', 'locale'])
 })
+
+test('native right-sidebar attaches late, opens a session-scoped remote file, and disposes', (t) => {
+  const { plugin } = loadClient('dsh-app:')
+  const host = createHost([SETTINGS, 'sidebar.right.pane.tab'])
+  t.after(() => host.ctx.dispose())
+  plugin.apply(host.ctx)
+  const types = new Map()
+  host.services.set('sidebarRightTabs', { register(type) {
+    assert.ok(!types.has(type.kind))
+    types.set(type.kind, type)
+    return () => types.delete(type.kind)
+  } })
+  assert.deepEqual([...types.keys()], ['dsh-remote/explorer', 'dsh-remote/file'])
+  assert.equal(types.get('dsh-remote/explorer').guide.length, 1)
+  assert.deepEqual([...types.get('dsh-remote/file').patterns], ['dsh-resource://dsh-remote/**'])
+  const explorer = host.registrations.get('sidebar.right.pane.tab:dsh-remote/explorer')
+  const file = host.registrations.get('sidebar.right.pane.tab:dsh-remote/file')
+  let address
+  const child = explorer.render({ sessionId: 'session-one', useTabInfo: () => ({ tab: {
+    visible: true, actions: { openResource(value) { address = value } },
+  } }) })
+  assert.equal(child.props.scope.sessionId, 'session-one')
+  child.props.onOpenFile('/workspace/中文 #?.md')
+  assert.equal(address, 'dsh-resource://dsh-remote/session-one/%2Fworkspace%2F%E4%B8%AD%E6%96%87%20%23%3F.md')
+  const reader = file.render({ sessionId: 'session-one', useTabInfo: () => ({ tab: { navigation: { address } } }) })
+  assert.equal(reader.props.tab.path, '/workspace/中文 #?.md')
+  assert.equal(types.get('dsh-remote/file').title(address), '中文 #?.md')
+  host.services.remove('sidebarRightTabs')
+  assert.equal(types.size, 0)
+  assert.deepEqual([...host.registrations.keys()], [SETTINGS])
+})
+
+for (const protocol of ['https:', 'dsh-app:']) {
+  test(`${protocol} chooses its API carrier before sending requests`, async (t) => {
+    const { plugin, requests } = loadClient(protocol)
+    const host = createHost()
+    t.after(() => host.ctx.dispose())
+    plugin.apply(host.ctx)
+    const bs = betterSidebar()
+    host.services.set('betterSidebar', bs)
+    bs.emit('test-session')
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.equal(requests.length, 1)
+    assert.equal(requests[0].url, (protocol === 'dsh-app:' ? '/api' : '') + '/dsh-remote/resolve-mirror?sessionId=test-session')
+  })
+}
 
 test('settings register at order 40 without sessions, workspace, or better-sidebar', (t) => {
   const { plugin } = loadClient()

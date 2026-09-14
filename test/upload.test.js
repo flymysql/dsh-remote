@@ -42,6 +42,7 @@ async function setup(t) {
   await apply(
     {
       effect: () => {},
+      inject: () => {},
       get: () => undefined,
       systemPrompt: { section: () => {} },
       tools: { register: (tool) => { tools[tool.name] = tool } },

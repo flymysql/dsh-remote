@@ -2,6 +2,18 @@
 
 All notable changes to **dsh-remote**.
 
+## Unreleased — experimental official Desktop transport
+
+- Add optional Connection Fetch routes for the portless `dsh-app:` carrier;
+  keep the legacy Web route prefix. Bound request bodies before dispatch and
+  preserve UTF-8 across IPC chunks.
+- Skip the bundled legacy sidebar when the core Web-server row is explicitly
+  disabled; register native right-sidebar types for the remote explorer/files.
+- Add regression coverage for route transport, late service arrival/disposal,
+  bundle guards, native tab registration, and resource-address round trips.
+- Full file UI, multi-machine endpoint binding, sync/write, and legacy Web
+  end-to-end acceptance remain release gates; see the README compatibility note.
+
 ## 0.8.15 — 2026-09-12
 ### 修复：连接失败永远只显示空 HTTP 400（issue #30）+ 依赖改为 dsh-better-sidebar 0.18（issue #29）
 

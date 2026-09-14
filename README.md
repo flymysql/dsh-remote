@@ -58,6 +58,41 @@ Real capture (host scrubbed to a placeholder):
 
 ## Install
 
+### Official Desktop compatibility (experimental, unreleased)
+
+This branch adds a compatibility path for the **official**
+[DeepSeek Harness Desktop](https://github.com/deepseek-ai/deepseek-harness),
+tested against the `0.1.5-rc.2` Host transport. It does not replace the Harness
+core or require a listening Web server:
+
+- The SSH settings and directory picker use `/api/dsh-remote/*` over the
+  Desktop's `dsh-app:` carrier. Exact Fetch routes are registered on
+  `ctx.connection.fetch`; the carrier retains ownership of authentication.
+- A native **Remote Files** entry uses `sidebarRightTabs` and the keyed
+  `sidebar.right.pane.tab` seat. It reuses the existing explorer/editor and
+  gives remote files their own session-scoped resource addresses, rather than
+  sending remote paths to the local Files viewer.
+- When the core Web-server row is explicitly disabled (the official Desktop
+  composition), the bundled `dsh-better-sidebar` row stays disabled. Web hosts
+  retain the existing `/dsh-remote/*` routes and sidebar composition, including
+  the standalone-sidebar deduplication guard.
+
+Validation so far covers Host startup, Desktop IPC JSON requests, read-only
+SSH connection/list/read, and opening the settings/import UI. Native file-tab
+navigation, editing/sync, concurrent sessions on different machines, and the
+full legacy Web UI still need end-to-end acceptance before release. In
+particular, existing sidebar file endpoints use the active-machine pool;
+session-scoped tab addresses alone do **not** make those endpoints
+session-bound. This is not a claim of production-ready multi-machine Desktop
+support.
+
+Desktop's package installer may also require an explicit policy for the
+optional `ssh2` / `cpu-features` build scripts. The isolated transport test
+disabled those optional scripts; this change does not loosen an application's
+build allowlist or automatically approve dependency scripts.
+
+### Published Web bundle
+
 ```bash
 dsh plugin add dsh-remote            # add the bundle
 ```

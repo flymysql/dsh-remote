@@ -1,0 +1,101 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { connectionRoute, registerHttpTransports } from '../lib/http-transport.js'
+import { inject as required } from '../lib/index.js'
+import { readFileSync } from 'node:fs'
+import vm from 'node:vm'
+
+const route = {
+  kind: 'exact', path: '/dsh-remote/example',
+  async handler(req, res) {
+    let body = ''
+    for await (const chunk of req) body += chunk
+    res.statusCode = body === 'conflict' ? 409 : 200
+    res.setHeader('Content-Type', 'application/json')
+    res.end(JSON.stringify({ method: req.method, url: req.url, body }))
+  },
+}
+
+test('SSH host has no hard Web service prerequisite', () => {
+  assert.deepEqual(required, ['tools', 'systemPrompt'])
+})
+
+test('Fetch transport preserves JSON bytes, query parameters, and conflict status', async () => {
+  const adapted = connectionRoute(route)
+  assert.equal(adapted.path, '/api/dsh-remote/example')
+  assert.deepEqual(adapted.methods, ['GET', 'POST'])
+  assert.equal(adapted.requestBody, 'buffered')
+  const response = await adapted.fetch(new Request('dsh-app://app/api/dsh-remote/example?path=%2Ftmp%2F%E4%B8%AD%E6%96%87', {
+    method: 'POST', body: 'conflict',
+  }))
+  assert.equal(response.status, 409)
+  assert.equal(response.headers.get('Content-Type'), 'application/json')
+  assert.deepEqual(await response.json(), {
+    method: 'POST', url: '/dsh-remote/example?path=%2Ftmp%2F%E4%B8%AD%E6%96%87', body: 'conflict',
+  })
+})
+
+test('GET with no body completes and POST preserves UTF-8 across chunks', async () => {
+  const adapted = connectionRoute(route)
+  const get = await adapted.fetch(new Request('dsh-app://app/api/dsh-remote/example'))
+  assert.equal((await get.json()).body, '')
+  const bytes = Buffer.from(JSON.stringify({ name: '开发目录' }))
+  const body = new ReadableStream({ start(controller) {
+    for (const byte of bytes) controller.enqueue(Uint8Array.of(byte))
+    controller.close()
+  } })
+  const post = await adapted.fetch(new Request('dsh-app://app/api/dsh-remote/example', { method: 'POST', body, duplex: 'half' }))
+  assert.equal((await post.json()).body, bytes.toString())
+})
+
+test('oversized or already-aborted requests never execute the handler', async () => {
+  const adapted = connectionRoute({ ...route, handler() { assert.fail('must not dispatch') } })
+  const tooLarge = await adapted.fetch(new Request('dsh-app://app/api/dsh-remote/example', {
+    method: 'POST', body: 'x'.repeat(1024 * 1024 + 1),
+  }))
+  assert.equal(tooLarge.status, 413)
+  const controller = new AbortController()
+  controller.abort()
+  await assert.rejects(adapted.fetch(new Request('dsh-app://app/api/dsh-remote/example', { signal: controller.signal })), { name: 'AbortError' })
+})
+
+test('adapter only accepts the plugin exact JSON routes', () => {
+  assert.throws(() => connectionRoute({ ...route, kind: 'prefix' }))
+  assert.throws(() => connectionRoute({ ...route, path: '/another-plugin' }))
+})
+
+test('both transports can arrive late; each removes only its own routes', async () => {
+  const pending = new Map()
+  registerHttpTransports({ inject(names, fn) { pending.set(names[0], fn) } }, [route])
+  assert.deepEqual([...pending.keys()], ['webServer', 'connection'])
+  const routes = new Map()
+  const cleanups = []
+  const service = { register(r) { routes.set(r.path, r); return () => routes.delete(r.path) } }
+  const inner = (name, value) => ({ get: () => value, effect(fn) { cleanups.push(fn()) } })
+  pending.get('connection')(inner('connection', { fetch: service }))
+  pending.get('webServer')(inner('webServer', service))
+  assert.deepEqual([...routes.keys()], ['/api/dsh-remote/example', '/dsh-remote/example'])
+  assert.equal(routes.get('/dsh-remote/example'), route)
+  await cleanups[0]()
+  assert.deepEqual([...routes.keys()], ['/dsh-remote/example'])
+  cleanups[1]()
+  assert.equal(routes.size, 0)
+  // A pre-Fetch Connection must not suppress the independent Web transport.
+  pending.get('connection')({ get: () => ({}), effect() { assert.fail('no routes') } })
+})
+
+test('bundle omits the legacy sidebar only when the core Web row is explicitly disabled', () => {
+  const patch = readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8')
+  const expression = patch.slice(patch.indexOf('(function ()')).trim()
+  function disabled(entries, patches = []) {
+    return vm.runInNewContext(expression, { ctx: { loader: {
+      entries: () => entries,
+      resolve: () => ({ subtree: { config: { patches } } }),
+    } } })
+  }
+  assert.equal(disabled([{ options: { name: '@deepseek-ai/dsh-host-webserver', disabled: true } }]), true)
+  assert.equal(disabled([{ options: { name: '@deepseek-ai/dsh-host-webserver', disabled: false } }]), false)
+  assert.equal(disabled([]), false, 'legacy Web startup order must not disable the bundled sidebar')
+  assert.equal(disabled([], [{ insert: [{ id: 'standalone', name: 'dsh-better-sidebar' }] }]), true,
+    'standalone bundle still wins even before its entry exists')
+})

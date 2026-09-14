@@ -56,7 +56,7 @@ function makeCtx() {
       return undefined
     },
     effect(fn) { effects.push(fn) },
-    inject() {},
+    inject(names, callback) { if (names.every((name) => this.get(name))) callback(this) },
   }
   // The plugin accesses injected services as ctx properties (cordis inject).
   ctx.tools = toolsSvc

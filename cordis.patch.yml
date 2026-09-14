@@ -4,7 +4,9 @@
 #
 # Since v0.7.2 dsh-remote ships dsh-better-sidebar as a hard dependency and
 # mounts it here, so `dsh plugin add dsh-remote` brings up the sidebar with
-# zero extra steps. The sidebar row uses a DEDICATED id (`dsh-remote-sidebar`)
+# zero extra steps on Web. Official Desktop explicitly disables the Web server
+# row and uses the native right-sidebar seats instead. The sidebar
+# row uses a DEDICATED id (`dsh-remote-sidebar`)
 # and a guard so it backs off when another row mounts `dsh-better-sidebar`
 # (e.g. the user installed the sidebar bundle on its own, or an aggregate
 # bundle owns it) — two enabled mounts would both register /sidebar/api and
@@ -37,6 +39,10 @@
       name: 'dsh-better-sidebar'
       disabled: !!js >-
         (function () {
+          // Inspect the core row's explicit disabled flag, not service presence:
+          // a Web server that simply has not started yet must still be awaited.
+          // Do not evaluate another sidebar's disabled guard (issue #12).
+          if ([...ctx.loader.entries()].some((e) => e.options.name === '@deepseek-ai/dsh-host-webserver' && e.options.disabled === true)) return true
           try {
             const inc = ctx.loader && ctx.loader.resolve && ctx.loader.resolve('include')
             const patches = inc && inc.subtree && inc.subtree.config && inc.subtree.config.patches
