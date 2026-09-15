@@ -49,6 +49,7 @@ function makeCtx(sessions) {
   return {
     ctx: {
       effect: () => {},
+      inject: () => {},
       get: (k) => (k === 'sessions' ? sessions : undefined),
       tools: { register: (t) => tools.set(t.name, t) },
       systemPrompt: { section: () => {} },

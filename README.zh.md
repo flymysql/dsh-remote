@@ -4,6 +4,26 @@
 
 # dsh-remote
 
+## 官方 Desktop 兼容适配（实验性，尚未发布）
+
+本分支增加对 [DeepSeek 官方 Desktop](https://github.com/deepseek-ai/deepseek-harness)
+的适配，以 `0.1.5-rc.2` Host 通信协议验证，不修改 Harness 核心：
+
+- 通过 `ctx.connection.fetch` 注册 `/api/dsh-remote/*`，由 Desktop 的
+  `dsh-app:` 通道承载请求，鉴权仍由宿主负责，不启动 Web Server。
+- 通过 `sidebarRightTabs` 和 `sidebar.right.pane.tab` 提供原生“远程文件”入口，
+  复用原来的文件树与编辑器，不把远端路径传给本地文件预览器。
+- 官方 Desktop 显式禁用 Web Server 时，不挂载内置 `dsh-better-sidebar`；
+  Web 版仍保留原路由、侧栏及独立安装时的去重逻辑。
+
+已验证 Host 启动、IPC 请求、真实 SSH 的只读连接/目录列表/文本读取，以及设置页和
+测试 SSH 配置的导入。文件标签的完整 UI 操作、编辑/同步、多机器并行会话，以及旧 Web
+版完整 UI 回归仍需在发布前验收。尤其是现有侧栏文件接口仍使用“当前机器”的连接池，
+不能把会话级标签地址误认为后端已实现会话级机器绑定；本分支尚不代表生产级多机器支持。
+
+Desktop 安装器还可能要求明确配置 `ssh2` / `cpu-features` 可选构建脚本策略。
+隔离验证中禁用了这些可选脚本；本改动不放宽应用的构建白名单，也不自动批准脚本。
+
 [![npm version](https://img.shields.io/npm/v/dsh-remote)](https://www.npmjs.com/package/dsh-remote)
 [![license](https://img.shields.io/github/license/flymysql/dsh-remote)](LICENSE)
 [![dsh-plugin](https://img.shields.io/badge/topic-dsh--plugin-7a)](https://github.com/topics/dsh-plugin)

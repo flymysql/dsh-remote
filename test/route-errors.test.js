@@ -35,6 +35,7 @@ function makeCtx() {
   const tools = new Map()
   const ctx = {
     effect: () => {},
+    inject(names, callback) { if (names.every((name) => this.get(name))) callback(this) },
     get: (k) => (k === 'webServer' ? { register: (r) => { routes.set(r.path, r); return () => {} } } : undefined),
     tools: { register: (t) => tools.set(t.name, t) },
     systemPrompt: { section: () => {} },
