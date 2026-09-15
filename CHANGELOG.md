@@ -14,6 +14,24 @@ All notable changes to **dsh-remote**.
 - Full file UI, multi-machine endpoint binding, sync/write, and legacy Web
   end-to-end acceptance remain release gates; see the README compatibility note.
 
+### Hardening after review (no behaviour change on Web)
+
+- Drop the `route.kind === 'exact'` requirement from `connectionRoute()`.
+  `kind`/`exact` belongs to `dsh-host-webserver`'s `WebRouteKind`; Connection's
+  `ConnectionFetchRoute` has no such field and `assertFetchRoute()` never reads
+  one. Verified against the real `dsh-client-connection` 0.1.5-rc.2 registry.
+- Register Connection Fetch routes one at a time. A single unregistrable route
+  used to abort the whole `.map()`, silently dropping every route *after* it and
+  leaking the disposers of the routes before it — inside a `ctx.inject` child
+  fiber, whose throw the loader only logs, so the parent plugin stayed ACTIVE
+  and the loss was invisible. Partial failures are now reported.
+- CI syntax-checks every `lib/*.js` instead of a hand-maintained list, which had
+  already drifted by four files (`binding.js`, `registry.js`, `update.js`, and
+  this release's `http-transport.js`).
+- Declare `@deepseek-ai/dsh-client-connection` as an optional peer, and mark the
+  `dsh-host-webserver` peer optional: the Desktop composition disables that row,
+  and the plugin no longer hard-depends on it.
+
 ## 0.8.15 — 2026-09-12
 ### 修复：连接失败永远只显示空 HTTP 400（issue #30）+ 依赖改为 dsh-better-sidebar 0.18（issue #29）
 

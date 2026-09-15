@@ -17,9 +17,10 @@ jobs:
       - run: npm ci --legacy-peer-deps --no-audit --no-fund
       - name: Syntax check
         run: |
-          node --check lib/index.js
-          node --check lib/client.js
-          for f in lib/paths.js lib/hostkey.js lib/ignore.js lib/errors.js lib/sshconfig.js lib/credential.js lib/sync.js lib/search.js lib/tasks.js lib/forwards.js; do node --check "$f"; done
+          # Check every lib/*.js. A hand-maintained list silently drifts: it had
+          # already missed binding.js, registry.js, update.js and (with PR #31)
+          # http-transport.js, so a syntax error in a new file could reach main.
+          for f in lib/*.js; do node --check "$f"; done
       - name: Static framework gate
         run: node check.mjs
       - name: Unit tests

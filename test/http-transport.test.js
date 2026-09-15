@@ -59,9 +59,26 @@ test('oversized or already-aborted requests never execute the handler', async ()
   await assert.rejects(adapted.fetch(new Request('dsh-app://app/api/dsh-remote/example', { signal: controller.signal })), { name: 'AbortError' })
 })
 
-test('adapter only accepts the plugin exact JSON routes', () => {
-  assert.throws(() => connectionRoute({ ...route, kind: 'prefix' }))
+test('adapter only accepts plugin routes under the /dsh-remote/ prefix', () => {
+  // `kind` is a dsh-host-webserver concept; Connection's ConnectionFetchRoute
+  // has no such field, so a route without it must still adapt.
+  assert.equal(connectionRoute({ ...route, kind: undefined }).path, '/api/dsh-remote/example')
   assert.throws(() => connectionRoute({ ...route, path: '/another-plugin' }))
+})
+
+test('one unregistrable route must not drop the routes after it', async () => {
+  const pending = new Map()
+  const routes = [
+    { ...route, path: '/dsh-remote/first' },
+    { ...route, path: '/not-ours' }, // rejected by connectionRoute()
+    { ...route, path: '/dsh-remote/third' },
+  ]
+  registerHttpTransports({ inject(names, fn) { pending.set(names[0], fn) } }, routes)
+  const seen = []
+  const service = { register(r) { seen.push(r.path); return () => {} } }
+  pending.get('connection')({ get: () => ({ fetch: service }), effect(fn) { fn() } })
+  assert.deepEqual(seen, ['/api/dsh-remote/first', '/api/dsh-remote/third'],
+    'the third route must survive the bad second one')
 })
 
 test('both transports can arrive late; each removes only its own routes', async () => {
