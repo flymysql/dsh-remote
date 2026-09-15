@@ -2,35 +2,63 @@
 
 All notable changes to **dsh-remote**.
 
-## Unreleased — experimental official Desktop transport
+## 0.8.16 — 2026-09-15
+### 新增（实验性）：官方 Desktop 传输 + 原生右栏远程文件（PR #31），并就评审发现加固 4 处
 
-- Add optional Connection Fetch routes for the portless `dsh-app:` carrier;
-  keep the legacy Web route prefix. Bound request bodies before dispatch and
-  preserve UTF-8 across IPC chunks.
-- Skip the bundled legacy sidebar when the core Web-server row is explicitly
-  disabled; register native right-sidebar types for the remote explorer/files.
-- Add regression coverage for route transport, late service arrival/disposal,
-  bundle guards, native tab registration, and resource-address round trips.
-- Full file UI, multi-machine endpoint binding, sync/write, and legacy Web
-  end-to-end acceptance remain release gates; see the README compatibility note.
+**PR #31（@dahaipeng）—— 官方 DeepSeek Harness Desktop 兼容路径**
 
-### Hardening after review (no behaviour change on Web)
+官方 Desktop 组合会禁用旧的 `webServer` / `webRuntime` row，而 0.8.15 的硬
+`webServer` 注入 + 内置旧侧栏会让该组合起不来。本版加一条兼容路径（**实验性**，
+不含新监听端口、不代理、不伪造 WebServer 服务、不改核心）：
 
-- Drop the `route.kind === 'exact'` requirement from `connectionRoute()`.
-  `kind`/`exact` belongs to `dsh-host-webserver`'s `WebRouteKind`; Connection's
-  `ConnectionFetchRoute` has no such field and `assertFetchRoute()` never reads
-  one. Verified against the real `dsh-client-connection` 0.1.5-rc.2 registry.
-- Register Connection Fetch routes one at a time. A single unregistrable route
-  used to abort the whole `.map()`, silently dropping every route *after* it and
-  leaking the disposers of the routes before it — inside a `ctx.inject` child
-  fiber, whose throw the loader only logs, so the parent plugin stayed ACTIVE
-  and the loss was invisible. Partial failures are now reported.
-- CI syntax-checks every `lib/*.js` instead of a hand-maintained list, which had
-  already drifted by four files (`binding.js`, `registry.js`, `update.js`, and
-  this release's `http-transport.js`).
-- Declare `@deepseek-ai/dsh-client-connection` as an optional peer, and mark the
-  `dsh-host-webserver` peer optional: the Desktop composition disables that row,
-  and the plugin no longer hard-depends on it.
+- Web 传输改为**响应式/可选**：`inject` 从 `['tools','systemPrompt','webServer']`
+  收敛为 `['tools','systemPrompt']`，两种 UI 传输在 `registerHttpTransports()` 里
+  各自 `ctx.inject` 挂载。服务晚到也能注册上（已用真 cordis 实测：插件先 apply、
+  `webServer` 后提供，25 条路由全部注册）。
+- 新增 Connection Fetch 路由（`lib/http-transport.js`），把同一批有界 JSON
+  handler 同时挂到 `/api/dsh-remote/*`，供无端口的 `dsh-app:` carrier 使用；
+  旧 `/dsh-remote/*` 路由原样保留。鉴权仍归 carrier 负责。
+- 派发**之前**强制 1 MiB 请求体上限（超限回 413，绝不退化成空对象触发默认动作）；
+  跨 IPC chunk 传一个整体 buffer，避免 UTF-8 被切断。路由前缀在发送前选定，
+  **不重试** POST。
+- 核心 Web-server row 被**显式禁用**时（官方 Desktop 组合），内置
+  `dsh-better-sidebar` row 保持禁用；独立侧栏 / 顺序无关的去重守卫照旧保留。
+- 新增原生 `sidebarRightTabs` / `sidebar.right.pane.tab` 注册，复用现有远程
+  资源管理器与文件编辑器，并给远程文件独立的、按会话隔离的
+  `dsh-resource://dsh-remote/<sessionId>/<path>` 地址（不再把远程路径当本地
+  Files 路径）。
+- 回归测试 + 中英文文档。
+
+**评审后加固（对 Web 行为零改变，113/113 通过）**
+
+- `connectionRoute()` 删掉 `route.kind === 'exact'` 要求。`kind`
+  （`WebRouteKind`）是 `dsh-host-webserver` 的概念；Connection 的
+  `ConnectionFetchRoute` **没有**这个字段，真实的 `assertFetchRoute()` 只校验
+  路径形状与 methods。要求一个 API 从未定义的字段，会让将来漏写 `kind` 的路由
+  直接抛错。已对真实 `dsh-client-connection` 0.1.5-rc.2 registry 实测。
+- Connection Fetch 路由改为**逐个注册**。原单个 `.map()` 在遇到第一条坏路由时
+  会中断，**静默丢掉其后所有路由**，同时泄漏前面已注册路由的 disposer；而这段
+  代码跑在 `ctx.inject` 子 fiber 里，loader 只 log 不 rethrow，父插件仍是 ACTIVE，
+  所以这种「部分注册」完全不可见。现在部分失败会经 `console.warn` 报出来。
+- CI 语法检查改为 glob `lib/*.js`，不再用手工清单——原清单**已漏 4 个文件**
+  （`binding.js`、`registry.js`、`update.js` 以及本次的 `http-transport.js`），
+  新文件里的语法错误可以一路进 main。
+- 补 `@deepseek-ai/dsh-client-connection` 为 optional peer，并把
+  `@deepseek-ai/dsh-host-webserver` 的 peer 标为 optional：Desktop 组合会禁用
+  该 row，插件已不再硬依赖它。
+
+**仍是发布闸门（未在本版解决，见 README 兼容性说明）**
+
+- 原生右栏的文件打开/编辑/同步端到端验收（当前原生 slot/resource/生命周期测试
+  用的是组件替身）。
+- **侧栏文件操作绑定到「本会话的那台机器」**，并测两台不同主机的并发会话。
+  现有 `/ls`、`/read`、`/write` 等仍走 active-machine 池，**仅靠按会话隔离的
+  资源地址并不能修好这个后端行为** —— 这是多机场景的发布阻断项。
+- 在受支持的 Web 版本上跑完整旧 Web UI 回归。
+- 非 macOS 远端/宿主，以及失败/取消的交互。
+
+> 版本号与 npm 发布仅代表代码状态：**Desktop 支持仍属实验性**，不构成本版本
+> 对多机 Desktop 生产可用的承诺。
 
 ## 0.8.15 — 2026-09-12
 ### 修复：连接失败永远只显示空 HTTP 400（issue #30）+ 依赖改为 dsh-better-sidebar 0.18（issue #29）
