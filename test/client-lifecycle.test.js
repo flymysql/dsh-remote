@@ -52,16 +52,30 @@ function dependencies(initial = []) {
   }
 }
 
-function loadClient(protocol = 'https:') {
+function loadClient(protocol = 'https:', platform = 'Linux x86_64') {
   let plugin
   const requests = []
+  // Effects are recorded (and run on demand by `runEffects`) so a component
+  // body's React.useEffect logic is testable without a real reconciler.
+  const effects = []
   const React = {
     createElement: (type, props, ...children) => ({ type, props, children }),
     useState: (value) => [value, () => {}],
+    useEffect: (fn) => { effects.push(fn) },
+  }
+  // Minimal Storage stand-in so the issue #32 eager migration is testable.
+  const store = new Map()
+  const localStorage = {
+    get length() { return store.size },
+    key(i) { return [...store.keys()][i] ?? null },
+    getItem(k) { return store.has(k) ? store.get(k) : null },
+    setItem(k, v) { store.set(k, String(v)) },
+    removeItem(k) { store.delete(k) },
   }
   vm.runInNewContext(source, {
     window: {
       location: { protocol },
+      localStorage,
       __ModuleLoader__: {
         load({ id, factory }) {
           assert.equal(id, 'dsh-remote')
@@ -72,7 +86,7 @@ function loadClient(protocol = 'https:') {
         },
       },
     },
-    navigator: { languages: ['en'] },
+    navigator: { languages: ['en'], platform },
     URL,
     console,
     fetch: async (url, options) => {
@@ -81,7 +95,7 @@ function loadClient(protocol = 'https:') {
     },
   }, { filename: 'lib/client.js' })
   assert.ok(plugin, 'classic module loader receives the plugin')
-  return { plugin, requests }
+  return { plugin, requests, effects, runEffects: () => effects.forEach((fn) => fn()), store, localStorage }
 }
 
 function createHost(seats = [SETTINGS]) {
@@ -213,6 +227,168 @@ for (const protocol of ['https:', 'dsh-app:']) {
     assert.equal(requests[0].url, (protocol === 'dsh-app:' ? '/api' : '') + '/dsh-remote/resolve-mirror?sessionId=test-session')
   })
 }
+
+// Issue #32 regression: the remote explorer must not treat better-sidebar's
+// session-shared `expanded` array as its own state, and it must evict the
+// remote paths an older dsh-remote left there (that set is persisted, and the
+// built-in local Files tree loads every entry through a LOCAL fs.realpath, so a
+// remote /home/... path became D:\home\... -> ENOENT).
+test('remote explorer owns its expansion and heals a polluted shared set', (t) => {
+  const { plugin } = loadClient()
+  const host = createHost()
+  t.after(() => host.ctx.dispose())
+  plugin.apply(host.ctx)
+
+  const updates = []
+  const bs = betterSidebar()
+  bs.openTab = () => {}
+  bs.updateTab = (id, patch) => updates.push({ id, patch })
+  host.services.set('betterSidebar', bs)
+
+  const descriptor = bs.tabs.get('dsh-remote:explorer')
+  assert.ok(descriptor, 'explorer tab registers')
+
+  // The framework hands the tab the SESSION-shared pair; a polluted set already
+  // holds two remote paths.
+  const shared = ['/home/os/IsaacLab', '/home/os/IsaacLab/source']
+  const toggled = []
+  const tab = { id: 'tab-1', type: 'dsh-remote:explorer' }
+  const rendered = descriptor.component({
+    ctx: host.ctx, tab, scope: { sessionId: 's1' }, visible: true,
+    expanded: shared, onToggleDir: (p) => toggled.push(p),
+  })
+
+  // The tree's own expansion starts EMPTY — the shared set is not its state.
+  // (Arrays cross a VM realm boundary, so compare copies, not prototypes.)
+  assert.deepEqual([...rendered.props.expanded], [], 'the shared set must not seed the tree')
+  assert.equal(rendered.props.expanded === shared, false)
+  // Toggling goes to the TAB's meta, never into the shared set.
+  rendered.props.onToggleDir('/home/os/IsaacLab/lib')
+  assert.deepEqual([...toggled], [], 'toggling must not write into the shared set')
+  assert.deepEqual([...updates.at(-1).patch.meta.remoteExpanded], ['/home/os/IsaacLab/lib'])
+
+  // Healing (root-scoped): exactly the current remote root and its children.
+  const mirror = 'C:\\Users\\me\\.dsh\\remote-workspaces\\h-u-22\\IsaacLab'
+  const polluted = [...toggled, ...['/home/os/IsaacLab', '/home/os/IsaacLab/source',
+    '/home/other/dir', '/unrelated/local/dir', mirror]]
+  const evicted = []
+  const healing = descriptor.component({
+    ctx: host.ctx, tab: { id: 'tab-2', type: 'dsh-remote:explorer' },
+    scope: { sessionId: 's1' }, visible: true,
+    expanded: polluted, onToggleDir: (p) => evicted.push(p),
+  })
+  const stray = [...healing.props.evictStray('/home/os/IsaacLab')]
+  assert.deepEqual(stray, ['/home/os/IsaacLab', '/home/os/IsaacLab/source'],
+    'only the current remote root and its children are evicted')
+  assert.deepEqual([...evicted], ['/home/os/IsaacLab', '/home/os/IsaacLab/source'])
+  // A local mirror path and an unrelated directory are never evicted.
+  assert.equal(stray.includes(mirror), false)
+  assert.equal(stray.includes('/unrelated/local/dir'), false)
+  assert.equal(stray.includes('/home/other/dir'), false)
+  // A "/" root evicts only exact-match entries (the bare root itself).
+  assert.deepEqual([...healing.props.evictStray('')], [])
+})
+
+// The rule that heals EXISTING pollution (no remote root needed): on Windows a
+// POSIX-absolute entry can never be a valid local path, so every stray remote
+// path is swept even if it belonged to a previous remote root.
+test('windows hosts sweep every POSIX-absolute entry from the shared set', (t) => {
+  const { plugin } = loadClient('https:', 'Win32')
+  const host = createHost()
+  t.after(() => host.ctx.dispose())
+  plugin.apply(host.ctx)
+
+  const bs = betterSidebar()
+  bs.openTab = () => {}
+  bs.updateTab = () => {}
+  host.services.set('betterSidebar', bs)
+  const descriptor = bs.tabs.get('dsh-remote:explorer')
+
+  const mirror = 'C:\\Users\\me\\.dsh\\remote-workspaces\\h-u-22\\IsaacLab'
+  const local = 'C:\\Users\\me\\projects'
+  const shared = ['/home/os/IsaacLab', '/home/os/IsaacLab/source', '/srv/data',
+    '/unrelated/local/dir', local, mirror]
+  const evicted = []
+  const owned = descriptor.component({
+    ctx: host.ctx, tab: { id: 'tab-w', type: 'dsh-remote:explorer' },
+    scope: { sessionId: 's1' }, visible: true,
+    expanded: shared, onToggleDir: (p) => evicted.push(p),
+  })
+  const swept = [...owned.props.evictStray('')]
+  assert.deepEqual(swept, ['/home/os/IsaacLab', '/home/os/IsaacLab/source', '/srv/data', '/unrelated/local/dir'],
+    'every POSIX-absolute entry is swept on Windows')
+  // Real Windows paths and the local mirror are preserved.
+  assert.equal(swept.includes(local), false)
+  assert.equal(swept.includes(mirror), false)
+})
+
+// The eager migration is what fixes an ALREADY-affected user: the polluted set
+// is persisted in localStorage, and the built-in Files tree loads it before any
+// React effect can run. It must therefore be cleaned at activation.
+test('activation migrates already-persisted sidebar state on Windows', (t) => {
+  const { plugin, store } = loadClient('https:', 'Win32')
+  const host = createHost()
+  t.after(() => host.ctx.dispose())
+
+  // A user who already hit issue #32: their persisted state holds remote paths.
+  const mirror = 'C:\\Users\\me\\.dsh\\remote-workspaces\\h-u-22\\IsaacLab'
+  const state = {
+    panelOpen: true, width: 420, activePane: 'p', nextTerminal: 1, nextBrowser: 1,
+    expanded: ['/home/os/IsaacLab', '/home/os/IsaacLab/source', '/srv/data',
+      'C:\\Users\\me\\projects', mirror],
+    revealed: [],
+    splits: { kind: 'leaf', id: 'p', active: 't', tabs: [{ id: 't', type: 'editor', title: 'Files' }] },
+    bottomOpen: false, bottomHeight: 220, bottomOpenedOnce: false,
+    bottomSplits: { kind: 'leaf', id: 'q', tabs: [], active: null }, floats: [],
+  }
+  store.set('dsh-sidebar:v1:session-x', JSON.stringify(state))
+  // Unrelated keys and unparsable values must be left alone.
+  store.set('other-app:key', JSON.stringify({ expanded: ['/home/keep'] }))
+  store.set('dsh-sidebar:v1:broken', '{not json')
+
+  plugin.apply(host.ctx)
+  const bs = betterSidebar()
+  bs.openTab = () => {}
+  host.services.set('betterSidebar', bs) // triggers registerSidebarIntegration
+
+  const after = JSON.parse(store.get('dsh-sidebar:v1:session-x'))
+  assert.deepEqual(after.expanded, ['C:\\Users\\me\\projects', mirror],
+    'remote paths are gone; real Windows paths and the mirror survive')
+  assert.equal(JSON.parse(store.get('other-app:key')).expanded[0], '/home/keep',
+    'other applications\' storage is untouched')
+  assert.equal(store.get('dsh-sidebar:v1:broken'), '{not json',
+    'an unparsable value is left as-is')
+})
+
+test('non-windows hosts keep POSIX paths (they are valid local paths there)', (t) => {
+  const { plugin } = loadClient('https:', 'MacIntel')
+  const host = createHost()
+  t.after(() => host.ctx.dispose())
+  plugin.apply(host.ctx)
+
+  const bs = betterSidebar()
+  bs.openTab = () => {}
+  bs.updateTab = () => {}
+  host.services.set('betterSidebar', bs)
+  const descriptor = bs.tabs.get('dsh-remote:explorer')
+
+  const owned = descriptor.component({
+    ctx: host.ctx, tab: { id: 'tab-m', type: 'dsh-remote:explorer' },
+    scope: { sessionId: 's1' }, visible: true,
+    expanded: ['/Users/me/projects', '/home/os/IsaacLab'], onToggleDir: () => {},
+  })
+  const evicted = []
+  const healing = descriptor.component({
+    ctx: host.ctx, tab: { id: 'tab-m2', type: 'dsh-remote:explorer' },
+    scope: { sessionId: 's1' }, visible: true,
+    expanded: ['/Users/me/projects', '/home/os/IsaacLab'], onToggleDir: (p) => evicted.push(p),
+  })
+  // Nothing swept without a root, because those paths ARE valid locally on macOS.
+  assert.deepEqual([...owned.props.evictStray('')], [])
+  assert.deepEqual([...evicted], [])
+  // With the remote root known, only that root's own range is swept.
+  assert.deepEqual([...healing.props.evictStray('/home/os/IsaacLab')], ['/home/os/IsaacLab'])
+})
 
 test('settings register at order 40 without sessions, workspace, or better-sidebar', (t) => {
   const { plugin } = loadClient()
