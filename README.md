@@ -8,7 +8,7 @@
 [![license](https://img.shields.io/github/license/flymysql/dsh-remote)](LICENSE)
 [![dsh-plugin](https://img.shields.io/badge/topic-dsh--plugin-7a3ef3)](https://github.com/topics/dsh-plugin)
 
-![dsh-remote workspace picker](docs/cover.png)
+![dsh-remote — make any SSH machine a real DSH workspace](docs/cover.png)
 
 **Remote-work assistant for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH).**
 

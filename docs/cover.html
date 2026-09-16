@@ -1,0 +1,272 @@
+<!doctype html>
+<!--
+  Source of docs/cover.png (README hero + GitHub Topics card image).
+  Re-render at exactly 1280x640 after editing:
+
+    google-chrome --headless=new --disable-gpu --hide-scrollbars \
+      --force-device-scale-factor=2 --window-size=1280,640 \
+      --screenshot=docs/cover@2x.png docs/cover.html
+    # then downscale cover@2x.png to 1280x640 (see docs/promote.md)
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1280px;
+    height: 640px;
+    overflow: hidden;
+    background: #07070b;
+    font-family: Inter, "Noto Sans", "WenQuanYi Micro Hei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .cover {
+    position: relative;
+    width: 1280px;
+    height: 640px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    background:
+      radial-gradient(900px 520px at 88% 8%, rgba(122, 62, 243, .34), transparent 62%),
+      radial-gradient(620px 420px at 6% 94%, rgba(34, 131, 246, .20), transparent 60%),
+      linear-gradient(155deg, #0c0c14 0%, #07070b 55%, #06060a 100%);
+  }
+
+  /* faint technical grid, fades out toward the bottom right */
+  .grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, .055) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, .055) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(120deg, #000 0%, rgba(0, 0, 0, .35) 55%, transparent 88%);
+  }
+
+  .copy {
+    position: relative;
+    width: 660px;
+    padding: 0 0 0 72px;
+  }
+
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: #a78bfa;
+  }
+  .eyebrow .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #7a3ef3;
+    box-shadow: 0 0 14px 3px rgba(122, 62, 243, .8);
+  }
+
+  h1 {
+    margin-top: 18px;
+    font-size: 78px;
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: -.035em;
+    color: #fff;
+  }
+  h1 .dim { color: #8b5cf6; }
+
+  .tagline {
+    margin-top: 20px;
+    width: 545px;
+    font-size: 22px;
+    line-height: 1.45;
+    font-weight: 400;
+    color: #c9c9d9;
+  }
+  .tagline b { color: #fff; font-weight: 600; }
+
+  .chips {
+    margin-top: 30px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+    width: 560px;
+  }
+  .chip {
+    padding: 7px 14px;
+    border: 1px solid rgba(255, 255, 255, .13);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .045);
+    font-size: 14px;
+    font-weight: 500;
+    color: #d8d8e6;
+  }
+  .chip.mono {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    color: #c4b5fd;
+    border-color: rgba(122, 62, 243, .42);
+    background: rgba(122, 62, 243, .14);
+  }
+
+  .foot {
+    margin-top: 38px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 15px;
+    color: #7a7a93;
+  }
+  .foot .sep { color: #3a3a4c; }
+
+  /* screenshot in a window frame, bleeding off the right edge */
+  .stage {
+    position: absolute;
+    top: 168px;
+    left: 655px;
+    width: 760px;
+    transform: rotate(-2.5deg);
+  }
+  .window {
+    width: 760px;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, .14);
+    background: #14141c;
+    box-shadow:
+      0 50px 110px -30px rgba(0, 0, 0, .95),
+      0 0 0 1px rgba(122, 62, 243, .16),
+      0 0 120px -20px rgba(122, 62, 243, .42);
+  }
+  .bar {
+    height: 34px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 14px;
+    background: #1b1b25;
+    border-bottom: 1px solid rgba(255, 255, 255, .07);
+  }
+  .bar i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #3a3a48;
+  }
+  .bar .title {
+    margin-left: 10px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    color: #6f6f86;
+  }
+  .shot {
+    position: relative;
+    height: 266px;
+    overflow: hidden;
+    background: #fff;
+  }
+  /* Frame the dialog card only. In the 1306x803 source shot the card covers
+     x 122..1081, y 224..560; below 560 only the narrower suggestion list is
+     lit, so cropping there keeps the dimmed page out of the window. */
+  .shot img {
+    position: absolute;
+    width: 1035px;
+    top: -178px;
+    left: -97px;
+    image-rendering: -webkit-optimize-contrast;
+  }
+  /* soften the crop through the suggestion list */
+  .shot::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 58px;
+    background: linear-gradient(rgba(255, 255, 255, 0), #fff 78%);
+  }
+
+  /* a tool call under the window, same tilt as the screenshot */
+  .tool {
+    position: absolute;
+    top: 505px;
+    left: 672px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 20px;
+    border: 1px solid rgba(255, 255, 255, .12);
+    border-radius: 12px;
+    background: rgba(18, 18, 26, .92);
+    box-shadow: 0 30px 70px -28px rgba(0, 0, 0, .9);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 14.5px;
+    color: #b9b9cc;
+    white-space: nowrap;
+    transform: rotate(-2.5deg);
+  }
+  .tool .ok {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #3fb950;
+    box-shadow: 0 0 12px 2px rgba(63, 185, 80, .55);
+  }
+  .tool b { color: #e7e7f2; font-weight: 500; }
+  .tool .sep { color: #45455a; }
+</style>
+</head>
+<body>
+  <div class="cover">
+    <div class="grid"></div>
+
+    <div class="copy">
+      <div class="eyebrow"><span class="dot"></span>DeepSeek Harness plugin</div>
+
+      <h1>dsh<span class="dim">-</span>remote</h1>
+
+      <p class="tagline">
+        Make any <b>SSH machine</b> a real DSH workspace —<br/>
+        the agent lists, edits, builds and syncs right there.
+      </p>
+
+      <div class="chips">
+        <span class="chip">Multi-machine SSH</span>
+        <span class="chip">Remote workspace picker</span>
+        <span class="chip">Conflict-aware SFTP sync</span>
+        <span class="chip">Port forwarding</span>
+        <span class="chip mono">21 rw_* tools</span>
+      </div>
+
+      <div class="foot">
+        github.com/flymysql/dsh-remote
+        <span class="sep">·</span>
+        MIT
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="window">
+        <div class="bar">
+          <i></i><i></i><i></i>
+          <span class="title">root@203.0.113.10 · 选择工作目录</span>
+        </div>
+        <div class="shot"><img src="ui-picker-panel.png" alt="dsh-remote workspace picker"/></div>
+      </div>
+    </div>
+
+    <div class="tool">
+      <span class="ok"></span>
+      <b>rw_exec</b>("cargo build --release")
+      <span class="sep">·</span>
+      exit 0
+    </div>
+  </div>
+</body>
+</html>
