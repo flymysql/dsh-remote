@@ -41,8 +41,22 @@ and are referenced from the default README with a **relative path**, e.g.
 previews never showed a cover next to plugins that use `docs/foo.png`.
 
 `docs/cover.png` is 1280×640 (GitHub's recommended social size, under 1 MB).
-To also use it when the repo URL is shared on Slack/X, upload the same file
-manually (no public API): **Settings → General → Social preview → Upload**.
+It is rendered from `docs/cover.html`, which frames the real picker screenshot,
+so edit the HTML and re-render rather than retouching the PNG:
+
+```bash
+google-chrome --headless=new --disable-gpu --hide-scrollbars \
+  --force-device-scale-factor=2 --window-size=1280,640 \
+  --screenshot=/tmp/cover@2x.png "file://$PWD/docs/cover.html"
+python3 -c "from PIL import Image; \
+Image.open('/tmp/cover@2x.png').convert('RGB') \
+  .resize((1280,640), Image.LANCZOS).save('docs/cover.png', optimize=True)"
+```
+
+(rendering at 2× and downscaling keeps the type crisp).
+
+To also use the cover when the repo URL is shared on Slack/X, upload the same
+file manually (no public API): **Settings → General → Social preview → Upload**.
 
 ---
 

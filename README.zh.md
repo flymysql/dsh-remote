@@ -28,7 +28,7 @@ Desktop 安装器还可能要求明确配置 `ssh2` / `cpu-features` 可选构�
 [![license](https://img.shields.io/github/license/flymysql/dsh-remote)](LICENSE)
 [![dsh-plugin](https://img.shields.io/badge/topic-dsh--plugin-7a)](https://github.com/topics/dsh-plugin)
 
-![dsh-remote 工作区选择](docs/cover.png)
+![dsh-remote —— 把任意 SSH 机器变成真正的 DSH 工作区](docs/cover.png)
 
 **为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）打造的远程工作助手。**
 
