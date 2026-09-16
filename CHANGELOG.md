@@ -2,6 +2,11 @@
 
 All notable changes to **dsh-remote**.
 
+## Unreleased
+- New 1280×640 hero/cover image as the first README image, rendered from
+  `docs/cover.html` (headless Chrome at 2×, see `docs/promote.md`): title +
+  tagline + feature chips next to the real workspace picker in a window frame.
+
 ## 0.8.17 — 2026-09-16
 ### 文档：README 截图改用仓库内相对路径（PR #33）
 
