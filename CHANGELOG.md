@@ -2,11 +2,48 @@
 
 All notable changes to **dsh-remote**.
 
-## Unreleased
-- README screenshots use **in-repo relative paths** (`docs/cover.png`, `docs/*.png`)
-  instead of jsDelivr CDN URLs, so GitHub can pick them up as the
-  [dsh-plugin topic](https://github.com/topics/dsh-plugin) card image. Added a
-  1280×640 `docs/cover.png` (workspace picker crop) as the first README image.
+## 0.8.17 — 2026-09-16
+### 文档：README 截图改用仓库内相对路径（PR #33）
+
+- README 截图不再走 jsDelivr CDN，改为**仓库内相对路径**（`docs/cover.png`、`docs/*.png`），
+  这样 GitHub 才能把它选为 [dsh-plugin topic](https://github.com/topics/dsh-plugin)
+  的卡片图；新增 1280×640 的 `docs/cover.png`（工作区选择器裁剪）作为 README 首图。
+
+### 修复：Windows 上远程工作区路径被按盘符根解析 → `D:\home\...` ENOENT（issue #32）
+
+**现象**（仅 Windows 触发）：连接 Linux 远端、选定远程工作区（如 `/home/os/IsaacLab`）后，
+锚点与 `.dsh-remote-meta.json` 都正常，但打开该工作区立刻报：
+
+```
+cannot resolve target "D:\home\os\IsaacLab": ENOENT: no such file or directory,
+realpath 'D:\home\os\IsaacLab'
+```
+
+聊天里的 `rw_*` 工具一切正常（走 SSH），只有侧边栏文件面板受影响。
+
+- **根因**：侧边栏的**目录展开集合（`expanded`）是按会话共享的**，内核自带的本地文件树
+  会把其中每一项当作**本地目录**，经 `/sidebar/api fs.tree` 交给
+  `dsh-better-sidebar` 的 `path-security` 做本地 `fs.realpath()` 与工作区围栏校验。
+  远程树此前通过同一个 `onToggleDir` 记录展开状态，于是**远端路径 `/home/...` 被写进了
+  这个共享集合**。在 win32 上 `/home/...` 被 Node 判定为“绝对路径”（相对当前盘符），
+  于是被补全成 `D:\home\os\IsaacLab` 而真实不存在 → ENOENT。
+  macOS/Linux 上 `/home/...` 本身就是合法本地路径，所以该缺陷只在 Windows 暴露。
+- **修复（治本）**：远程树的展开状态改为**由它自己持有**并持久化在**该 tab 的 `meta`**
+  （`remoteExpanded`）里，绝不再写进会话共享集合。外观与交互不变。
+- **修复（照顾已受影响用户）**：那个共享集合是**持久化在 localStorage 的**
+  （`dsh-sidebar:v1:<sessionId>`），不清就一直失败。因此插件激活时先做一次**幂等迁移**，
+  在本地文件树读取之前清掉其中的远端残留；tab 侧也会在解析出远程根目录后兜底再清一次。
+- **删除范围刻意收窄**：只删“在本机不可能成为合法本地路径”的条目 —— 即 Windows 上的
+  POSIX 绝对路径（`/home/...`）。真实 Windows 路径（`C:\...`、`D:\...`）与**本地镜像路径**
+  （`$DSH_HOME/remote-workspaces/...`）一律保留；非 Windows 宿主不做这项广泛清理
+  （那里的 `/home/...` 本身合法），只按当前远程根目录范围清理。
+  面板几何、已开 tab、tab meta、底部面板等其余状态均原样保留。
+
+**验证**：`npm test` 117/117（client-lifecycle 新增 3 例：共享集合不再被当作树状态 /
+Windows 全量清扫 / 启动期迁移；并断言非 Windows 不误删、无关键与不可解析值保持原样）；
+`check.mjs` 通过。真机（隔离 profile + 新端口）实测：注入污染状态后刷新，
+远程路径的 `fs.tree` 请求由 **2 次（均 400）降为 0**，持久化集合被清空，
+正常加载与本地会话无回归。
 
 ## 0.8.16 — 2026-09-15
 ### 新增（实验性）：官方 Desktop 传输 + 原生右栏远程文件（PR #31），并就评审发现加固 4 处
