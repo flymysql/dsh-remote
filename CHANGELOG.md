@@ -2,6 +2,12 @@
 
 All notable changes to **dsh-remote**.
 
+## Unreleased
+- README screenshots use **in-repo relative paths** (`docs/cover.png`, `docs/*.png`)
+  instead of jsDelivr CDN URLs, so GitHub can pick them up as the
+  [dsh-plugin topic](https://github.com/topics/dsh-plugin) card image. Added a
+  1280×640 `docs/cover.png` (workspace picker crop) as the first README image.
+
 ## 0.8.16 — 2026-09-15
 ### 新增（实验性）：官方 Desktop 传输 + 原生右栏远程文件（PR #31），并就评审发现加固 4 处
 
