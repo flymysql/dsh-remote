@@ -16,7 +16,8 @@ This file is for the author; nothing here is shown in the README install flow.
 | AdamPlatin123/awesome-dsh-plugins (auto radar) | ✅ auto-listed (snapshot lags; auto-refreshes) |
 | Blog posts | ✅ docs/blog/showcase-{en,zh}.md |
 | Official Discussions showcase | ⏳ **TODO (manual, no public API)** |
-| README / npm previews | ✅ jsDelivr CDN (raw.githubusercontent.com blocked in many networks) |
+| README / npm previews | ✅ in-repo relative paths (`docs/cover.png`) so GitHub Topics can show a card image |
+| GitHub Topics card | ⏳ after this lands on `main`; optional extra: Settings → Social preview upload |
 | WhaleHarness audit (issue #1) | ✅ fixed in 0.5.5; awaiting re-review |
 
 
@@ -30,6 +31,18 @@ dsh-plugin  deepseek-harness  remote  ssh  tunnel  plugin
 
 This makes the repo appear on `https://github.com/topics/dsh-plugin` (the official
 CONTRIBUTING.md discovery channel).
+
+### GitHub Topics cover image
+
+Topic cards (and Explore) only thumbnail **images that live in the repository**
+and are referenced from the default README with a **relative path**, e.g.
+`![dsh-remote](docs/cover.png)`. External CDNs (`cdn.jsdelivr.net`,
+`raw.githubusercontent.com`) are skipped, which is why the jsDelivr README
+previews never showed a cover next to plugins that use `docs/foo.png`.
+
+`docs/cover.png` is 1280×640 (GitHub's recommended social size, under 1 MB).
+To also use it when the repo URL is shared on Slack/X, upload the same file
+manually (no public API): **Settings → General → Social preview → Upload**.
 
 ---
 
