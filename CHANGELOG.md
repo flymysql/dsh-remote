@@ -2,10 +2,18 @@
 
 All notable changes to **dsh-remote**.
 
-## Unreleased
-- New 1280×640 hero/cover image as the first README image, rendered from
-  `docs/cover.html` (headless Chrome at 2×, see `docs/promote.md`): title +
-  tagline + feature chips next to the real workspace picker in a window frame.
+## 0.8.18 — 2026-09-16
+### 变更：解除 dsh-better-sidebar 硬绑定
+
+- README 首图换成由 `docs/cover.html` 渲染的 1280×640 产品封面。
+- 从 `dependencies` 删除 `dsh-better-sidebar`。
+- bundle patch 不再自动插入 `dsh-remote-sidebar`；安装 `dsh-remote` 现在只挂载
+  `dsh-remote` 自身，避免侧边栏版本/API 变化拖垮整个插件树。
+- 保留可选集成：用户单独安装 `dsh-better-sidebar` 后，client 仍会动态发现
+  `betterSidebar` service 并注册远程文件浏览/编辑 tab。
+- 官方 Desktop 的原生右侧栏集成不受影响；不安装 sidebar 时，`rw_*` 工具、设置页、
+  同步、审计日志与端口转发均照常工作。
+- README 更新为显式的双插件安装方式，并补回归测试确保 bundle 不再硬挂 sidebar。
 
 ## 0.8.17 — 2026-09-16
 ### 文档：README 截图改用仓库内相对路径（PR #33）

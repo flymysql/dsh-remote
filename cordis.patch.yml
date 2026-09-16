@@ -1,59 +1,9 @@
-# dsh-remote bundle patch: inserts this plugin into a profile's layer stack.
-# Applied when a profile lists this bundle; rows reference the package by name so
-# Node resolution finds the installed code.
+# dsh-remote bundle patch: inserts only this plugin into a profile's layer stack.
 #
-# Since v0.7.2 dsh-remote ships dsh-better-sidebar as a hard dependency and
-# mounts it here, so `dsh plugin add dsh-remote` brings up the sidebar with
-# zero extra steps on Web. Official Desktop explicitly disables the Web server
-# row and uses the native right-sidebar seats instead. The sidebar
-# row uses a DEDICATED id (`dsh-remote-sidebar`)
-# and a guard so it backs off when another row mounts `dsh-better-sidebar`
-# (e.g. the user installed the sidebar bundle on its own, or an aggregate
-# bundle owns it) — two enabled mounts would both register /sidebar/api and
-# fail the whole plugin tree at boot.
-#
-# Order-independence (issue #12): the guard must NOT depend on
-# `ctx.loader.entries()` creation order. The loader creates entries in bundle
-# order and each row's disabled expression is evaluated at creation time, when
-# only rows created BEFORE it are visible — so with
-# `bundles: [..., "dsh-remote", "dsh-better-sidebar", ...]` (standalone sidebar
-# installed after dsh-remote, the normal `dsh plugin add` append order) both
-# rows saw no other sidebar mount and BOTH started, crashing boot with
-# `duplicate prefix route "/sidebar/api"`.
-#
-# Instead we scan the COMPOSED PATCH STACK — the include entry's
-# `config.patches` (every bundle layer in `dsh.profile.bundles` order, then the
-# profile/home/overlay layers) — for any OTHER row that mounts
-# `dsh-better-sidebar`. That data is fully materialized before any row guard
-# evaluates, so the outcome is identical no matter where the standalone bundle
-# sits in the bundle list. It is also pure data: it never reads another row's
-# `disabled` (reading another row's disabled expression would recursively
-# re-enter the loader — dsh-better-sidebar's own row carries one too, so the
-# two would ping-pong), so no recursion is possible. The old entries()-based
-# check is kept as a belt-and-suspenders fallback for rows not visible in the
-# patch stack (e.g. an entry injected at runtime by HMR or another plugin).
+# dsh-better-sidebar is deliberately not mounted here and is not a dependency.
+# Users who want that optional Web UI can install its bundle separately;
+# lib/client.js discovers the betterSidebar service dynamically and adds the
+# remote explorer/editor tabs when it is present.
 - insert:
     - id: dsh-remote
       name: 'dsh-remote'
-    - id: dsh-remote-sidebar
-      name: 'dsh-better-sidebar'
-      disabled: !!js >-
-        (function () {
-          // Inspect the core row's explicit disabled flag, not service presence:
-          // a Web server that simply has not started yet must still be awaited.
-          // Do not evaluate another sidebar's disabled guard (issue #12).
-          if ([...ctx.loader.entries()].some((e) => e.options.name === '@deepseek-ai/dsh-host-webserver' && e.options.disabled === true)) return true
-          try {
-            const inc = ctx.loader && ctx.loader.resolve && ctx.loader.resolve('include')
-            const patches = inc && inc.subtree && inc.subtree.config && inc.subtree.config.patches
-            if (Array.isArray(patches)) {
-              for (const p of patches) {
-                if (!p || !Array.isArray(p.insert)) continue
-                for (const row of p.insert) {
-                  if (row && row.name === 'dsh-better-sidebar' && row.id !== 'dsh-remote-sidebar') return true
-                }
-              }
-            }
-          } catch (e) {}
-          return [...ctx.loader.entries()].some((e) => e.options.name === 'dsh-better-sidebar' && e.options.id !== 'dsh-remote-sidebar')
-        })()

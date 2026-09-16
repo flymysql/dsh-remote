@@ -74,10 +74,8 @@ core or require a listening Web server:
   `sidebar.right.pane.tab` seat. It reuses the existing explorer/editor and
   gives remote files their own session-scoped resource addresses, rather than
   sending remote paths to the local Files viewer.
-- When the core Web-server row is explicitly disabled (the official Desktop
-  composition), the bundled `dsh-better-sidebar` row stays disabled. Web hosts
-  retain the existing `/dsh-remote/*` routes and sidebar composition, including
-  the standalone-sidebar deduplication guard.
+- `dsh-better-sidebar` is not bundled. Web hosts may install it separately;
+  official Desktop uses the native right-sidebar integration instead.
 
 Validation so far covers Host startup, Desktop IPC JSON requests, read-only
 SSH connection/list/read, and opening the settings/import UI. Native file-tab
@@ -99,48 +97,29 @@ build allowlist or automatically approve dependency scripts.
 dsh plugin add dsh-remote            # add the bundle
 ```
 
-One command installs everything: since **v0.7.2** the sidebar
-([dsh-better-sidebar](https://www.npmjs.com/package/dsh-better-sidebar)) is a
-hard dependency and is mounted automatically — the 🌐 remote-file explorer and
-remote file viewer show up in the sidebar with no extra step. If you already
-have the sidebar installed on its own, the embedded copy backs off (no double
-mount) — regardless of whether the standalone bundle is listed **before or
-after** `dsh-remote` in `dsh.profile.bundles` (order-independent guard since
-0.8.7; earlier versions crashed boot with `duplicate prefix route
-"/sidebar/api"` when the standalone bundle came after `dsh-remote`).
+Since **v0.8.18**, `dsh-remote` installs and mounts only itself. The Web sidebar
+([dsh-better-sidebar](https://www.npmjs.com/package/dsh-better-sidebar)) is
+optional and is no longer a dependency or an automatically mounted row. This
+keeps the SSH tools and settings UI independent from a particular sidebar
+implementation.
 
-> **Upgrading from ≤0.8.6 with a standalone sidebar?** You may keep the
-> standalone `dsh-better-sidebar` bundle (any order) — 0.8.7+ no longer
-> crashes. Or remove it from `bundles` and let dsh-remote mount the embedded
-> copy (version ^0.18.1 since 0.8.15 — earlier releases pinned 0.14.x, whose
-> `import { settingsNamespace } from "@deepseek-ai/dsh-settings"` broke once
-> dsh-settings 0.1.2-alpha.2 made that symbol private; issue #29).
+To add the optional Web remote-file explorer/editor, install both bundles:
 
-> **Harness requirement of the embedded sidebar (0.8.15+): `dsh ≥ 0.1.2-rc.1`.**
-> `dsh-better-sidebar` 0.18.x imports `SessionLogOffset` from
-> `@deepseek-ai/dsh-session`, which only exists from 0.1.2-rc.1 on. On an older
-> harness (0.1.0-rc.x) that import fails and the loader aborts the whole plugin
-> tree, so dsh does not start at all. Verified: 0.8.14 + sidebar 0.14.0 boots on
-> 0.1.0-rc.8, while 0.8.15 + sidebar 0.18.1 does not; both boot on 0.1.2-rc.1.
-> On an older harness either stay on **0.8.14**, or keep the host half by
-> disabling the embedded sidebar row in your profile's `cordis.patch.yml`
-> (verified working on 0.1.0-rc.8 — the `rw_*` tools keep working, the sidebar
-> UI is what you give up):
->
-> ```yaml
-> - id: dsh-remote-sidebar
->   disabled: true
-> ```
->
-> (and do not list a standalone `dsh-better-sidebar` bundle either).
+```bash
+dsh plugin add dsh-remote
+dsh plugin add dsh-better-sidebar
+```
 
-> **Requires the profile's pnpm linker to be `hoisted`** (the DSH profile
-> default, `nodeLinker: hoisted` in `pnpm-workspace.yaml`). The loader resolves
-> plugin packages from the profile root, so the sidebar must be reachable in
-> the top-level `node_modules`. If your `pnpm-workspace.yaml` was rewritten
-> without `nodeLinker: hoisted`, add it back (`nodeLinker: hoisted`) and run
-> `pnpm install` once — otherwise the embedded sidebar row fails with
-> `Cannot find package 'dsh-better-sidebar'`.
+When the standalone sidebar service is present, `dsh-remote` discovers it
+dynamically and registers its remote explorer/editor tabs. Without it, all
+`rw_*` tools, the settings UI, sync, audit log, and port forwarding continue to
+work. Official Desktop uses its native right-sidebar seats and does not need
+`dsh-better-sidebar`.
+
+> **Upgrading from 0.7.2–0.8.17:** upgrading to 0.8.18 removes the embedded
+> sidebar dependency and mount. Install `dsh-better-sidebar` separately only if
+> you still want that Web UI. Any old profile override for
+> `id: dsh-remote-sidebar` can be removed because that row no longer exists.
 
 (or `npm install dsh-remote` + add `- id: dsh-remote / name: dsh-remote` in `cordis.patch.yml`).
 

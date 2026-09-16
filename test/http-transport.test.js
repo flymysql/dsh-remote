@@ -3,7 +3,6 @@ import assert from 'node:assert/strict'
 import { connectionRoute, registerHttpTransports } from '../lib/http-transport.js'
 import { inject as required } from '../lib/index.js'
 import { readFileSync } from 'node:fs'
-import vm from 'node:vm'
 
 const route = {
   kind: 'exact', path: '/dsh-remote/example',
@@ -101,18 +100,9 @@ test('both transports can arrive late; each removes only its own routes', async 
   pending.get('connection')({ get: () => ({}), effect() { assert.fail('no routes') } })
 })
 
-test('bundle omits the legacy sidebar only when the core Web row is explicitly disabled', () => {
+test('bundle mounts only dsh-remote and never hard-mounts better-sidebar', () => {
   const patch = readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8')
-  const expression = patch.slice(patch.indexOf('(function ()')).trim()
-  function disabled(entries, patches = []) {
-    return vm.runInNewContext(expression, { ctx: { loader: {
-      entries: () => entries,
-      resolve: () => ({ subtree: { config: { patches } } }),
-    } } })
-  }
-  assert.equal(disabled([{ options: { name: '@deepseek-ai/dsh-host-webserver', disabled: true } }]), true)
-  assert.equal(disabled([{ options: { name: '@deepseek-ai/dsh-host-webserver', disabled: false } }]), false)
-  assert.equal(disabled([]), false, 'legacy Web startup order must not disable the bundled sidebar')
-  assert.equal(disabled([], [{ insert: [{ id: 'standalone', name: 'dsh-better-sidebar' }] }]), true,
-    'standalone bundle still wins even before its entry exists')
+  assert.match(patch, /id:\s*dsh-remote\s*\n\s*name:\s*['"]dsh-remote['"]/)
+  assert.doesNotMatch(patch, /name:\s*['"]dsh-better-sidebar['"]/)
+  assert.doesNotMatch(patch, /id:\s*dsh-remote-sidebar/)
 })
