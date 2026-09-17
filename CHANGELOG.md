@@ -2,6 +2,19 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.19 — 2026-09-17
+### 侧栏文件接口按会话绑定机器（Desktop 多机阻断项）
+
+- `/dsh-remote/ls`、`/read`、`/write`、`/fs` 接受 `sessionId`（或 `local=` 镜像路径），走与 `rw_*` 相同的 mirror binding；本地会话返回 403，不再落到「当前机器」连接池。
+- 工作区选择器仍不带 `sessionId`，继续使用当前机器（设为当前后再浏览）。
+- 客户端 explorer / 文件 tab / 原生右侧栏都会把 `sessionId` 附在请求上；保存使用 `expectedMtime` 乐观锁。
+- 大文件预览改为 SFTP `readPartial` 范围读，不再整文件 `fastGet` 到可预测的临时路径。
+- 同步默认 `depth=8` / `maxFiles=2000`，结果带明确 `TRUNCATED`；POSIX 远端 `rw_search` 优先 `rg`/`grep -R`，失败再 SFTP walk。
+- 拆出 `lib/pool.js`、`lib/routes-fs.js`、`lib/remote-fs.js`；host-key TOFU 守卫进 `lib/hostkey.js`。
+- 文档：中英文 README / `package.json` 工具数（20）/ `PUBLISH.md` 对齐当前功能。
+
+**验证**：`npm test`；新增 session-fs / desktop-fs / remote-fs 回归。Desktop 完整 GUI 仍标实验性，但侧栏选机阻断项已修。
+
 ## 0.8.18 — 2026-09-16
 ### 变更：解除 dsh-better-sidebar 硬绑定
 

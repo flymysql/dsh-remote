@@ -60,6 +60,10 @@ export function makeSftp(fs) {
     writeFile: (p, buf) => { fs.writeFileSync(p, buf); return Promise.resolve() },
     fastGet: (p, lp) => { fs.writeFileSync('@local:' + lp, fs.readFileSync(p)); return Promise.resolve() },
     fastPut: (lp, p) => { fs.writeFileSync(p, fs.readFileSync('@local:' + lp)); return Promise.resolve() },
+    readPartial: (p, offset, length) => {
+      const buf = fs.readFileSync(p)
+      return Promise.resolve(buf.subarray(offset, offset + length))
+    },
   }
 }
 

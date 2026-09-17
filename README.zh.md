@@ -17,9 +17,10 @@
   原生右侧栏集成。
 
 已验证 Host 启动、IPC 请求、真实 SSH 的只读连接/目录列表/文本读取，以及设置页和
-测试 SSH 配置的导入。文件标签的完整 UI 操作、编辑/同步、多机器并行会话，以及旧 Web
-版完整 UI 回归仍需在发布前验收。尤其是现有侧栏文件接口仍使用“当前机器”的连接池，
-不能把会话级标签地址误认为后端已实现会话级机器绑定；本分支尚不代表生产级多机器支持。
+测试 SSH 配置的导入。**v0.8.19** 起侧栏 `/ls` `/read` `/write` `/fs` 在请求带
+`sessionId` 时按该会话的镜像绑定选机（与 `rw_*` 同一套），不再落到「当前机器」
+连接池；宿主侧测试覆盖双机会话路由与编辑 409/重读/保存。原生文件标签的完整 GUI、
+失败/取消交互、非 macOS 宿主以及旧 Web 版完整 UI 回归仍属实验性。
 
 Desktop 安装器还可能要求明确配置 `ssh2` / `cpu-features` 可选构建脚本策略。
 隔离验证中禁用了这些可选脚本；本改动不放宽应用的构建白名单，也不自动批准脚本。
@@ -54,18 +55,21 @@ DSH 的 Web 界面刻意只监听 `127.0.0.1`（CLI 为安全拒绝 `--host 0.0.
 
 ## 功能
 
-- **多机 SSH** —— 可存任意多台主机（host/port/user + **私钥**或**密码**）。密码只存在本地，界面不回显；在设置里一键切当前机。
+- **多机 SSH** —— 可存任意多台主机（host/port/user + **私钥**或**密码**）。密码只存在本地，界面不回显；在设置里一键切当前机。每机可配 passphrase / 主机指纹策略 / SSH agent / keyboard-interactive（OTP）/ 跳板机，以及可选的 **系统钥匙串加密密码**。
+- **`~/.ssh/config` 导入** —— 设置页列出 Host 别名，一点填入表单（只引用路径，不读密钥材料）。
 - **双 tab 工作区选择器**（填充原生「Add workspace」流程）：
   - **本机** —— 走 **host 端原生系统文件夹对话框**选本地目录（或直接输入本地路径）→ 直接成为普通 DSH 本地工作区（与本地工作区共存）。优先用 DSH 的 `directoryPicker` 服务，服务缺失时**回退到插件自持的原生选择器**（macOS `osascript` / Linux `zenity`→`kdialog`）——桌面启动路径上框架服务不注册也能用。
   - **远程** —— 选择器是**居中弹窗**（窄侧边栏也不会被挤压）。先**选机器** → Windows 主机根级显示 **「此电脑」多盘视图**（`C:\`、`D:\`、`E:\`…，而不是 Git Bash 的 MSYS 根），路径框**实时补全**目录（支持 `C:\Users\…` 或 `/c/Users/…` 任意写法，Windows 路径在底层自动改写为 Git Bash 形式）；**选中一个目录立即列出它下一级**（OS/VSCode 式级联）。另有 **「浏览…」文件选择式浮层**（Windows 面包屑 `此电脑 / C:\ / Users / dev` 可点击跳级、驱动器行、大小/时间、跟随软链），选中**回填输入框不提交**，你复核/修改后再确定；「回上一级」任意深度可用（包括浮层直接打开在路径栏当前路径时）。**最近工作区**快捷入口、**`~` 主目录**、**新建目录**一键可达。确定会创建**真实本地镜像**（`$DSH_HOME/remote-workspaces/<host>-<user>-<port>/<basename>`；仅当同主机上**别的远端路径**已占用同名 basename 时才追加短路径 hash）→ harness 把它当真实工作区收养，同时 dsh-remote 通过 SFTP 保持同步。所选工作区会**持久化到该机器**，重启不丢。
 - **Git Bash 默认终端（Windows 主机）** —— 自动探测远程平台（`cmd /c ver`，附 `uname -s` 的 MINGW/MSYS 探测兜底）；Windows 机器自动定位 Git Bash（`config.shell` 可显式指定或 `native` 关闭），所有命令经 `bash -s` 从 SSH 通道 stdin 管道执行，不依赖 cmd/PowerShell，也不受引号/反斜杠转义困扰；`rw_exec` 默认在 Git Bash 形式的 cwd（`/c/Users/…`）下执行。`/dsh-remote/status`、`rw_info`、设置页「测试连接」都会报告检测到的平台与 shell。
 - **Windows 路径自动改写** —— 用户输入 `C:\Users\dev\project`（或 `C:/…`、`/c/…`、`/C:/…`）时底层自动规范为 Git Bash 形式 `/c/Users/dev/project` 执行；工作区存储与展示为 Windows 形式 `C:\Users\dev\project`。模型工具全部接受并展示两种写法；SFTP 访问使用 Win32-OpenSSH 的 `/D:/…` 形式（见 `toSftpPath`）。
-- **双向 SFTP 同步（增量）** —— `rw_sync`（远程→镜像）、`rw_push`（镜像→远程），本地镜像改动可回传机器。两者都会**跳过 size+mtime 未变化的文件**，并有**单文件大小上限**防误拉大二进制；目录遍历带**有界并发**。
-- **模型工具** —— `rw_info`、`rw_connect`、`rw_pick_workspace`、`rw_list_dir`、`rw_read_file`、`rw_write_file`、`rw_exec`（默认在工作区目录执行，可传 `cwd=`）、`rw_search`（可移植递归 grep）、`rw_download`、`rw_upload`、`rw_sync`、`rw_push`、`rw_disconnect`。
-- **直接写远程文件** —— `rw_write_file` 直接创建/覆盖远程文件（自动建父目录），单个文件改动不必绕本地镜像来回同步；`rw_download` / `rw_upload` 可单文件双向取真字节。
-- **连接体检** —— 设置页提供「测试连接」按钮，在保存机器之前先验证 host/user/密码/私钥是否可用。
+- **双向 SFTP 同步（三路冲突检测）** —— `rw_sync`（远程→镜像）、`rw_push`（镜像→远程）。两边都改过的文件会列出冲突、绝不静默覆盖（`force=true` 覆盖）。默认 **深度 8 / 2000 文件**，触顶会标明 **`TRUNCATED`**。支持 dry-run、后台任务、gitignore 风格 ignore 规则。
+- **模型工具（20 个）** —— `rw_info`、`rw_connect`、`rw_pick_workspace`、`rw_list_dir`、`rw_stat`、`rw_read_file`（utf-8/gbk）、`rw_write_file`、`rw_edit`（字面替换 + mtime 乐观锁）、`rw_append`、`rw_mkdir`、`rw_remove`、`rw_move`、`rw_exec`、`rw_search`（POSIX 优先 rg/grep，否则 SFTP 遍历）、`rw_download`/`rw_upload`、`rw_forward`、`rw_sync`、`rw_push`、`rw_disconnect`。
+- **端口转发面板** —— 设置页或 `rw_forward` 创建/启停本地与反向隧道。
+- **侧栏远程编辑** —— 远程文件 tab 可编辑并保存到远端（mtime 乐观锁）。**v0.8.19** 起文件操作按会话绑定机器。
+- **命令审计** —— `rw_exec`/写/删/移动/转发写入 `audit.log`；设置页显示最近 30 条。
+- **连接体检** —— 设置页「测试连接」按类别提示（认证 / 网络 / 主机指纹 / 超时）。
 - 当前 `user@host:/path` 会注入每次系统提示，让 Agent 明确自己的工作根。
-- **远端跨平台** —— 命令全部用可移植 POSIX 写法（`ls -la` / `sed -n` / `find … -exec grep`），macOS/BSD 与 GNU/Linux 远端都能用。
+- **远端跨平台** —— 文件访问走 SFTP 协议（不依赖 POSIX shell），Linux/macOS/Windows 远端都能列/读/写/搜索/同步。
 - **主机指纹校验（TOFU）** —— 每次 SSH 连接都校验主机密钥（`hostKeyMode: accept-new`）：首次连接记录，之后**密钥一旦变化立即拒绝**（防中间人）。`verify` 模式还会拒绝从未见过的机器；`off` 关闭校验。指纹存于 `$DSH_HOME/remote-workspaces/known_hosts.json`；误判可用 `/remote forget-key` 重置。
 - **数据跟随 Harness 根目录** —— 机器清单与镜像放在 `$DSH_HOME/remote-workspaces`（桌面版即 `userData/harness` 下）；0.6 之前落在 `~/.dsh/remote-workspaces` 的数据**首次启动自动迁移**，不丢失。
 - **不改任何 `dsh-workspace` 官方代码** —— 全部作为普通插件实现（client 半以 `priority -100` 填充 directory-flow holes）。
@@ -108,11 +112,13 @@ dsh plugin add dsh-better-sidebar
    - **本机** → 系统文件夹选择（或输入本地路径）→ 本地工作区。
    - **远程** → 选机器 → 浏览到远程目录（或输入 `/path`）→ 「设为远程工作区」⇒ 创建并收养一个本地镜像工作区。
 3. **让 Agent 工作** —— 把它当普通工作区用：
-   - `rw_list_dir(path?)` / `rw_read_file` —— 查看远程文件
-   - `rw_write_file(path, content)` —— 直接创建或覆盖远程文件
+   - `rw_list_dir(path?)` / `rw_read_file` / `rw_stat` —— 查看远程文件
+   - `rw_write_file` / `rw_edit` / `rw_append` —— 创建、补丁、追加远程文件
+   - `rw_mkdir` / `rw_remove` / `rw_move` —— 管理远程路径
    - `rw_search(pattern, path?)` —— 远程 grep
    - `rw_exec(command, cwd?)` —— 在远程执行命令（默认在工作区目录）
-   - `rw_sync` / `rw_push` —— 拉取/推送本地镜像 <-> 远程
+   - `rw_forward` —— SSH 隧道
+   - `rw_sync` / `rw_push` —— 冲突感知的镜像拉取/推送
 
 > **Remote context 是 session 级的（v0.8.8+）**：system prompt 只会在**当前 session 的
 > cwd 位于某个远程 mirror 内**（即你把远程目录选成了这个 session 的工作区）时注入
