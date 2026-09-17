@@ -9,7 +9,7 @@ This file is for the author; nothing here is shown in the README install flow.
 
 | Channel | Status |
 |---|---|
-| npm `dsh-remote` | latest **0.8.19** (history 0.1.0→0.8.19) |
+| npm `dsh-remote` | latest **0.8.20** (history 0.1.0→0.8.20) |
 | GitHub topics (`dsh-plugin`, `deepseek-harness`, `remote`, `ssh`, `tunnel`, `plugin`) | set |
 | GitHub Releases | keep in sync with CHANGELOG on each npm publish |
 | awesome-dsh-plugin | listed (EN+zh) |
