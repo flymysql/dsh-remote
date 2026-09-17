@@ -2,6 +2,21 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.20 — 2026-09-17
+### 界面与操作：主题跟随、主按钮、键盘与内联对话框
+
+- 设置页：机器行 hover / 状态胶囊（当前、密码、钥匙串、跳板）替代 emoji 堆叠；标签列加宽；**保存 / 设为当前 / 添加转发 / 立即更新** 使用主色按钮。
+- 端口转发与审计日志可折叠；审计增加「刷新日志」，默认收起减少一屏噪音。
+- 工作区选择器：分段式 本机/远程 tab；路径框 **Enter** 确认、**Esc** 关闭、**Ctrl/⌘+Enter** 设为工作区；列表 hover；主操作高亮。
+- 远程文件树：新建目录 / 重命名改为主题内联对话框（不再 `window.prompt`）；右键菜单跟随 light/dark token。
+- 文件 tab：编辑器文字色跟主题（不再写死深色 `#e4e4e7`）；未保存标记；**Ctrl/⌘+S** 保存、**Esc** 取消。
+- 注入 `.dsh-rw-*` 焦点/hover CSS（无 `document` 的测试环境自动跳过）。hover 用中性半透明灰而不是
+  `--dsw-alias-interactive-bg-hover`：宿主该 token 只有 6% 浓度，在设置页背景上几乎看不见；
+  主按钮 hover 用 `opacity`，因为宿主的 primary fill 在浅色主题下本就接近纯黑，`brightness` 无效。
+
+**验证**：`npm test`；另起一个 DSH web 实例（独立 `DSH_HOME`，端口 7391）安装 0.8.20 tarball 实测：
+插件路由 200、设置页机器行/胶囊/折叠区、选择器分段 tab 与 Enter/Esc 均正常。
+
 ## 0.8.19 — 2026-09-17
 ### 侧栏文件接口按会话绑定机器（Desktop 多机阻断项）
 
