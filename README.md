@@ -41,10 +41,10 @@ Real capture (host scrubbed to a placeholder):
   - **远程 / Remote** — the picker is a **centered modal**. Pick a **machine** → on Windows hosts the root shows a **"This PC" drive view** (`C:\`, `D:\`, `E:\`… instead of the Git Bash MSYS root) and the path field live **autocompletes** directories (accepts `C:\Users\…` or `/c/Users/…` — Windows paths are rewritten to the Git Bash form underneath); selecting a directory immediately lists its next level. A **浏览…** floating browser (Windows-aware breadcrumb `此电脑 / C:\ / Users / dev`, drive rows, size + mtime, dirs first, follows symlinks) fills the field without committing; the **回上一级** button works at any depth (even when the browser was opened at the path bar's value). **最近 workspaces** quick-pick, **`~` 主目录** shortcut and **新建目录** are one click away. On confirm it creates a **real local mirror** under `$DSH_HOME/remote-workspaces/<host>-<user>-<port>/<base>` that passes `fs.realpath` → the harness adopts it as a real workspace while dsh-remote keeps it synced over SFTP.
 - **Git Bash default terminal (Windows remotes)** — the remote platform is auto-detected (`cmd /c ver`, plus an `uname -s` MINGW/MSYS probe as fallback); on Windows the plugin locates Git Bash (`config.shell` can pin a path or `native` disables wrapping) and pipes every command to `bash -s` over the exec channel, so quoting/backslash escaping is never an issue regardless of the SSH default shell. `rw_exec` runs with a Git Bash cwd (`/c/Users/…` form). `/dsh-remote/status`, `rw_info` and the 测试连接 button report the detected platform + shell.
 - **Windows path auto-conversion** — typing `C:\Users\dev\project` (or `C:/…`, `/c/…`, `/C:/…`) is normalized underneath to the Git Bash form `/c/Users/dev/project` for shell commands, while workspaces are stored and shown Windows-style (`C:\Users\dev\project`). All model tools accept and report both forms; SFTP access uses the Win32-OpenSSH `/D:/…` form (see `toSftpPath`).
-- **Bidirectional SFTP sync, conflict-aware** — `rw_sync` (remote → mirror) and `rw_push` (mirror → remote) are **three-way** (remote vs local vs last-synced snapshot): files changed on both sides are **reported as conflicts and never silently overwritten** (`force=true` overrides). Both support **dry-run**, **background tasks**, and honor **gitignore-style ignore rules** (`.dsh-remote-ignore` under `remote-workspaces`, defaults cover `.git/node_modules/target/dist/build/…`).
+- **Bidirectional SFTP sync, conflict-aware** — `rw_sync` (remote → mirror) and `rw_push` (mirror → remote) are **three-way** (remote vs local vs last-synced snapshot): files changed on both sides are **reported as conflicts and never silently overwritten** (`force=true` overrides). Defaults are **depth 8 / 2000 files**; hitting a cap is reported as **`TRUNCATED`**. Both support **dry-run**, **background tasks**, and honor **gitignore-style ignore rules**.
 - **Model tools** — 20 tools, all Windows/POSIX portable via SFTP: `rw_info`, `rw_connect` (with `save`), `rw_pick_workspace`, `rw_list_dir` (size+mtime), `rw_stat`, `rw_read_file` (encoding-aware: utf-8/gbk), `rw_write_file`, **`rw_edit`** (literal replace + mtime optimistic lock), `rw_append`, `rw_mkdir`, `rw_remove` (recursive, bounded), `rw_move`, `rw_exec` (pty/env), **`rw_search`** (SFTP tree walk — works on Windows too, honors ignore rules, context lines), `rw_download`/`rw_upload` (streaming fastGet/fastPut + size caps), **`rw_forward`** (SSH tunnels), `rw_sync`, `rw_push`, `rw_disconnect`.
 - **Port forwarding panel** — create/start/stop/remove **local** (`127.0.0.1:port → remote`) and **reverse** (`remote → local`) tunnels in the Settings page or via `rw_forward`; definitions persist, auto-restart on reconnect when enabled, all tunnels stop on disconnect.
-- **Sidebar remote editing** — the better-sidebar remote file tab is now **editable**: click **编辑** → edit → **保存到远程** with an mtime optimistic lock (409 + "重新读取" on concurrent change). The explorer rows show file sizes and have a **right-click menu** (下载到本地镜像 / 重命名 / 删除 / 新建目录).
+- **Sidebar remote editing** — the remote file tab is **editable**: click **编辑** → edit → **保存到远程** with an mtime optimistic lock (409 + "重新读取" on concurrent change). File ops are **session-bound** (v0.8.19): the explorer sends `sessionId` so two conversations on different hosts do not share the active-machine pool. The explorer rows show file sizes and have a **right-click menu** (下载到本地镜像 / 重命名 / 删除 / 新建目录).
 - **Command audit log** — every `rw_exec`/write/remove/move/forward is appended to `$DSH_HOME/remote-workspaces/audit.log` (time · user@host · op · exit code · command); the Settings page shows the last 30.
 - **Async long tasks** — `rw_sync`/`rw_push` with `async: true` return a `taskId`; progress/result/cancel via `/dsh-remote/task` (single-flight queue).
 - **Connection health** — a **「测试连接」** button validates host/user/key/password (with per-category error hints: auth / network / host key / timeout) before you save a machine; latency is cached on the machine record.
@@ -77,19 +77,17 @@ core or require a listening Web server:
 - `dsh-better-sidebar` is not bundled. Web hosts may install it separately;
   official Desktop uses the native right-sidebar integration instead.
 
-Validation so far covers Host startup, Desktop IPC JSON requests, read-only
-SSH connection/list/read, and opening the settings/import UI. Native file-tab
-navigation, editing/sync, concurrent sessions on different machines, and the
-full legacy Web UI still need end-to-end acceptance before release. In
-particular, existing sidebar file endpoints use the active-machine pool;
-session-scoped tab addresses alone do **not** make those endpoints
-session-bound. This is not a claim of production-ready multi-machine Desktop
-support.
+Since **v0.8.19**, sidebar `/ls` `/read` `/write` `/fs` resolve the session's
+mirror binding (same path as `rw_*`) when the client sends `sessionId`. Two
+sessions on different hosts no longer share the active-machine pool for file
+ops. Host-side tests cover that routing plus the editor 409/re-read/save path.
 
-Desktop's package installer may also require an explicit policy for the
-optional `ssh2` / `cpu-features` build scripts. The isolated transport test
-disabled those optional scripts; this change does not loosen an application's
-build allowlist or automatically approve dependency scripts.
+Official Desktop's native file-tab GUI, failed/cancelled dialogs, non-macOS
+hosts, and a full legacy Web UI pass are still experimental. Desktop's package
+installer may also require an explicit policy for the optional `ssh2` /
+`cpu-features` build scripts. The isolated transport test disabled those
+optional scripts; this change does not loosen an application's build allowlist
+or automatically approve dependency scripts.
 
 ### Published Web bundle
 

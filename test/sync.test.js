@@ -148,3 +148,14 @@ test('pushOneFile: pushes a local edit, never clobbers a remote change', async (
   assert.equal(fs.readFileSync('/proj/a.txt').toString(), 'remote-new')
   rmSync(local, { recursive: true, force: true })
 })
+
+test('syncTree sets truncated when maxFiles is hit', async () => {
+  const fs = new MemFs()
+  seed(fs, { 'proj/a.txt': 'a', 'proj/b.txt': 'b', 'proj/c.txt': 'c' })
+  const sftp = makeSftp(fs)
+  const local = tmpDir()
+  const r = await syncTree(sftp, '/proj', local, { maxFiles: 1, maxFileBytes: 0, isIgnored: noIgnore, state: {} })
+  assert.ok(r.stats.files >= 1)
+  assert.equal(r.stats.truncated, true)
+  rmSync(local, { recursive: true, force: true })
+})

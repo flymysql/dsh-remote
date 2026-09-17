@@ -1,57 +1,54 @@
 # Publish Guide — dsh-remote
 
-## 1. Create the GitHub repository
+Current product: a **remote-work assistant** for DeepSeek Harness (multi-machine
+SSH, remote workspace picker, 20 `rw_*` tools, conflict-aware SFTP sync, port
+forwarding, optional sidebar editor). This is **not** the early “print SSH
+tunnel commands” plugin.
 
-https://github.com/new → name **`dsh-remote`**, Public, description:
+## 1. Version and changelog
 
-> Remote-access assistant for DeepSeek Harness: /remote command and a settings page that print the exact SSH tunnel / reverse-tunnel / reverse-proxy commands (harness intentionally binds loopback only).
+Bump `package.json` `version`, add a section to `CHANGELOG.md`, keep
+`README.md` / `README.zh.md` in sync (tool list, Desktop notes).
 
-Add topic **`dsh-plugin`** (plus `deepseek-harness`, `remote`, `ssh`).
-
-## 2. Push
+## 2. Checks
 
 ```bash
-cd dsh-remote
-git init -b main && git add -A
-git commit -m "feat: dsh-remote — remote-access assistant for DeepSeek Harness
-
-- /remote slash command printing exact tunnel commands
-- Settings page (远程访问) with live port, LAN IPs, copy buttons
-- local-forward / autossh / reverse-tunnel / reverse-proxy guidance
-- respects the harness safety design (loopback-only, no 0.0.0.0 hack)"
-git branch -M main
-git remote add origin https://github.com/flymysql/dsh-remote.git
-git push -u origin main
+for f in lib/*.js; do node --check "$f"; done
+node check.mjs
+npm test
 ```
+
+Optional: `scripts/boot-smoke.sh` if a desktop harness is installed.
 
 ## 3. Publish to npm
 
 ```bash
-npm publish    # needs a Granular Access Token with Bypass-2FA (npm 2026 policy)
+npm publish    # Granular Access Token with Bypass-2FA (npm 2026 policy)
 ```
 
-## 4. Community submissions
+GitHub: tag `vX.Y.Z` and paste the CHANGELOG section into the release notes.
 
-Open issues in the awesome lists with this template (see the dsh-memory run: https://github.com/flymysql/dsh-memory):
+## 4. Topics / discovery
+
+Repo **About → Topics**:
+
+```
+dsh-plugin  deepseek-harness  remote  ssh  tunnel  plugin
+```
+
+README must reference `docs/cover.png` with a **relative** path so GitHub Topics
+can show a card image.
+
+## 5. Install blurb (awesome lists)
 
 ```markdown
 ## dsh-remote
 
-Remote-access assistant for DeepSeek Harness: the harness web GUI intentionally
-binds loopback only (--host 0.0.0.0 is rejected for safety), so remote access is a
-tunneling workflow. This plugin makes it copy-paste easy.
+Remote-work assistant for DeepSeek Harness: connect to SSH machines, pick a
+remote workspace, and let the agent operate there (list/read/edit/exec/sync)
+without exposing the harness on `0.0.0.0`.
 
 - **Repo**: https://github.com/flymysql/dsh-remote
 - **npm**: https://www.npmjs.com/package/dsh-remote
-- **Topic**: dsh-plugin
-- **Category**: productivity / remote
-
-### What it does
-`/remote [user@host]` prints the exact commands: SSH local forward, autossh
-keepalive, reverse tunnel (NAT-friendly), reverse-proxy with --trusted-host.
-Settings → 远程访问 shows the live port, LAN IPs, trusted hosts and one-click
-copy. Respects the official safety design — no 0.0.0.0 hack.
-
-### Install
-npm install dsh-remote, then add `{ id: dsh-remote, name: dsh-remote }` to cordis.yml.
+- **Install**: `dsh plugin add dsh-remote`
 ```

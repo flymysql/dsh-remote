@@ -8,13 +8,19 @@
 // 本脚本是纯文本静态检查（不 import 模块，无需依赖即可运行），只查那些
 // 违反会让 boot 崩溃的"框架注册约束"。语法问题由 node --check 兜底，
 // 真正的启动冒烟测试见 scripts/boot-smoke.sh。
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const src = readFileSync(path.join(here, 'lib', 'index.js'), 'utf8').replace(/\r\n/g, '\n')
 const file = path.relative(process.cwd(), path.join(here, 'lib', 'index.js'))
+const libSrc = readdirSync(path.join(here, 'lib'))
+  .filter((n) => n.endsWith('.js'))
+  .map((n) => ({
+    file: path.relative(process.cwd(), path.join(here, 'lib', n)),
+    src: readFileSync(path.join(here, 'lib', n), 'utf8').replace(/\r\n/g, '\n'),
+  }))
 
 let fail = 0
 
@@ -58,11 +64,14 @@ console.log(`  tool-name lint: ${tTotal} defineTool(s) checked`)
 const ROUTE_PREFIX = /^\/dsh-remote\//u
 const routeRe = /path:\s*'(\/[^']*)'/g
 let rTotal = 0
-while ((m = routeRe.exec(src))) {
-  rTotal++
-  if (!ROUTE_PREFIX.test(m[1])) {
-    fail++
-    console.log(`  ✗ ${file}:${lineOf(src, m.index)}: route path '${m[1]}' must start with /dsh-remote/`)
+for (const { file: rf, src: rs } of libSrc) {
+  if (!/index\.js$|routes-/.test(rf)) continue
+  while ((m = routeRe.exec(rs))) {
+    rTotal++
+    if (!ROUTE_PREFIX.test(m[1])) {
+      fail++
+      console.log(`  ✗ ${rf}:${lineOf(rs, m.index)}: route path '${m[1]}' must start with /dsh-remote/`)
+    }
   }
 }
 console.log(`  route-prefix lint: ${rTotal} route(s) checked`)

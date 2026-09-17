@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { searchTree, matchGlob } from '../lib/search.js'
+import { searchTree, matchGlob, searchViaShell } from '../lib/search.js'
 import { MemFs, makeSftp, seed } from './helpers.js'
 
 const noIgnore = () => false
@@ -63,4 +63,32 @@ test('searchTree honors ignore + glob + contextLines + caps', async () => {
   const sftp2 = makeSftp(fs2)
   const r4 = await searchTree(sftp2, '/proj', { regex: /hit/, maxMatches: 3, isIgnored: noIgnore, maxScanBytes: 1024 })
   assert.equal(r4.matches.length, 3)
+})
+
+test('searchViaShell parses rg/grep -n output and honors maxMatches', async () => {
+  const stdout = '/proj/a.ts:2:TODO fix me\n/proj/b.ts:1:TODO later\n/proj/c.ts:4:TODO more\n'
+  const pool = {
+    platform: 'posix',
+    exec: async () => ({ code: 0, stdout, stderr: '', signal: null }),
+  }
+  const r = await searchViaShell(pool, '/proj', { pattern: 'TODO', maxMatches: 2 })
+  assert.equal(r.matches.length, 2)
+  assert.equal(r.truncated, true)
+  assert.equal(r.matches[0].path, '/proj/a.ts')
+  assert.equal(r.matches[0].line, 2)
+})
+
+test('searchRemote falls back to SFTP when shell search is unavailable', async () => {
+  const { searchRemote } = await import('../lib/search.js')
+  const fs = new MemFs()
+  seed(fs, { 'proj/a.txt': 'hit me' })
+  const sftp = makeSftp(fs)
+  const pool = {
+    platform: 'posix',
+    exec: async () => ({ code: 127, stdout: '', stderr: 'no rg', signal: null }),
+    sftp: async () => sftp,
+  }
+  const r = await searchRemote(pool, '/proj', { regex: /hit/, pattern: 'hit', maxScanBytes: 1024, isIgnored: () => false })
+  assert.equal(r.matches.length, 1)
+  assert.equal(r.matches[0].path, '/proj/a.txt')
 })

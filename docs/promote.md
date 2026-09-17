@@ -5,20 +5,18 @@ This file is for the author; nothing here is shown in the README install flow.
 
 ---
 
-## 0. Status checklist (2026-08-15)
+## 0. Status checklist (2026-09-17)
 
 | Channel | Status |
 |---|---|
-| npm `dsh-remote` | ✅ latest 0.5.6, full history 0.1.0→0.5.6 |
-| GitHub topics (`dsh-plugin`, `deepseek-harness`, `remote`, `ssh`, `tunnel`, `plugin`) | ✅ set |
-| GitHub Releases | ✅ v0.5.2 / v0.5.4 / v0.5.5 |
-| awesome-dsh-plugin/awesome-dsh-plugin | ✅ listed (EN+zh), PR #323 **merged** |
-| AdamPlatin123/awesome-dsh-plugins (auto radar) | ✅ auto-listed (snapshot lags; auto-refreshes) |
-| Blog posts | ✅ docs/blog/showcase-{en,zh}.md |
-| Official Discussions showcase | ⏳ **TODO (manual, no public API)** |
-| README / npm previews | ✅ in-repo relative paths (`docs/cover.png`) so GitHub Topics can show a card image |
-| GitHub Topics card | ⏳ after this lands on `main`; optional extra: Settings → Social preview upload |
-| WhaleHarness audit (issue #1) | ✅ fixed in 0.5.5; awaiting re-review |
+| npm `dsh-remote` | latest **0.8.19** (history 0.1.0→0.8.19) |
+| GitHub topics (`dsh-plugin`, `deepseek-harness`, `remote`, `ssh`, `tunnel`, `plugin`) | set |
+| GitHub Releases | keep in sync with CHANGELOG on each npm publish |
+| awesome-dsh-plugin | listed (EN+zh) |
+| Blog posts | docs/blog/showcase-{en,zh}.md |
+| Official Discussions showcase | TODO (manual, no public API) |
+| README / npm previews | in-repo relative paths (`docs/cover.png`) |
+| WhaleHarness audit (issue #1) | fixed in 0.5.5 |
 
 
 ## 0. GitHub repo — set Topics
