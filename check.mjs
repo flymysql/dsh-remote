@@ -98,6 +98,26 @@ for (const toolBlock of toolBlocks) {
 if (sTotal) console.log(`  object-schema lint: ${sTotal} type:'object' param(s) checked`)
 else console.log('  object-schema lint: no type:\'object\' params found')
 
+// ── 6) 主题 token 配对：`*-fill` 是背景 token，绝不能当文字色 ─────────────
+// 依据：宿主自己的主按钮就是这个配对
+//   ._primary{background:var(--dsw-alias-button-primary-fill);
+//             color:var(--dsw-alias-label-primary-foreground)}
+// 0.8.20 把 `--dsw-alias-button-contrast-fill`（一个 *fill*）当成了文字色：
+//   浅色主题 #61666b on #0f1115 = 3.26:1（:disabled 再降到 1.56:1），
+//   深色主题两个 token 同为 #f9fafb ⇒ 文字完全不可见。
+// 这里只查「文字色 / onPrimary」两处，`border-color:` 等不受影响。
+const clientFile = path.relative(process.cwd(), path.join(here, 'lib', 'client.js'))
+const clientSrc = readFileSync(path.join(here, 'lib', 'client.js'), 'utf8').replace(/\r\n/g, '\n')
+const FILL_AS_TEXT = [
+  ...clientSrc.matchAll(/(?<![-\w])color:\s*var\((--dsw-alias-[\w-]*fill)/g),
+  ...clientSrc.matchAll(/onPrimary:\s*v\('(--dsw-alias-[\w-]*fill)'/g),
+]
+for (const mm of FILL_AS_TEXT) {
+  fail++
+  console.log(`  ✗ ${clientFile}:${lineOf(clientSrc, mm.index)}: '${mm[1]}' is a *fill* token and must not be used as a text colour — pair --dsw-alias-button-primary-fill with --dsw-alias-label-primary-foreground`)
+}
+console.log(`  theme-token lint: ${FILL_AS_TEXT.length} fill-as-text misuse(s) checked`)
+
 function lineOf(text, idx) {
   return text.slice(0, idx).split('\n').length
 }

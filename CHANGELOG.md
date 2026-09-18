@@ -2,6 +2,55 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.21 — 2026-09-18
+### 修复：主色按钮/分段页签的文字用了「填充 token」，导致对比度不足甚至不可见
+
+**现象**：0.8.20 的分段页签（本机/远程）与主按钮，文字发灰、糊在黑底上；禁用的主按钮几乎看不清字。
+
+- **根因**：0.8.20 把 `--dsw-alias-button-contrast-fill` 当成了"亮底上的文字色"。它是一个
+  **填充（fill）token** —— 宿主自己拿它做 `background`，而非前景色。宿主主按钮的正确配对是：
+
+  ```css
+  ._primary { background: var(--dsw-alias-button-primary-fill);
+              color:      var(--dsw-alias-label-primary-foreground) }
+  ```
+
+- **实测对比度**（浅色主题，浏览器内实测）：
+
+  | 配对 | 背景 | 文字 | 对比度 |
+  |---|---|---|---|
+  | 0.8.20（错误） | `#0f1115` | `#61666b` | **3.26:1** ❌ |
+  | 0.8.21（修复） | `#0f1115` | `#ffffff` | **18.90:1** ✅ |
+
+  分段页签这种**正常尺寸的文字需要 ≥4.5:1**，3.26:1 明显不达标。
+  更糟的是 `.dsh-rw-btn:disabled{opacity:.45}` 会把整颗按钮一起压淡：文字 `#61666b`
+  与底色 `#0f1115` 一起被冲淡成 `#B8BABC` on `#939495`，只剩 **1.56:1** —— 基本读不出字。
+  深色主题下两个 token 同为 `#f9fafb`，等于**白底白字，完全不可见**。
+
+- **修复**：文字改用 `--dsw-alias-label-primary-foreground`（宿主的官方配对），两处：
+  `T.onPrimary` 与 `.dsh-rw-tab.is-active` 的 `color`。
+
+- **修复（禁用态）**：填充型主色按钮**禁用时保持纯黑实底**，不再整颗压淡。原来的
+  `.dsh-rw-btn:disabled{opacity:.45}` 会让近黑的主色底褪成灰 `#939495`，白色文字再叠上去
+  只剩 3:1。现改为：
+
+  ```css
+  .dsh-rw-btn:disabled{cursor:not-allowed}
+  .dsh-rw-btn:disabled:not(.dsh-rw-primary){opacity:.45}   /* 次要按钮仍然淡化 */
+  ```
+
+  实测：主色按钮 **启用/禁用均为 `#0f1115` 纯黑底 + 白字 = 18.90:1**；禁用态由
+  `cursor:not-allowed` 表达。次要按钮的淡化行为不变。
+
+- **回归闸门**：`check.mjs` 新增第 6 条静态检查 `theme-token lint` —— 禁止把任何
+  `--dsw-alias-*-fill` 用作文字色（`color:` / `onPrimary:`）。用 0.8.20 的代码验证该规则会
+  命中 **2 处**并拦下发布；修复后为 0。
+
+**验证**：`npm test` 128/128；`node check.mjs`（含新 lint）通过；隔离实例（独立 `DSH_HOME`，
+端口 7391）装入修复后的 bundle，浏览器内用 CDP 对**实际下发的 CSS** 建按钮实测：主色按钮
+启用/禁用都比对 18.90:1 且为纯黑底，并设「禁用次要按钮仍为 0.45」的对照样本来确认规则集
+真的生效（避免注入失败导致的假阳性）。
+
 ## 0.8.20 — 2026-09-17
 ### 界面与操作：主题跟随、主按钮、键盘与内联对话框
 
