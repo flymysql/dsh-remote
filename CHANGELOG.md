@@ -2,6 +2,46 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.24 — 2026-09-30
+### 兼容 DSH 0.2.0-rc.2：修正 peer 版本范围（原先会被判定不兼容而整包跳过）
+
+**背景**：DSH 在 profile 导入插件前，会把插件 `package.json` 中所有名字为
+`@deepseek-ai/dsh` 与 `@deepseek-ai/dsh-*` 的 `peerDependencies` 声明，与
+`getDshRuntimeVersion()` 返回的**唯一运行时版本**逐一比对：每个范围都必须匹配，
+预发布版本参与范围匹配（实现为 `@deepseek-ai/dsh-app-boot` 的
+`evaluatePluginCompatibility()`，判定谓词是
+`semver.satisfies(runtimeVersion, range, { includePrerelease: true })`）。
+**该校验只看 peer 声明，不看 `engines.dsh`。**
+
+原声明是 `^0.1.0-rc.6` / `^0.1.2-rc.1`。按 semver，`^0.1.x` 只允许 `<0.2.0`，
+所以在 DSH 0.2.0-rc.2 上必然不匹配，插件被跳过：
+
+```
+dsh: skipping profile bundle "dsh-remote": Error: Plugin dsh-remote@0.8.21 is
+incompatible with dsh 0.2.0-rc.2: peerDependencies {…}. Running it may cause
+crashes or data loss. …
+```
+
+**改动**：
+- `peerDependencies` 中所有 `@deepseek-ai/dsh-*` 提升到 `^0.2.0-rc.1`（可匹配 0.2.0-rc.2），
+  `@deepseek-ai/cordis` 对齐到 `^4.0.4`；`dsh-host-webserver` 与 `dsh-client-connection`
+  的 `optional` 标记保持不变。
+- 新增 `dsh.engines.dsh: ">=0.2.0-rc.1"`（生态惯例，便于人和插件管理器阅读；**不参与**上述校验）。
+- `dependencies.@deepseek-ai/schemastery` → `^3.18.4`；devDependencies 全部对齐 0.2.0-rc.2。
+- 新增 `test/compat.test.js`：用与 DSH 相同的谓词断言每个 `@deepseek-ai/dsh-*` peer 都
+  接受当前运行时版本，并单独拦截"范围又漂回 0.1 线"这一种退化。
+
+**代码层无需改动**（逐项核对 0.1.0-rc.6 / 0.1.2-rc.1 与 0.2.0-rc.2 的类型声明）：
+- `defineTool` 的 `DefineToolOptions` 两版同构（都强制 `output: { schema, render }`）。
+- `commands.register()` 的 `CommandDefinition` 与 `{ kind: 'success' | 'error', text }` 两版一致。
+- `webServer.register()` 的 `WebRoute` 仍要求 `kind: 'exact' | 'prefix'`，本插件 22 条路由均已带 `kind: 'exact'`。
+- `systemPrompt.section()` 的 `text` provider 签名两版一致；0.2.0-rc.2 的
+  `assembleContextFor(agent, signal)` 仍返回 `{ agent, scope: agent, signal? }`，
+  因此读取 `promptContext.agent.session.header.cwd` 照旧生效（"## Remote workspace" 段不受影响）。
+
+**验证**：`node --test` 全绿（209 → 211 项）；`dsh --profile <p> --dump-config` 不再出现
+"skipping profile bundle" 警告。
+
 ## 0.8.23 — 2026-09-28
 ### 性能修复：远程路径自动补全逐字符卡顿（issue #41，PR #42 by @GDWhisper）+ 机器身份硬化
 
