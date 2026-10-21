@@ -182,8 +182,18 @@ function fakeFs(files) {
   }
 }
 
+/**
+ * The root of THIS runner's filesystem (`C:\` on Windows, `/` elsewhere).
+ * Walk-up tests need absolute paths: `findMirror` resolves its starting
+ * directory, so a drive-relative spelling like `C:x` means a different
+ * absolute path per runner and the mocked marker keys never match.
+ */
+function fsRoot() {
+  return path.parse(process.cwd()).root
+}
+
 test('the mirror marker is found from a subdirectory of the checkout', () => {
-  const root = path.join('C:', 'home', 'remote-workspaces', 'host-user-22', 'proj')
+  const root = path.join(fsRoot(), 'home', 'remote-workspaces', 'host-user-22', 'proj')
   const nested = path.join(root, 'src', 'lib')
   const deps = fakeFs({
     [path.join(root, '.dsh-remote-meta.json')]: { host: 'host', username: 'user', remotePath: '/srv/proj' },
@@ -195,12 +205,12 @@ test('the mirror marker is found from a subdirectory of the checkout', () => {
 })
 
 test('a directory outside any checkout resolves to nothing', () => {
-  const found = child.findMirror(path.join('C:', 'work', 'local'), { exists: () => false })
+  const found = child.findMirror(path.join(fsRoot(), 'work', 'local'), { exists: () => false })
   assert.equal(found, null)
 })
 
 test('an unreadable marker is skipped instead of aborting the walk', () => {
-  const root = path.join('C:', 'a')
+  const root = path.join(fsRoot(), 'a')
   const deps = {
     exists: (p) => p === path.join(root, '.dsh-remote-meta.json'),
     readJsonFile: () => undefined,
@@ -220,7 +230,7 @@ test('a saved connection is matched by ssh alias first, then host/user/port', ()
 })
 
 test('resolveTarget merges the marker with the saved connection', () => {
-  const root = path.join('C:', 'home', 'remote-workspaces', 'h-u-22', 'proj')
+  const root = path.join(fsRoot(), 'home', 'remote-workspaces', 'h-u-22', 'proj')
   const marker = path.join(root, '.dsh-remote-meta.json')
   const machines = { list: [{ host: 'h', username: 'u', port: 22, privateKeyPath: 'C:\\k', workspace: '/srv/proj' }] }
   const resolved = child.resolveTarget({
@@ -469,7 +479,9 @@ test('the bare name resolves the way the host resolves it', () => {
     pathExt: '.COM;.EXE;.BAT;.CMD',
     fs: { existsSync: (p) => present.has(p.toLowerCase()) },
   })
-  assert.equal(found, path.resolve('C:\\b\\remote ssh.CMD'))
+  // The modeled platform is win32, so the expectation is too: `path.win32`
+  // resolves drive letters on any runner, the runtime `path` does not.
+  assert.equal(found, path.win32.resolve('C:\\b', 'remote ssh.CMD'))
   assert.equal(resolveThroughPath('remote ssh', {
     platform: 'win32',
     pathEnv: dirs.join(';'),
@@ -486,43 +498,54 @@ test('a name with its own extension is never extended', () => {
     pathExt: '.CMD',
     fs: { existsSync: (p) => { seen.push(p); return false } },
   })
-  assert.deepEqual(seen, [path.resolve('C:\\a\\remote.ssh')])
+  assert.deepEqual(seen, [path.win32.resolve('C:\\a', 'remote.ssh')])
 })
 
+// The PATH values below use this runner's own path format: `appendPathEntry`
+// edits the REAL process environment, which always follows the runtime
+// platform — a posix PATH split on ';' would shatter on every ':'. What is
+// being pinned is the ref-counting, which is platform-independent.
 test('the launcher directory is appended once and removed exactly once', () => {
-  const env = { Path: 'C:\\Windows;C:\\Tools' }
-  const undo = appendPathEntry('C:\\launchers', env)
-  assert.equal(env.Path, 'C:\\Windows;C:\\Tools' + path.delimiter + 'C:\\launchers')
-  const again = appendPathEntry('C:\\launchers', env)
-  assert.equal(env.Path, 'C:\\Windows;C:\\Tools' + path.delimiter + 'C:\\launchers', 'idempotent')
+  const windows = path.join(fsRoot(), 'Windows')
+  const tools = path.join(fsRoot(), 'Tools')
+  const launchers = path.join(fsRoot(), 'launchers')
+  const env = { PATH: windows + path.delimiter + tools }
+  const undo = appendPathEntry(launchers, env)
+  assert.equal(env.PATH, windows + path.delimiter + tools + path.delimiter + launchers)
+  const again = appendPathEntry(launchers, env)
+  assert.equal(env.PATH, windows + path.delimiter + tools + path.delimiter + launchers, 'idempotent')
   again()
-  assert.equal(env.Path, 'C:\\Windows;C:\\Tools' + path.delimiter + 'C:\\launchers', 'a duplicate undo changes nothing')
+  assert.equal(env.PATH, windows + path.delimiter + tools + path.delimiter + launchers, 'a duplicate undo changes nothing')
   undo()
-  assert.equal(env.Path, 'C:\\Windows;C:\\Tools')
+  assert.equal(env.PATH, windows + path.delimiter + tools)
   undo()
-  assert.equal(env.Path, 'C:\\Windows;C:\\Tools', 'undo twice is harmless')
+  assert.equal(env.PATH, windows + path.delimiter + tools, 'undo twice is harmless')
 })
 
 test('two live registrations keep the entry until the last one is released', () => {
   // A reload installs the new contribution before (or after) disposing the old
   // one. A set/clear pair would let the first release strip PATH out from under
   // the still-live entry, and the menu item would stop resolving.
-  const env = { Path: 'C:\\Windows' }
-  const first = appendPathEntry('C:\\launchers', env)
-  const second = appendPathEntry('C:\\launchers', env)
-  assert.equal(env.Path, 'C:\\Windows' + path.delimiter + 'C:\\launchers')
+  const windows = path.join(fsRoot(), 'Windows')
+  const launchers = path.join(fsRoot(), 'launchers')
+  const env = { PATH: windows }
+  const first = appendPathEntry(launchers, env)
+  const second = appendPathEntry(launchers, env)
+  assert.equal(env.PATH, windows + path.delimiter + launchers)
   first()
-  assert.equal(env.Path, 'C:\\Windows' + path.delimiter + 'C:\\launchers')
+  assert.equal(env.PATH, windows + path.delimiter + launchers)
   second()
-  assert.equal(env.Path, 'C:\\Windows')
+  assert.equal(env.PATH, windows)
 })
 
 test('a directory that was already on PATH is not ours to remove', () => {
-  const env = { Path: 'C:\\Windows' + path.delimiter + 'C:\\launchers' }
-  const undo = appendPathEntry('C:\\launchers', env)
-  assert.equal(env.Path, 'C:\\Windows' + path.delimiter + 'C:\\launchers')
+  const windows = path.join(fsRoot(), 'Windows')
+  const launchers = path.join(fsRoot(), 'launchers')
+  const env = { PATH: windows + path.delimiter + launchers }
+  const undo = appendPathEntry(launchers, env)
+  assert.equal(env.PATH, windows + path.delimiter + launchers)
   undo()
-  assert.equal(env.Path, 'C:\\Windows' + path.delimiter + 'C:\\launchers')
+  assert.equal(env.PATH, windows + path.delimiter + launchers)
 })
 
 test('an empty PATH grows a single entry rather than a leading separator', () => {
