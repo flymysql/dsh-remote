@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T17:59:10.679Z",
+  "generatedAt": "2026-10-27T22:12:14.108Z",
   "heartbeat": {
     "ok": true,
     "daily": [
@@ -121,16 +121,16 @@
       },
       {
         "day": "2026-10-28",
-        "dau": 443
+        "dau": 1249
       }
     ],
-    "installs": 6338,
+    "installs": 6352,
     "wau": 20,
     "mau": 20,
     "byVersion": [
       {
-        "version": "0.8.52",
-        "n": 232
+        "version": "0.8.53",
+        "n": 198
       },
       {
         "version": "0.8.37",
@@ -138,19 +138,19 @@
       },
       {
         "version": "0.8.51",
-        "n": 122
+        "n": 118
+      },
+      {
+        "version": "0.8.52",
+        "n": 113
       },
       {
         "version": "0.8.36",
         "n": 98
       },
       {
-        "version": "0.8.53",
-        "n": 74
-      },
-      {
         "version": "0.8.46",
-        "n": 74
+        "n": 73
       },
       {
         "version": "0.8.34",
@@ -264,12 +264,12 @@
       }
     ],
     "tz": "Asia/Shanghai",
-    "generatedAt": "2026-10-27T17:59:08.001Z"
+    "generatedAt": "2026-10-27T22:12:11.317Z"
   },
   "heartbeatError": null,
   "npm": {
     "package": "dsh-remote",
-    "checkedAt": "2026-10-27T17:59:10.407Z",
+    "checkedAt": "2026-10-27T22:12:13.792Z",
     "latest": "0.8.53",
     "lastWeek": 10472,
     "lastMonth": 25990,
@@ -411,6 +411,6 @@
     "stars": 191,
     "forks": 35,
     "openIssues": 0,
-    "pushedAt": "2026-10-27T14:55:39Z"
+    "pushedAt": "2026-10-27T17:59:12Z"
   }
 }
