@@ -2,6 +2,58 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.53 — 2026-10-27
+### 远程子目录的 AGENTS.md 会自动进上下文了（issue #71）
+
+#68 修的是静态部分（工作区浅扫 + 镜像 + prompt 索引行），动态部分仍然断着。三个断点，任一都足以让
+注入永不发生：核心的增量注入只认 `read`/`write`/`edit` 三个工具名（`rw_read_file` 不在名单）、只认
+`file_path` 参数（`rw_read_file` 用的是 `path`）、且作用域扩展用的是**本地**路径（远程绝对路径
+`/root/proj/x.md` 映射不到镜像 cwd）。核心那侧要动 `ctx.fs` 的进程级单例，短期没解法——所以插件
+自己做完，**不改核心一行**。
+
+**实现**（新增 `lib/instructions-dynamic.js`）：在 `tools/result` 里接 `rw_read_file` /
+`rw_write_file` / `rw_edit` / `rw_list_dir` 的成功调用，取「被访问目录 → 工作区根」的**整条目录链**
+（与本地会话一致：读 `a/b/c.ts` 同时收 `a/AGENTS.md` 与 `a/b/AGENTS.md`，不是只取最近一层），逐层
+`stat` 后把当前内容合成**一条** user message 注入 inbox 的 `next-step`。
+
+**边界（都按 issue 的验收标准钉了测试）**：
+
+- cwd 自己那层不重扫（核心 baseline 已覆盖）——读工作区根下的文件**不触发任何额外扫描**；
+- per-session 按**内容摘要**去重，同内容只注入一次；重复读同目录不再重复注入；
+- 远端改了内容，下次触碰即重新注入（镜像副本同步刷新）；
+- 注入过的文件在远端被删除，发一条「已移除」提示（否则模型会一直按旧规矩办事）；删除判定**按本轮
+  覆盖的目录链**限定，别的子树的记录不会被误删也不会被误报；
+- 单次注入 16 KB 预算，超出截断并注明；超大指令文件只报「过大」不给正文；
+- 触碰节流 30 秒；机器离线时整条链路静默降级，**既不挂工具调用也不挂 prompt 组装**。
+
+**为什么不和核心打架**：注入消息用插件自己的 `source.kind`（`dsh-remote-instructions`），而核心的
+reconcile 只认领 `agent-instructions` —— 两条注入路径互相看不见对方的消息。
+
+### rw_exec 对齐内置 shell：单次超时 / 真取消 / 转后台（issue #70）
+
+底层 `pool.exec` 本来就支持 `opts.timeoutMs` 与 `opts.signal`，缺的一直是接线：
+
+1. **`timeoutMs` 参数**（clamp 到 `[1000, 600000]`，缺省仍用 `commandTimeoutMs`）。超时文案打印
+   **实际生效**的值——旧代码固定打印配置值，一旦有单次覆盖就会印错。
+2. **`exec.signal` 透传**给 `pool.exec`（`rw_search` 早就有，`rw_exec` 漏了）。此前点「停止」不会中止，
+   远端命令继续跑、界面干等满 20 秒；现在真的 SIGTERM 远端进程并立即返回。
+3. **`run_in_background: true`** 立即返回 job id（`job_output` 读、`job_kill` 停），以及
+   **超时转后台**而不是直接杀（`promoteOnTimeout`，默认开）——长跑构建不再只有「等满被杀」和
+   「调大全局超时干等」两种结局。后台任务接核心 `jobs` 服务（`kind: 'rw-exec'`），远端输出经新增的
+   `onData` 流式钩子实时进 job ring；`job_kill` 走**同一条 AbortSignal**，所以杀的是远端进程，不是
+   只是放弃等待。
+
+`jobs` 是可选服务：没有它的组合（最小嵌入、测试替身）自动退化为只有前台执行，即 0.8.52 的行为，
+**不会因此加载失败**。
+
+### 其它
+
+- `lib/pool.js` 新增 `onData` 流式输出钩子（后台任务的输出必须实时入环，而不是只留返回值）。
+- 新增 `test/issue70-exec-timeout.test.js`（11 条）+ `test/issue71-dynamic-instructions.test.js`
+  （17 条）。
+- 全量 **727 tests / 723 pass**；4 条失败是 `route-errors` / `issue48` 里 ssh2 网络错误文案相关的
+  **既有环境性失败**（在干净的 main 上同样 4 败，与本次改动无关）。
+
 ## 0.8.52 — 2026-10-27
 ### 一次 SFTP 超时不再拖死整台机器（issue #65）
 
