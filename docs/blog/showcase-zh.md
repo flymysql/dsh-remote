@@ -14,14 +14,16 @@ DeepSeek Harness 的 Web UI 刻意只绑定 `127.0.0.1`（CLI 会拒绝 `--host 
 
 安装后你会得到一组 `rw_*` 工具，以及一个接管原生「添加工作区」流程的选择器：
 
-| 能力 | 说明 |
+22 个工具，按用途分组：
+
+| 用途 | 工具 |
 |---|---|
-| `rw_connect` | SSH 连接（密码或私钥，支持自定义端口/用户名） |
-| `rw_pick_workspace` / `rw_list_dir` | 选择/浏览远程工作区目录 |
-| `rw_read_file` / `rw_write_file` | 读写远端文本文件（带行号分页） |
-| `rw_exec` | 在远端执行任意命令（构建、测试、grep…） |
-| `rw_sync` / `rw_push` | 把远程目录镜像成本地真实工作区 / 上传本地改动回远端 |
-| `rw_info` / `rw_disconnect` | 连接状态 / 断开 |
+| 连接与机器 | `rw_connect`、`rw_machines`（可用 `environment`/`location`/`tags` 分组筛选）、`rw_info`、`rw_disconnect` |
+| 工作区 | `rw_pick_workspace`、`rw_list_dir`、`rw_stat` |
+| 文件读写 | `rw_read_file`、`rw_write_file`、`rw_edit`（原子写 + mtime 乐观锁）、`rw_append`、`rw_mkdir`、`rw_remove`、`rw_move` |
+| 执行与搜索 | `rw_exec`（单次超时 / 真取消 / 超时可转后台）、`rw_search`、`rw_deploy_probe` |
+| 同步 | `rw_sync`、`rw_push`（三路冲突感知） |
+| 传输与隧道 | `rw_download`、`rw_upload`、`rw_forward`（本地与反向端口转发） |
 
 ### 工作区选择器（原生「添加工作区」弹窗）
 
@@ -39,6 +41,17 @@ DeepSeek Harness 的 Web UI 刻意只绑定 `127.0.0.1`（CLI 会拒绝 `--host 
 
 <img src="https://cdn.jsdelivr.net/gh/flymysql/dsh-remote@main/docs/ui-settings-panel.png" alt="dsh-remote 设置页真实截图" width="720"/>
 
+### 近期重要演进（0.8.50 → 0.8.54）
+
+插件迭代很快，几项能力值得单独说明：
+
+- **远端 sandbox（0.8.54）** —— 以前远端命令**不受任何策略约束**：本机会话有 read-only / workspace-write，而 `rw_*` 打出去的命令完全绕过它。现在套用同一套已解析模式，拒绝时给出与本地同形状的沙箱错误与升级提示。要说清楚的是：这是**遏制，不是安全边界**（路径按字典比较，远端符号链接可绕），硬边界请在远端一侧做。
+- **内嵌 PTY 终端（0.8.54）** —— `rw_exec` 跑一条命令就关，没有 PTY，所以 `vim`/`top`/`sudo` 提示符都用不了。新增持久 PTY 通道，会话归宿主所有：关掉浏览器不会杀远端 shell，空闲 30 分钟回收。
+- **凭据不再静默降级明文（0.8.54）** —— 系统钥匙串写入失败时，以前会「回退成明文写进 machines.json」。现在默认**不保存**该密码并明确报错，想要旧行为可显式设 `credentialFallback: plain`。
+- **主机分组 + 多跳跳板机（0.8.54）** —— 给机器打 `environment`/`location`/`tags` 标签并按组筛选；跳板机支持等价 `ProxyJump a,b,c` 的多跳链路，且**凭据不跨跳继承**。
+- **指令文件自动进上下文（0.8.52–0.8.53）** —— 远程工作区的 `AGENTS.md` 会被发现、镜像并索引；读子目录文件时，**整条目录链**上的指令文件自动注入，行为与本地会话对齐。
+- **SFTP 超时自愈（0.8.52）** —— 以前一次 20 秒超时会让该机器的 SFTP 永久卡死（跨会话传染，只能重连）。现在超时即作废通道，连续两次超时重建连接；`rw_edit` 也改成了原子写，写一半中断不会再截断远端文件。
+
 ## 安装
 
 ```sh
@@ -55,6 +68,8 @@ dsh plugin add dsh-remote
 - Web GUI 仍只绑定 `127.0.0.1`；插件只**向外**连接你配置的机器；
 - 密码本地保存、永不回显；`privateKeyPath` 不再隐式读取 `~/.ssh/id_rsa`（v0.5.5 起，凭据必须显式给出）；
 - 把机器凭据交给插件 = 允许 Agent 以你的用户身份在远端执行命令 —— **只添加你信任的机器**。
+- 远端操作受会话 sandbox 约束（0.8.54+）：read-only 会话不能写远端、不能跑命令；workspace-write 把写入围在工作区内。但这是**遏制而非安全边界**，真正的隔离请在远端做（容器 / 独立账号 / ACL）。
+- 凭据写入系统钥匙串失败时默认**不落盘**（0.8.54+），不会静默降级成明文。
 
 ## 链接
 

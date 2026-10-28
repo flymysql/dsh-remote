@@ -12,14 +12,16 @@ The DSH Web GUI intentionally binds `127.0.0.1` (the CLI rejects `--host 0.0.0.0
 
 After install you get `rw_*` tools plus a picker that takes over the native **Add workspace** flow:
 
-| Tool | Purpose |
+22 tools, grouped by purpose:
+
+| Purpose | Tools |
 |---|---|
-| `rw_connect` | SSH connect (password or private key, custom port/user) |
-| `rw_pick_workspace` / `rw_list_dir` | Choose / browse the remote workspace dir |
-| `rw_read_file` / `rw_write_file` | Read/write remote text files (line-numbered, paged) |
-| `rw_exec` | Run any command on the remote host (build, test, grep…) |
-| `rw_sync` / `rw_push` | Mirror the remote dir to a real local workspace / push local changes back |
-| `rw_info` / `rw_disconnect` | Connection status / disconnect |
+| Connect & machines | `rw_connect`, `rw_machines` (filter by `environment`/`location`/`tags`), `rw_info`, `rw_disconnect` |
+| Workspace | `rw_pick_workspace`, `rw_list_dir`, `rw_stat` |
+| Files | `rw_read_file`, `rw_write_file`, `rw_edit` (atomic write + mtime optimistic lock), `rw_append`, `rw_mkdir`, `rw_remove`, `rw_move` |
+| Run & search | `rw_exec` (per-call timeout, real cancellation, promote-to-background), `rw_search`, `rw_deploy_probe` |
+| Sync | `rw_sync`, `rw_push` (conflict-aware, three-way) |
+| Transfer & tunnels | `rw_download`, `rw_upload`, `rw_forward` (local and reverse port forwarding) |
 
 ### The workspace picker (native Add-workspace dialog)
 
@@ -36,6 +38,17 @@ Real capture (host scrubbed):
 Settings pane (light theme, real capture, host scrubbed):
 
 <img src="https://cdn.jsdelivr.net/gh/flymysql/dsh-remote@main/docs/ui-settings-panel.png" alt="dsh-remote settings, real screenshot" width="720"/>
+
+### Recent milestones (0.8.50 → 0.8.54)
+
+The plugin moves fast; a few capabilities deserve calling out:
+
+- **Remote sandbox (0.8.54)** — remote commands used to run under **no policy at all**: a local session has read-only / workspace-write, but every `rw_*` call bypassed it entirely. The plugin now applies the same resolved mode, and a denial carries the same sandbox error and escalation hint a local one does. To be explicit: this is **containment, not a security boundary** (paths are compared lexically, so remote symlinks can escape) — deploy hard boundaries on the remote side.
+- **Embedded PTY terminal (0.8.54)** — `rw_exec` runs one command and closes, with no PTY, so `vim`, `top` and `sudo` prompts were impossible. A persistent PTY channel changes that; sessions are host-owned, so closing the browser does not kill the remote shell, and they are reclaimed after 30 idle minutes.
+- **No silent plaintext downgrade (0.8.54)** — when the OS keychain refused a password, the plugin used to fall back to writing it in **plaintext** into `machines.json`. It now saves nothing and says why; set `credentialFallback: plain` for the old behaviour.
+- **Host grouping + multi-hop bastions (0.8.54)** — label machines with `environment`/`location`/`tags` and filter by group; a bastion may carry its own `proxy`, giving `ProxyJump a,b,c` chains where credentials **do not inherit across hops**.
+- **Instruction files reach the context (0.8.52–0.8.53)** — a remote workspace `AGENTS.md` is discovered, mirrored and indexed; reading a nested file injects the **whole ancestor chain** of instruction files, matching local-session behaviour.
+- **SFTP timeout self-healing (0.8.52)** — one 20s timeout used to wedge that machine's SFTP permanently (leaking across sessions until a reconnect). A timeout now invalidates the channel and two consecutive ones rebuild the connection; `rw_edit` also writes atomically, so an interrupted write cannot truncate the remote file.
 
 ## Install
 

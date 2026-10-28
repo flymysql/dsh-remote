@@ -5,13 +5,13 @@ This file is for the author; nothing here is shown in the README install flow.
 
 ---
 
-## 0. Status checklist (2026-09-22)
+## 0. Status checklist (2026-10-28)
 
 | Channel | Status |
 |---|---|
-| npm `dsh-remote` | latest **0.8.21** (history 0.1.0→0.8.21, 58 versions) |
+| npm `dsh-remote` | latest **0.8.54** (history 0.1.0→0.8.54, 90 versions) · 25,990 downloads last month |
 | GitHub topics (`dsh-plugin`, `deepseek-harness`, `remote`, `ssh`, `tunnel`, `plugin`) | set |
-| GitHub Releases | **all 32 tags have a release** (was 18/32; 14 back-filled 2026-09-22) |
+| GitHub Releases | **all 63 tags have a release** (63/63) |
 | awesome-dsh-plugin | listed (EN+zh) |
 | Other awesome lists | 0xsline, fendouai (EN+zh), beancookie, bruc3van — plus a Nix package (`Moraxyc/deepseek-harness.nix`) |
 | Blog posts | docs/blog/showcase-{en,zh}.md |
