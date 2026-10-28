@@ -2,6 +2,73 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.54 — 2026-10-28
+### 远程操作现在受 sandbox 约束（能力对齐，安全修复）
+
+以前本地会话有 `ctx.sandboxPolicy`（read-only / workspace-write / danger-full-access），而 `rw_*`
+工具在远端执行**完全没有策略** —— 一个 read-only 会话照样能改任意可达机器上的任意文件。沙箱没有被
+绕过，它对另一台机器根本没有发言权。
+
+现在插件在**工具边界**套用同一套已解析的模式：`read-only` 拒绝远端写入/命令/端口转发（读与连接仍
+可用）；`workspace-write` 把远端写入围在工作区根内、放行命令与转发；`danger-full-access` 全放行。
+新增 `remoteSandbox` 配置（默认 `inherit`，`off` 可关）。
+
+**为什么是工具层而非 `ctx.sandbox.confine()`**：后者把 argv 包起来在**本机** spawn，而我们的进程跑在
+SSH 通道另一端；核心文档写明「远端执行**替换**周边 capability seam」。拒绝时抛**官方同形状**的
+`FS_SANDBOX_DENIED`（带 `[sandbox: …]` 与升级提示），模型的升级路径不受影响。
+
+**威胁模型如实说明**：这是**遏制，不是安全边界**（与官方 `dsh-fs-sandbox` 同口径）。路径按字典比较，
+远端机上的符号链接与 TOCTOU 可绕过；bash 跑起来就是该用户自己的权限。它买到的是「受限会话不会
+**误**改工作区外文件，read-only 会话不会偷偷跑命令」。硬边界请在远端一侧做。
+
+> 实现中修了一个自己引入的真缺陷：`normalizeRemotePath` 会把相对路径补成绝对（`tmp/foo` → `/tmp/foo`），
+> 于是「相对的 workspace 根」会被当成可信根。围栏判定改为**先要求绝对路径再归一化**。
+
+### 密钥库失败不再静默降级为明文
+
+以前系统密钥库写入失败（keychain 锁着 / 缺 secret-tool / Windows DPAPI 缺程序集）会**回退明文**写进
+`machines.json` 并给警告 —— 你要的是加密，结果反而更不安全，而「密钥库正好坏了」恰恰是最不容易注意
+到的时候。新增 `credentialFallback`（默认 `refuse`）：不保存该密码，机器照常保存但没有凭据，界面明确
+报出失败原因；设 `plain` 恢复旧的明文回退。主动关掉加密（`backend: 'plain'`）不受影响。
+
+### 主机分组标签
+
+新增 `environment` / `location` / `description` / `tags` 四个**纯标签**字段（不改变任何连接行为），
+`rw_machines` 支持按它们筛选（维度间 AND，标签间 OR）；筛不到时列出**当前存在的分组**。机器一多，
+「选对机器」从记性变成筛选。
+
+### 多跳跳板机链路
+
+`proxy` 以前在建跳板连接时被强塞 `proxy: undefined`，链路最深一跳。现在支持 **`ProxyJump a,b,c`
+语义**：跳板机自带 `proxy`，从最远一跳往里建。两个约束：**凭据不跨跳继承**（绝不把目标机私钥递给
+中间机）；深度超 8 跳明确报错，把**配置成环**变成清晰错误而不是无限递归。顺带修了原先
+`...this.config` 会把目标机密钥带进跳板机池的问题。
+
+### 内嵌 PTY 交互终端
+
+`rw_exec` 是「跑一条命令就关」，没有 PTY、stdin 回不去，`vim`/`top`/`sudo` 提示符/全屏 TUI 都用不了。
+新增 `pool.shell()` 打开**持久 PTY 通道**（ssh2 `shell()` + 窗口尺寸协商），终端会话归宿主所有：
+关浏览器不杀远端 shell（写了一半的 vim 能活过刷新），30 分钟空闲回收、进程内最多 8 个（免得打爆远端
+`MaxSessions`）、插件卸载全部挂断。
+
+传输刻意朴素：远端会话在**宿主**，浏览器**轮询**输出增量（输入单独请求、立即写入，打字不排队等轮询），
+不依赖宿主是否暴露 WebSocket 升级路径。路由 `/dsh-remote/term/{open,input,output,resize,close,list}`，
+每个先按**会话**解析绑定 —— A 机上开的终端，绑到 B 机的请求既看不到也驱动不了。
+
+**真机验证（编译机 9.134.186.191，8/8）**：PTY 提示符出现、`export` 的状态跨命令保持（exec 做不到）、
+`tty` 显示 `/dev/pts/2`、`stty size` 显示 `30 100`、resize 后显示 `40 120`、Ctrl-C 中断 `sleep 60`
+且 shell 存活、会话未被误标关闭。
+
+### 其它
+
+- 新增 `lib/remote-sandbox.js`、`lib/terminal.js`、`lib/routes-term.js`。
+- 新增测试 4 组共 38 条：`remote-sandbox`(11)、`credential-fallback`(7)、`machine-groups`(11)、
+  `proxy-chain`(7)、`terminal`(13)。改写 2 条旧的「明文回退」断言（那正是本次有意改变的行为）。
+- 全量 **778 tests / 774 pass**；4 条失败是 `route-errors`/`issue48` 里 ssh2 网络错误文案的
+  **既有环境性失败**（干净 main 上同样 4 败）。
+
+## 0.8.53 — 2026-10-27
+
 ## 0.8.53 — 2026-10-27
 ### 远程子目录的 AGENTS.md 会自动进上下文了（issue #71）
 

@@ -180,7 +180,9 @@ test('machines: a plaintext save keeps the password and reports no warning', asy
 // The OS store is best-effort; a failure must never silently produce a machine
 // with no credential at all.
 
-test('persistPassword: a failed OS-store write falls back to plaintext + warning', async () => {
+test('persistPassword: a failed OS-store write REFUSES plaintext by default', async () => {
+  // 0.8.54: asking for encryption must not end in plaintext. The default refuses
+  // to persist anything and reports the store failure instead.
   const res = await persistPassword({
     backend: 'windows',
     machineId: 'm1',
@@ -189,11 +191,27 @@ test('persistPassword: a failed OS-store write falls back to plaintext + warning
     save: async () => ({ ok: false, backend: 'windows', error: 'Add-Type: type not found' }),
   })
 
+  assert.equal(res.stored, 'none', 'nothing may be persisted')
+  assert.equal(res.password, '', 'the plaintext must not be handed back for storage')
+  assert.equal(res.warning, 'secret-store-refused')
+  assert.equal(res.credentialBackend, 'windows', 'the intended backend is kept for diagnostics')
+  assert.match(res.error, /Add-Type/)
+})
+
+test('persistPassword: onStoreFailure=plain restores the legacy fallback explicitly', async () => {
+  const res = await persistPassword({
+    backend: 'windows',
+    machineId: 'm1',
+    password: 'hunter2',
+    secretsDir: '/nonexistent',
+    onStoreFailure: 'plain',
+    save: async () => ({ ok: false, backend: 'windows', error: 'Add-Type: type not found' }),
+  })
+
   assert.equal(res.stored, 'plain')
   assert.equal(res.credentialBackend, 'plain')
-  assert.equal(res.password, 'hunter2', 'the password must survive the fallback')
+  assert.equal(res.password, 'hunter2', 'the explicit opt-in keeps the legacy behaviour')
   assert.equal(res.warning, 'secret-store-failed')
-  assert.match(res.error, /Add-Type/)
 })
 
 test('persistPassword: a successful OS-store write keeps the secret out of the registry', async () => {
@@ -220,7 +238,7 @@ test('persistPassword: a thrown store error is reported without echoing the pass
     save: async () => { throw new Error("Command failed: security add-generic-password -w hunter2") },
   })
 
-  assert.equal(res.warning, 'secret-store-failed')
+  assert.equal(res.warning, 'secret-store-refused')
   assert.ok(!res.error.includes('hunter2'), `the diagnostic leaked the password: ${res.error}`)
   assert.match(res.error, /\*\*\*/)
 })

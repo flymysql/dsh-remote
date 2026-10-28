@@ -259,6 +259,8 @@ scripts/dev-run.sh --status    # 是否在运行
 | `webInstallVersion` | string | `0.1.5-rc.2` | 自动部署安装的 dsh 版本；默认值是第一个在 Linux 上能启动 web 的版本 |
 | `webInstallRegistry` | string | `''` | 安装用的 npm 源；**留空沿用远端自己的配置**，不会覆盖内网镜像 |
 | `localTools` | string | `bootstrap` | 本地 session（cwd 不在远程镜像里）暴露哪些 `rw_*` 工具（issue #63）：`bootstrap`=只暴露配置闭环 `rw_machines`/`rw_connect`/`rw_pick_workspace`（其余 19 个在本地 session 必然报 "this session is LOCAL"，暴露只是白占 schema）；`none`=完全不暴露 `rw_*`（远程配置只能走设置页）；`all`=旧的 full 暴露。远程 session（cwd 在镜像里）不受影响，始终全量；非法值按 `bootstrap` 处理 |
+| `remoteSandbox` | string | `inherit` | 远程操作套用哪套 sandbox 语义（0.8.54+）：`inherit`=读取本机 `ctx.sandboxPolicy` 已解析的模式（read-only 拒远端写入/命令/转发，workspace-write 把远端写入围在 workspace 根内，danger-full-access 全放行）；`off`=不设围栏（旧行为）；也可显式写某一模式。**这是遏制不是安全边界**，硬边界请在远端一侧做 |
+| `credentialFallback` | string | `refuse` | 系统密钥库写密码失败时怎么办（0.8.54+）：`refuse`=不保存该密码（机器照常保存，界面报出失败原因，绝不把明文写进 machines.json）；`plain`=旧的明文回退（会警告）。主动关掉加密（`backend: plain`）不受影响 |
 
 > 权威清单是 `lib/index.js` 里的 `Config` schema，本表与之一致。
 
@@ -283,6 +285,56 @@ scripts/dev-run.sh --status    # 是否在运行
 后续请求立即失败；native 后端连续两次超时会废弃整条连接重新握手，openssh 后端会重建 sftp 子进程——
 一次网络抖动不再需要用「断开重连」来收场。顺带，`rw_edit` 改成了「临时文件 + rename」原子写，
 写一半超时不会再把远端文件截成 0 字节，原文件的权限位也会保留。
+
+**远程操作受不受本机 sandbox 约束？**（0.8.54+）—— 受。以前不受：本机会话有 `ctx.sandboxPolicy`
+（read-only / workspace-write / danger-full-access），而 `rw_*` 工具在远端执行**完全没有策略**，
+于是一个 read-only 会话照样能改任意一台可达机器上的任意文件——沙箱没有被绕过，它对另一台机器根本
+没有发言权。现在插件在**工具边界**套用同一套已解析的模式：
+
+- `read-only`：拒绝远端写入、拒绝跑命令、拒绝开端口转发（读和连接仍可用，否则连机器都看不了）；
+- `workspace-write`：远端写入必须落在工作区根之内（按路径围栏），命令与转发放行；
+- `danger-full-access`：全放行。
+
+为什么是工具层围栏而不是 `ctx.sandbox.confine()`：后者的语义是「把 argv 包起来在**本机** spawn」，
+而我们的进程跑在 SSH 通道的另一端——核心文档自己也写明「远端执行会**替换**周边 capability seam」。
+所以拒绝时抛出的是**官方同形状**的 `FS_SANDBOX_DENIED`（带 `[sandbox: …]` 与升级提示），模型的
+升级重试路径不受影响。
+
+**威胁模型要讲清楚**：这是**遏制，不是安全边界**（与官方 `dsh-fs-sandbox` 文件头的口径一致）。
+路径按字典比较，远端机上的符号链接与 TOCTOU 可以绕过；一旦 bash 跑起来，它用的是该用户自己的权限。
+它真正买到的，是「受限会话不会**误**改工作区外的远端文件，且 read-only 会话不会偷偷跑命令」。
+需要硬边界的部署，请在**远端那一侧**做（容器、按用户隔离、文件系统 ACL）。
+不想用可设 `remoteSandbox: 'off'`（或 `'inherit'` 之外的值显式指定某一模式）。
+
+**密钥库写不进去时，密码会明文落盘吗？**（0.8.54+）—— 默认**不会**。以前系统密钥库失败
+（keychain 锁着 / 缺 secret-tool / Windows DPAPI 缺程序集）会**回退明文**写进 `machines.json` 并
+给个警告——你本来要的是加密，结果反而更不安全，而「密钥库正好坏了」恰恰是最不容易注意到的时候。
+现在默认 `credentialFallback: 'refuse'`：**不保存**该密码，机器照常保存但没有凭据，界面明确报出
+密钥库失败原因。想要旧行为（宁可明文也要能连）就设 `credentialFallback: 'plain'`。
+主动关掉加密（`backend: 'plain'`）不受影响，那本来就是明文。
+
+**机器多了怎么不选错？**（0.8.54+）—— 给机器打**分组标签**：`environment`（prod/staging…）、
+`location`（shanghai/gpu-lab…）、`description`、`tags`（一组自由标签）。它们纯粹是标签，不改变任何
+连接行为。`rw_machines` 支持按这些维度筛选（维度之间 AND，标签之间 OR）：
+`rw_machines(environment="prod", tags="gpu")`。筛不到时会列出**当前有哪些分组**，省得你猜标签拼法。
+设置页同样可以编辑。机器一多，「选对机器」就从记性变成了筛选。
+
+**多级跳板机怎么办？**（0.8.54+）—— 支持**多跳链路**（等价 OpenSSH 的 `ProxyJump a,b,c`）：
+跳板机自己也可以带 `proxy`，链路从**最远一跳**往里建，每一跳都通过上一跳已建立的连接拨号。
+两个关键约束：**凭据不跨跳继承**（绝不把目标机的私钥递给中间机——既通常没被授权，也等于把不该给的
+秘密给了它）；链路深度超过 8 跳会明确报错，用来把**配置成环**变成一条清晰的错误，而不是无限递归。
+每一跳可以自带 `privateKeyPath` / `useAgent` / `hostKeyMode`，没写就沿用操作者自己的 ssh 环境。
+
+**能在 DSH 里直接开一个远端终端吗？**（0.8.54+）—— 能，**内嵌 PTY 终端**。`rw_exec` 是「跑一条命令
+就关」，没有 PTY、stdin 也回不去，所以 `vim`、`top`、`sudo` 提示符、全屏 TUI 都用不了。
+现在 `pool.shell()` 打开一条**持久的 PTY 通道**，终端会话归宿主所有：关掉浏览器不会杀掉远端 shell
+（写了一半的 vim 能活过刷新），每个会话有 30 分钟空闲回收、进程内最多 8 个（免得打爆远端
+`MaxSessions`），插件卸载时全部挂断。
+
+传输方式刻意做得很朴素：远端会话在**宿主**，浏览器**轮询**输出增量（输入是单独请求、立即写入，
+所以打字从不排队等轮询）。这样不依赖宿主是否暴露 WebSocket 升级路径。路由是
+`/dsh-remote/term/{open,input,output,resize,close,list}`，每个都先按**会话**解析绑定——
+开在 A 机的终端，绑到 B 机的请求既看不到也驱动不了。
 
 **机器换了 IP / 用户名，工作区要全部重建吗？**（issue #67）—— 不用（0.8.52+）。在设置页编辑该机器的新
 地址并保存，或 `rw_connect(machineId=…, host=…, username=…, port=…)` 同传新地址：该机器名下所有工作区
