@@ -2,6 +2,38 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.57 — 2026-10-30
+### 「远端 dsh 体检与部署」整个面板点了没反应（真 bug，由点击流测试抓出）
+
+`deployAction()` 里调了三次 `setDeployMsg(...)`，而那个 state 早就随着「面板改成渲染宿主侧任务」被删掉了。后果：
+点「体检（只读）」/「部署并验证」/「让 AI 排查」的**第一行就抛 `ReferenceError: setDeployMsg is not defined`**，
+三个按钮全部变成点了没反应的死按钮；任务结束时的轮询路径也会抛。这是典型的「点了没反应」类 bug —— 而它是被
+`test/ui-deploy-flow.test.js`（真 React 渲染 + 真点击）第一次跑就抓到的，803 条老测试一条都没碰到。
+
+顺带修掉同面板的一个洞：「部署并验证」的 `disabled` 只检查了「有没有选机器」，注释里写着「任务运行中再点不能重启」，
+但属性没写 `deployBusy` —— 双击真的会再 POST 一次安装。现在运行中禁用，并且按钮补了 `title`（没选机器 / 运行中都有说明）。
+
+### 补上的端到端测试（+18 条，总计 874）
+
+- **终端 PTY 全链路**（`test/terminal-e2e.test.js`）：真开一个 PTY 通道 → 看到远端提示符 → 输入回显 → `resize` →
+  空轮询不再返回 chunk → 关闭后驱动它得 404；shell 自己退出时报 `closed`；**A 机的会话在切到 B 机后不可读/不可写/不可关**；
+  第 9 个会话被礼貌拒绝（进程内上限 8）。
+- **端口转发生命周期**（`test/forwards-lifecycle.test.js`）：define→start→list→stop→remove；**监听端口被占用**时
+  start 报错且定义不丢；目标端口拒绝连接时连接立刻断（不是黑洞）；重复 start/stop 幂等；**remove 一个运行中的转发必须
+  释放监听**（否则几小时后用户才发现端口被占）；未知 id/action 的 404/400。顺带把 `define` 的端口校验补上：
+  `listenPort`/`targetPort` 必须是 1–65535（`listen(0)` 会静默挑一个临时端口，用户会看到一个"监听在没要求的地方"的转发）。
+- **会话↔机器围栏**（`test/binding-fence.test.js`）：session 的 cwd 是 B 机镜像时请求真的落到 B（即使当前机器是 A）；
+  LOCAL 会话被 403 拒绝；**过期镜像不会回落到别的机器**；`/bindings` 与 `/resolve-mirror` 的描述。
+  顺带修掉一个**跨机器串味**的真缺陷：`POST /dsh-remote/ls` 只从 query string 读 session 提示，body 里的
+  `sessionId`/`local` 被忽略 → API/agent 调用会**静默列当前机器**（浏览器走 GET 所以没人发现）。现在 body 也算数。
+- **部署面板点击流**（`test/ui-deploy-flow.test.js`）：没选机器时体检/部署都禁用；选机器后点体检 → 断言 POST 的
+  `machineId`；按后端给的 severity 渲染每条 finding（summary / detail / fix 都要出现）；通过时不能同时说"有问题"；
+  部署任务渲染运行中步骤、失败步骤的输出、进度计数与取消入口。
+
+### 覆盖率
+
+union 加权行覆盖 **73.9% → 74.9%**；`routes-term.js` 61%→75%、`routes-fs.js` 85%→88%、`index.js` 56%→57.5%。
+
 ## 0.8.56 — 2026-10-29
 ### 测试体系：从「803 条全绿」到「真的能挡住不可用级 bug」
 

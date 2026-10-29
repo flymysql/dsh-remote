@@ -116,10 +116,12 @@ UI 必须有 `test/harness/render.js`。
 - `openssh.js` 的真实 `ssh` 进程路径、GSSAPI/Kerberos（需要企业机器）。
 - `credential.js` 的三套 OS 钥匙串后端（macOS `security` / Windows DPAPI / Linux `secret-tool`）——
   只有 `persistPassword` 的**决策逻辑**被测，后端本身不可在 CI 覆盖。
-- 终端 PTY 路由（`routes-term.js`）只测了守卫分支，没有「真开一个 shell 打字」的端到端。
-- 远程部署 / Web UI 附加（`web-deploy.js` / `web-attach.js`）测的是模块逻辑，没有真在远端装一遍。
-- `client.js` 的交互只覆盖了设置页、目录选择器、文件页的**首屏与关键禁用态**，没有做完整的
-  点击流回归（如「同步 → 冲突 → 强制推」）。
+- 远程部署的**真实安装**（`web-deploy.js` 的 `install` 命令序列）只在假 shell 里跑过，没在真远端装一遍。
+- `web-attach.js` 的隧道在真机上的行为（假 SSH 支持 `direct-tcpip`，但远端 `dsh web` 不在测试里）。
+- `client.js` 里目录选择器「提交工作区 → 建镜像」的完整链路（`/dsh-remote/mirror`）只有首屏断言。
 
-下一步优先级：终端 PTY 端到端 → `forwards` 的失败/回收分支 → `binding.js` 的跨机器围栏矩阵 →
-`client.js` 的同步/部署面板点击流。
+已补齐（原清单上的前几项）：终端 PTY 全链路、`forwards` 失败/回收分支、`binding` 跨机围栏矩阵、部署面板点击流 ——
+见 `terminal-e2e.test.js` / `forwards-lifecycle.test.js` / `binding-fence.test.js` / `ui-deploy-flow.test.js`。
+
+下一步优先级：目录选择器建镜像链路 → `web-deploy` 的安装命令序列（用假 shell 校验命令顺序与失败中断）→
+`openssh` 后端用本机 `ssh` 跑一次真实连接（CI 可跳过）。
