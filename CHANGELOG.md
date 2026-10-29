@@ -2,6 +2,40 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.60 — 2026-10-30
+### 真机集成测试：系统 OpenSSH 后端 / 三套钥匙库 / 真远端 dsh web 隧道
+
+三件「只能在真机上验证」的事，这次真的在真机上跑了（`test/it-*.test.js`，按环境变量启用，没配就 skip，CI 不会红）：
+
+**① 系统 OpenSSH 后端（真 `ssh` 进程）** —— 对 `106.52.92.20`（密码走 askpass）与编译机
+`9.134.186.191:36000`（`-i id_rsa`）都通了：连接、`exec`、SFTP 列目录、平台探测；错密码在有限时间内报认证失败；
+`close()` 后能重连；以及**只靠 `~/.ssh/config` 别名**（`Host 9.134.186.191`）连上。GSSAPI 用例已写好，
+但手边没有只接受 Kerberos 的机器（`IT_SSH_GSSAPI=1` 在有 `kinit` 的环境可直接跑）。
+
+**② 三套 OS 钥匙库** —— Windows DPAPI 与 Linux `secret-tool` 都真机验证（macOS 无机器）。
+**这里抓到一个真 bug：Linux 上「加密保存密码」是完全坏的。** `secret-tool store` 通过
+`execFile({ input })` 拿不到 stdin EOF，一直阻塞到 8s 超时被 SIGTERM，报错还是空的
+`Command failed: secret-tool store …`，密码于是被丢弃。真机上一测就清楚：
+
+```
+execFile+input      → 6012ms 超时被杀
+spawn+stdin.end()   →   19ms 成功
+sh -c '… < file'    →   20ms 成功
+```
+
+改成 `spawn` + 显式 `stdin.end()`（并把子进程 stderr 带进错误里）后，同一个真机：`saveSecret ok`、
+`getSecret` 原样读回、`persistPassword stored:"secret"`，5/5 用例 215ms 跑完。Windows DPAPI 与
+「无钥匙库时必须拒绝且不落明文」两条路径也都在真机确认。
+
+**③ 真远端 `dsh web` 隧道** —— 对 `106.52.92.20`（dsh 0.1.5-rc.2 已装）打开隧道：
+`cleanUrl` 是 loopback 且**不含 token**、token URL 返回 **303 + Set-Cookie**、带 cookie 请求 `/` 得到
+200 + HTML、**不带 token 仍 401**（鉴权确实穿过了隧道）、`close` 释放本地端口、`stopRemote` 停掉它启动的远端进程。
+
+> 顺带记一条测试写法上的坑：Node 的 `fetch` 不存 cookie，直接 `follow` token URL 的 303 会落到 401，
+> 看起来像产品 bug 其实是测试没做交换。现在测的是真链路（换 cookie → 200 → HTML）。
+
+合计 +14 条（899 条，其中 8 条真机用例在无环境变量时 skip）。
+
 ## 0.8.59 — 2026-10-30
 ### 「远端 dsh 体检与部署」整个面板点了没反应（真 bug，由点击流测试抓出）
 

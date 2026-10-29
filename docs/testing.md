@@ -111,17 +111,39 @@ UI 必须有 `test/harness/render.js`。
 **加一条凭据/秘密路径** → 用 `saved-credentials.test.js` 的模式：表单**留空**跑一遍
 （证明沿用已保存值），再断言响应里**没有**秘密原文。
 
+## 6.5 真机集成测试（	est/it-*.test.js）
+
+上面所有用假服务器做的测试都证明不了「真机上行不行」。这三套跑在**真机器**上，按环境变量启用（没配就 skip，CI 不红）：
+
+| 文件 | 真机验证了什么 | 需要 |
+|---|---|---|
+| it-openssh-real.test.js | 系统 OpenSSH 后端：真 ssh 连接 + exec + SFTP + 平台探测；**密码走 askpass**、**私钥 -i**、**~/.ssh/config 别名**三种认证；错密码在有限时间内报认证失败；close 后可重连 | IT_SSH_HOST + IT_SSH_PASSWORD 或 IT_SSH_KEY 或 IT_SSH_ALIAS |
+| it-keychain-real.test.js | 当前平台**真的**系统钥匙库：存入/读回/删除、含 shell 元字符的秘密不被破坏、DPAPI 落盘是密文、无钥匙库时 persistPassword 必须 efused 且不落明文 | 无（用当前平台） |
+| it-webattach-real.test.js | 真远端 dsh web：隧道打开到 loopback、**token URL 换 cookie（303 + Set-Cookie）**、带 cookie 的 / 返回 HTML、无 token 仍 401、close 释放端口、stopRemote 停掉它启动的远端进程 | IT_WEB_HOST + IT_WEB_PASSWORD/IT_WEB_KEY |
+
+**真机跑出来的两个结论**（假服务器永远测不到）：
+
+1. **Linux 钥匙库后端是完全坏的**：secret-tool store 通过 xecFile({input}) 拿不到 EOF，一直阻塞到 8s 超时被杀，
+   报错还是空的 Command failed: … —— 也就是说「勾选加密保存密码」在 Linux 上**必然失败**。改成 spawn + 显式 stdin.end() 后 
+   同一个真机 20ms 完成、读写回环正常（lib/credential.js）。
+2. **隧道是好的，但测试必须自己做 token 交换**：DSH 的 token URL 是 303 + Set-Cookie，Node 的 fetch 不存 cookie，
+   直接 follow 会落到 401 —— 这不是产品 bug，是测试写法。现在测的是真链路（换 cookie → 200 → HTML）。
+
 ## 7. 还没覆盖的（诚实清单）
 
-- `openssh.js` 的真实 `ssh` 进程路径、GSSAPI/Kerberos（需要企业机器）。
-- `credential.js` 的三套 OS 钥匙串后端（macOS `security` / Windows DPAPI / Linux `secret-tool`）——
-  只有 `persistPassword` 的**决策逻辑**被测，后端本身不可在 CI 覆盖。
-- 远程部署的**真实安装**（`web-deploy.js` 的 `install` 命令序列）只在假 shell 里跑过，没在真远端装一遍。
-- `web-attach.js` 的隧道在真机上的行为（假 SSH 支持 `direct-tcpip`，但远端 `dsh web` 不在测试里）。
-- `client.js` 里目录选择器「提交工作区 → 建镜像」的完整链路（`/dsh-remote/mirror`）只有首屏断言。
+- **GSSAPI/Kerberos**：手边没有只接受 Kerberos 的机器。`it-openssh-real.test.js` 里那条用例留着
+  （`IT_SSH_GSSAPI=1` + 一个别名），在能 `kinit` 的环境里直接可跑；本机无法验证。
+- **macOS 钥匙库**（`security`）：没有 macOS 机器。Windows DPAPI 与 Linux `secret-tool` 都已真机验证。
+- **从零 npm 安装**：`web-deploy.js` 的命令序列在假 shell 里校验过顺序与失败中断；真远端只验证了
+  「已装好的 dsh 能起 web」（106.52.92.20 上是 0.1.5-rc.2），没有再从零 `npm install` 一遍。
+- **目录选择器的渲染级点击链**：路由级（`/dsh-remote/mirror` → 镜像 → `rw_sync`）已覆盖
+  （`mirror-and-deploy-plan.test.js`），但 `client.js` 那一段只断言到首屏与提交按钮的禁用态。
 
-已补齐（原清单上的前几项）：终端 PTY 全链路、`forwards` 失败/回收分支、`binding` 跨机围栏矩阵、部署面板点击流 ——
-见 `terminal-e2e.test.js` / `forwards-lifecycle.test.js` / `binding-fence.test.js` / `ui-deploy-flow.test.js`。
+已补齐：终端 PTY 全链路、`forwards` 失败/回收分支、`binding` 跨机围栏矩阵、部署面板点击流、
+秘密不回传扫描、目录建镜像链路 + 部署命令序列 —— 见 `terminal-e2e.test.js` /
+`forwards-lifecycle.test.js` / `binding-fence.test.js` / `ui-deploy-flow.test.js` /
+`invariants-secrets.test.js` / `mirror-and-deploy-plan.test.js`；真机部分见 §6.5。
 
-下一步优先级：目录选择器建镜像链路 → `web-deploy` 的安装命令序列（用假 shell 校验命令顺序与失败中断）→
-`openssh` 后端用本机 `ssh` 跑一次真实连接（CI 可跳过）。
+下一步优先级：GSSAPI 用例在有 Kerberos 的环境跑一遍 → 真远端从零 `npm install` 一次
+（用 `IT_WEB_*` 指向一台干净机器）→ 目录选择器的渲染级点击链。
+
