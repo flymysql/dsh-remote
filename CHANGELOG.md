@@ -2,7 +2,7 @@
 
 All notable changes to **dsh-remote**.
 
-## 0.8.57 — 2026-10-30
+## 0.8.58 — 2026-10-30
 ### 「远端 dsh 体检与部署」整个面板点了没反应（真 bug，由点击流测试抓出）
 
 `deployAction()` 里调了三次 `setDeployMsg(...)`，而那个 state 早就随着「面板改成渲染宿主侧任务」被删掉了。后果：
@@ -30,9 +30,17 @@ All notable changes to **dsh-remote**.
   `machineId`；按后端给的 severity 渲染每条 finding（summary / detail / fix 都要出现）；通过时不能同时说"有问题"；
   部署任务渲染运行中步骤、失败步骤的输出、进度计数与取消入口。
 
+### 秘密不回传的不变量扫描（`test/invariants-secrets.test.js`）
+
+种下三个已知秘密（密码 / passphrase / 跳板机密码），把**所有能在无远端时应答的路由**与 `rw_*` 工具全跑一遍，
+在整个响应流、审计日志、工具结果里 grep —— 一个都不许出现；同时要求 `passwordSet`/`passphraseSet`/
+`proxy.passwordSet` 仍然为真（否则界面就没法显示「已保存」）。这条扫描当场又抓到一个**同类数据丢失**：
+`machines` 的局部更新（只传 host/username）会把 `privateKeyPath` 静默清空 —— 现在「字段缺省 = 沿用，
+显式空串 = 清空」。
+
 ### 覆盖率
 
-union 加权行覆盖 **73.9% → 74.9%**；`routes-term.js` 61%→75%、`routes-fs.js` 85%→88%、`index.js` 56%→57.5%。
+union 加权行覆盖 **73.9% → 75.2%**；`routes-term.js` 61%→75%、`routes-fs.js` 85%→88%、`index.js` 56%→58%。
 
 ## 0.8.56 — 2026-10-29
 ### 测试体系：从「803 条全绿」到「真的能挡住不可用级 bug」
