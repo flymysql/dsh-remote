@@ -113,7 +113,11 @@ test('A2: the same pool WITH the passphrase gets past key parsing (fails later a
     const err = await pool.connect().then(() => null, (e) => e)
     assert.ok(err, 'port 1 must fail')
     assert.doesNotMatch(String(err.message), /Cannot parse privateKey|no passphrase given/i)
-    assert.match(String(err.message), /ECONNREFUSED|timed out|timeout/i)
+    // The point is "it got PAST key parsing and failed at the NETWORK layer", not
+    // one particular errno spelling: ssh2 reports a socket that dies during the
+    // handshake as `Connection lost before handshake` on Windows, where the same
+    // closed port yields ECONNREFUSED on Linux/macOS. Both mean the key was fine.
+    assert.match(String(err.message), /ECONNREFUSED|timed out|timeout|connection lost before handshake/i)
     pool.close()
   } finally {
     rmSync(dir, { recursive: true, force: true })

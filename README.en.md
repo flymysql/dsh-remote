@@ -355,6 +355,21 @@ Host devbox
 
 **How are passwords stored?** — tick "encrypt password": macOS Keychain / Windows DPAPI / Linux secret-tool (libsecret); falls back to plaintext when unavailable.
 
+**Why is the password box empty (where are the stars)?** — No secret is ever sent back to the browser, so the input stays empty; when a password IS saved its placeholder reads
+`•••••••• (saved — leave blank to keep)` with a hint underneath. Saving with an empty box keeps the stored password; typing a new value replaces it. Same for the private-key
+passphrase and the jump-host password. The password badge in the machine row means exactly this (a keychain-stored password counts as saved).
+
+**Which password does "Test connection" use?** — The form in front of you, but a blank password / key / passphrase **falls back to the value saved for that machine**, so
+"edit a machine that already connects → click test" now works (the success line says the saved password was used). After saving, the form stays bound to that machine so you can
+test immediately; press "Cancel edit" to start over.
+
+**"No credentials" even though you filled it in** — the password never actually landed on disk: when "encrypt password" is ticked and the OS store is unavailable the plugin
+**refuses** to write plaintext and reports a warning (`credentialFallback` defaults to `refuse`). Look for the red warning after saving, fix the store and save again, or use
+"Test connection" to verify on the spot. A machine with no password / key / agent is flagged in amber right inside the form.
+
+**"SSH agent unavailable"** — the machine has "use SSH agent" ticked but the DSH host process has no `SSH_AUTH_SOCK` (Windows has no agent service by default). Start an agent
+(and export `SSH_AUTH_SOCK`, or use Pageant) before launching DSH — or untick it and save a password / private key instead.
+
 **The plugin vanished after a DSH upgrade** — DSH's compatibility check dropped the bundle; upgrade to **0.8.29+** (see "DSH version compatibility" above).
 
 **"Remote DSH Web UI" will not connect / spins forever** — first check that `dsh web` starts on that
