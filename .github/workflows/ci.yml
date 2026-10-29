@@ -12,7 +12,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22+: the coverage job below needs `v8.takeCoverage()`, and this is also
+          # the runtime users actually run DSH on.
+          node-version: 22
           cache: npm
       - run: npm ci --legacy-peer-deps --no-audit --no-fund
       - name: Syntax check
@@ -25,5 +27,11 @@ jobs:
         run: node check.mjs
       - name: Unit tests
         run: npm test
+      - name: Coverage (union over lib/*.js, gated)
+        # 为什么不是 `--experimental-test-coverage`：本套测试刻意用 cache-busting
+        # 的 `?host=…` 导入 lib/index.js（插件状态在模块级，共享实例会串味），
+        # 而 V8 按 URL 聚合，于是同一个源文件被算成 N 份脚本 —— 加测试反而让
+        # 百分比下降。scripts/coverage-union.mjs 按源文件取并集，是可信的数。
+        run: npm run test:coverage:gate
       - name: Boot smoke (plugin loads in an isolated profile)
         run: bash scripts/boot-smoke.sh || echo "boot-smoke skipped (needs a desktop harness install)"

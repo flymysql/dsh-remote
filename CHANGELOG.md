@@ -2,6 +2,47 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.56 — 2026-10-29
+### 测试体系：从「803 条全绿」到「真的能挡住不可用级 bug」
+
+0.8.54 三个功能不可用级问题的共同点是——**都不是纯函数**，而是「路由 + 表单状态」的连线，
+而那条连线没有任何测试。评估结论：不是测试写少了，是**缺两层脚手架**（没有可复用的宿主测试台、
+没有真正的 SSH 服务端），于是写测试成本高到没人写，写出来也只能覆盖错误分支。
+
+**新增脚手架**
+- `test/harness/fake-ssh.js`：进程内 ssh2 **服务端** —— 密码/公钥/keyboard-interactive 认证、
+  `exec`（含 `cmd /c ver` / `uname -s` 平台探测语义）、PTY shell、**内存 SFTP 文件系统**、
+  `direct-tcpip`（端口转发）。成功路径第一次能被真跑。
+- `test/harness/plugin-host.js`：可复用宿主测试台（fake webServer + 隔离 DSH_HOME + 路由/工具驱动）。
+- `test/harness/render.js`：真 React 渲染驱动（按可见文本点击、读禁用态与 title）。
+
+**新增测试（+53 条，总计 856）**
+- `routes-matrix.test.js`：34 条路由的**通用契约**——注册清单、错误方法 405、畸形 body 可读原因、
+  handler 不许 reject、无活动机器时的解释、未知 id 的 404。
+- `routes-e2e.test.js`：真 SSH 下的 `/status` `/ls` `/read` `/write` `/fs`(mkdir/rename/append/remove/download)
+  `/home` `/workspace` `/audit` `/ssh-config`。
+- `tools-matrix.test.js`：22 个 `rw_*` 全部端到端（含 `rw_forward` 真开隧道打到本地 echo、`rw_sync`/`rw_push`
+  真镜像往返、`rw_edit` 歧义拒绝、`rw_remove` 非递归拒绝）。
+- `ui-panels.test.js`：每个 slot 组件渲染不抛且不漏裸 i18n key、机器列表徽标、设为当前禁用态、
+  空注册表说明、高级配置折叠、转发面板、更新面板、目录选择器、文件页只读、**灰按钮必须带 title**。
+
+**顺带修掉的真缺陷（都是矩阵测试逼出来的）**
+- `/dsh-remote/home` 出错时回 `ok:true` + `error`（自相矛盾，客户端信 `ok` 就当成功）。
+- 没有活动机器时文件操作报「缺少凭据」，把用户骗去改密码；现在明确报「当前没有活动远程机」，
+  且修了启动恢复（`setImmediate`）与首个请求的竞态。
+- `/dsh-remote/local-pick` 会 spawn 真实目录对话框并**等人点**，测试/CI/无桌面宿主会挂死；
+  新增 `DSH_REMOTE_NO_NATIVE_DIALOG` 逃生口。
+- 灰按钮（设为当前/保存/添加转发）补 `title` 说明为什么不能点。
+
+**测试不得有外部副作用**：整轮测试现在把 `~/.ssh/config` 指向临时文件（此前测试真的往开发机的
+ssh 配置里写过 `Host 127.0.0.1 / Port 1`、`Host 10.9.9.6..9`，而 `Host 127.0.0.1` 又反过来劫持
+后续要连 127.0.0.1 的测试）；目录选择器对话框关闭；心跳继续指向必失败地址。
+
+**可信的覆盖率**：`--experimental-test-coverage` 对本仓库不可用（缓存破坏导入让同一源文件被算成
+N 份脚本，加测试反而掉百分比）。新增 `npm run test:coverage`（`scripts/coverage-union.mjs`，
+`NODE_V8_COVERAGE` + `v8.takeCoverage()` 活过 `--test-force-exit`，按源文件取并集）：
+**加权行覆盖 41.3% → 73.9%**，CI 加 `--gate 70` 硬门禁。评估与 recipe 见 `docs/testing.md`。
+
 ## 0.8.55 — 2026-10-29
 ### 「编辑一台已经连上的机器 → 点测试连接 → 缺少凭据」修好了
 

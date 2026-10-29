@@ -20,11 +20,17 @@ The plugin is sandbox-developed; see the **Development** section of the [README]
 
 ```bash
 npm ci
-npm test          # must stay green
+npm test                   # must stay green
+npm run test:coverage      # union coverage over lib/*.js (see docs/testing.md)
 node --check <changed files>
 ```
 
 Please make sure `npm test` passes before you push. If a test fails on `main` before your change, say so in the PR so we can separate the two.
+
+**Adding a feature? Read [docs/testing.md](./docs/testing.md) first** — it lists which layer a new route / tool / panel needs
+(a route that isn't in `routes-matrix.test.js`'s inventory fails the suite on purpose), and the invariants that exist so that a
+"green suite" actually means "the UI is usable" (a real SSH server for end-to-end paths, a real-React driver for panels, and the
+rule that tests must never touch your real `~/.ssh/config`).
 
 ## Style
 

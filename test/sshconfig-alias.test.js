@@ -297,10 +297,17 @@ async function withPlugin(sshConfigText, machines, fn) {
   const savedHome = process.env.HOME
   const savedProfile = process.env.USERPROFILE
   const savedDsh = process.env.DSH_HOME
+  // `DSH_REMOTE_SSH_CONFIG` OVERRIDES the home directory (that is the documented
+  // precedence), and the suite sets it globally so no test can touch the real
+  // ~/.ssh/config. This helper isolates via HOME instead, so it must clear the
+  // override — otherwise the plugin would read the suite's temp file while the
+  // fixture lives in the scratch home.
+  const savedSshConfig = process.env.DSH_REMOTE_SSH_CONFIG
   try {
     process.env.HOME = env.fakeHome
     process.env.USERPROFILE = env.fakeHome
     process.env.DSH_HOME = env.dshHome
+    delete process.env.DSH_REMOTE_SSH_CONFIG
     if (machines) {
       writeFileSync(path.join(env.dshHome, 'remote-workspaces', 'machines.json'), JSON.stringify(machines, null, 2))
     }
@@ -309,7 +316,7 @@ async function withPlugin(sshConfigText, machines, fn) {
     await mod.apply(ctx, { ...CONFIG })
     return await fn({ routes, tools, env, machinesFile: path.join(env.dshHome, 'remote-workspaces', 'machines.json') })
   } finally {
-    for (const [k, v] of [['HOME', savedHome], ['USERPROFILE', savedProfile], ['DSH_HOME', savedDsh]]) {
+    for (const [k, v] of [['HOME', savedHome], ['USERPROFILE', savedProfile], ['DSH_HOME', savedDsh], ['DSH_REMOTE_SSH_CONFIG', savedSshConfig]]) {
       if (v === undefined) delete process.env[k]
       else process.env[k] = v
     }
@@ -324,8 +331,12 @@ test('sshConfigPath/expandHome follow the current home', () => {
   // taught us this: ubuntu kept /home/runner with only USERPROFILE set).
   const fake = path.join(tmpdir(), 'fakehome-x')
   const saved = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE }
+  // The env override wins over the home directory by design, so this test — which
+  // is ABOUT the home fallback — must clear it while it runs.
+  const savedOverride = process.env.DSH_REMOTE_SSH_CONFIG
   process.env.HOME = fake
   process.env.USERPROFILE = fake
+  delete process.env.DSH_REMOTE_SSH_CONFIG
   try {
     assert.equal(homedir(), fake, 'os.homedir() must follow the scratch home')
     assert.equal(sshConfigPath(), path.join(fake, '.ssh', 'config'))
@@ -335,6 +346,7 @@ test('sshConfigPath/expandHome follow the current home', () => {
       if (value === undefined) delete process.env[key]
       else process.env[key] = value
     }
+    if (savedOverride !== undefined) process.env.DSH_REMOTE_SSH_CONFIG = savedOverride
   }
   assert.equal(expandHome('/abs/k'), '/abs/k')
   assert.equal(expandHome('/abs/k'), '/abs/k')

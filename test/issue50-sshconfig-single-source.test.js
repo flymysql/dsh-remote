@@ -208,6 +208,10 @@ async function loadPlugin(home) {
   process.env.DSH_HOME = home
   // The ssh config path derives from the home directory; point it at the
   // throwaway one BEFORE any plugin code runs (os.homedir reads env per call).
+  // `DSH_REMOTE_SSH_CONFIG` overrides the home directory by design, and the suite
+  // sets it globally so no test can touch the real ~/.ssh/config — clear it here,
+  // because THIS file isolates through HOME instead.
+  delete process.env.DSH_REMOTE_SSH_CONFIG
   process.env.HOME = home
   process.env.USERPROFILE = home
   const mod = await import(`../lib/index.js?issue50=${Math.random()}`)
