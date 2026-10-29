@@ -2,7 +2,7 @@
 
 All notable changes to **dsh-remote**.
 
-## 0.8.58 — 2026-10-30
+## 0.8.59 — 2026-10-30
 ### 「远端 dsh 体检与部署」整个面板点了没反应（真 bug，由点击流测试抓出）
 
 `deployAction()` 里调了三次 `setDeployMsg(...)`，而那个 state 早就随着「面板改成渲染宿主侧任务」被删掉了。后果：
@@ -29,6 +29,14 @@ All notable changes to **dsh-remote**.
 - **部署面板点击流**（`test/ui-deploy-flow.test.js`）：没选机器时体检/部署都禁用；选机器后点体检 → 断言 POST 的
   `machineId`；按后端给的 severity 渲染每条 finding（summary / detail / fix 都要出现）；通过时不能同时说"有问题"；
   部署任务渲染运行中步骤、失败步骤的输出、进度计数与取消入口。
+
+### 目录选择器「提交远程目录 → 建镜像」与部署命令序列（`test/mirror-and-deploy-plan.test.js`）
+
+- `POST /dsh-remote/mirror`：镜像目录与 `.dsh-remote-meta.json` 必须带对的 host/**port**/user/remotePath（两台机器同一个 IP 只能靠 port 区分），
+  非目录/空路径/没有活动机器都要拒绝；随后在同一个镜像里 `rw_sync` 必须真的把文件拉下来。
+- 部署计划：步骤顺序是契约（install 必须在 prepare 之后）、每条命令不许出现空参数或 `[object Object]`、
+  失败步骤要带输出。**顺带修掉一个危险边界**：`buildInstallPlan` 拿到空 prefix 时会生成 `mkdir -p ''` / `cd ''` / `--prefix ''`，
+  现在直接拒绝构计划（绝不产出会碰到文件系统根的命令）。
 
 ### 秘密不回传的不变量扫描（`test/invariants-secrets.test.js`）
 
