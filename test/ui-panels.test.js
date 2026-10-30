@@ -85,20 +85,45 @@ test('the machine list shows the badges a user needs to tell machines apart', as
   } finally { ui.dispose() }
 })
 
-test('the current machine cannot be re-activated, and every other one can', async () => {
+test('every saved machine offers 连接 and 选目录 (issue #73: the list IS the primary path)', async () => {
   const machines = [{ ...MACHINE, id: 'm-1', name: 'first' }, { ...MACHINE, id: 'm-2', name: 'second' }]
   const ui = mountClient({ fetch: stubFetch({ machines, currentId: 'm-1' }).fetch })
   try {
     const tree = await ui.settle()
-    const setCurrent = ui.buttons(tree).filter((b) => /设为当前/.test(b.label))
-    // At least one per machine (a panel may repeat the action); what matters is
-    // that exactly ONE of them — the current machine's — is disabled.
-    assert.ok(setCurrent.length >= 2,
-      `expected a 设为当前 action per machine, got: ${ui.buttons(tree).map((b) => b.label).join(' | ')}`)
-    assert.equal(setCurrent.filter((b) => b.disabled).length, 1,
-      'exactly the CURRENT machine\'s button must be disabled')
-    const disabled = setCurrent.find((b) => b.disabled)
-    assert.ok(disabled.title, 'the disabled one must say why (this is already the current machine)')
+    const labels = ui.buttons(tree).map((b) => b.label)
+    // Issue #73 replaced 「设为当前」 with 「连接」 (activate + probe in one click) and
+    // added 「选目录」 (the second half of the VSCode-shaped flow).
+    assert.equal(labels.filter((l) => /^连接$/.test(l)).length, 2, `expected a 连接 action per machine, got: ${labels.join(' | ')}`)
+    assert.equal(labels.filter((l) => /^选目录$/.test(l)).length, 2, `expected a 选目录 action per machine, got: ${labels.join(' | ')}`)
+    // A disabled control must still explain itself.
+    const mute = ui.buttons(tree).filter((b) => b.disabled && !b.title)
+    assert.deepEqual(mute.map((b) => b.label), [],
+      `disabled buttons without a title explaining why: ${mute.map((b) => b.label).join(' | ')}`)
+  } finally { ui.dispose() }
+})
+
+test('the ~/.ssh/config hosts are listed with a one-click 连接, and saved ones are not duplicated', async () => {
+  const machines = [{ ...MACHINE, id: 'm-1', name: 'saved-box', host: 'saved-box', useSshConfig: true }]
+  const entries = [
+    { host: 'saved-box', alias: 'saved-box', hostName: '10.0.0.7', user: 'root', port: 22 },
+    { host: 'fresh', alias: 'fresh', hostName: '10.0.0.8', user: 'deploy', port: 2200, identityFile: '/k/id' },
+  ]
+  const ui = mountClient({
+    fetch: stubFetch({ machines, overrides: { '/dsh-remote/ssh-config': () => ({ ok: true, present: true, file: '/home/me/.ssh/config', entries }) } }).fetch,
+  })
+  try {
+    const tree = await ui.settle()
+    const text = ui.text(tree)
+    assert.match(text, /fresh/, 'an unsaved ~/.ssh/config host must be listed')
+    assert.match(text, /10\.0\.0\.8/, 'with the resolved target the file gives')
+    // A host that is already saved appears ONCE (as the saved row). Counting the
+    // bold name spans is the precise check: a duplicated discovered row would add a
+    // second one for the same alias.
+    const aliasSpans = ui.elements(tree).filter((el) => el.type === 'span' && ui.textOf(el).trim() === 'saved-box')
+    assert.equal(aliasSpans.length, 1, `saved-box must be listed exactly once, got ${aliasSpans.length}`)
+    // Exactly one 连接 for the discovered host, plus one for the saved machine.
+    const connects = ui.buttons(tree).filter((b) => /^连接$/.test(b.label))
+    assert.equal(connects.length, 2, `expected 2 连接 buttons (1 discovered + 1 saved), got ${connects.length}`)
   } finally { ui.dispose() }
 })
 
@@ -112,12 +137,18 @@ test('an empty registry explains itself instead of showing a blank panel', async
   } finally { ui.dispose() }
 })
 
-test('the advanced block starts collapsed and opens on demand', async () => {
+test('the manual form starts collapsed and opens on demand', async () => {
   const ui = mountClient({ fetch: stubFetch().fetch })
   try {
     let tree = await ui.settle()
     const before = ui.text(tree)
-    assert.doesNotMatch(before, /HostKey 模式/, 'advanced fields must be hidden by default')
+    // Issue #73: the form is the SECONDARY path now — the host list comes first.
+    assert.doesNotMatch(before, /HostKey 模式/, 'the manual form must be collapsed by default')
+    const openForm = ui.button(tree, /手动添加/)
+    openForm.el.props.onClick()
+    tree = await ui.settle()
+    assert.match(ui.text(tree), /主机/, 'the form must reveal its fields')
+    // …and its advanced block is still reachable.
     const expand = ui.button(tree, /高级配置/)
     expand.el.props.onClick()
     tree = await ui.settle()
@@ -145,7 +176,7 @@ test('the forwards panel renders and its add button stays disabled until a port 
   const ui = mountClient({ fetch: stubFetch().fetch })
   try {
     let tree = await ui.settle()
-    const add = ui.buttons(tree).find((b) => /添加转发|新增转发|添加/.test(b.label))
+    const add = ui.buttons(tree).find((b) => /^添加转发$/.test(b.label))
     assert.ok(add, `the forwards panel must offer an add action, buttons: ${ui.buttons(tree).map((b) => b.label).join(' | ')}`)
     assert.equal(add.disabled, true, 'adding a forward without a listen port must be impossible')
   } finally { ui.dispose() }

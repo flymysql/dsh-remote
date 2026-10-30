@@ -198,6 +198,16 @@ export function mountClient(opts = {}) {
         .filter((el) => el.type === 'input' && (!type || el.props.type === type))
         .map((el) => el.props)
     },
+    /**
+     * Elements whose `type` is a FUNCTION (i.e. a nested component that the walker
+     * does not mount). Used to assert that a modal is on screen without paying for
+     * its hook state: `components(tree).some((el) => el.type === ui.component('…'))`.
+     */
+    components(tree) {
+      return elements(tree)
+        .filter((el) => typeof el.type === 'function')
+        .map((el) => ({ type: el.type, props: el.props }))
+    },
     /** Text of the whole tree (for "does the panel say X" assertions). */
     text(tree) { return textOf(tree) },
     dispose() { for (const c of cleanups.splice(0)) { try { c() } catch { /* gone */ } } },

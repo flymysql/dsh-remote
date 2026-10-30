@@ -92,11 +92,12 @@ dsh plugin add dsh-remote
 
 ## 快速上手
 
-1. **加一台机器** —— 设置 → 远程工作区 → 填 host/port/user + 密码或 key → 设为当前。
-   > **保存 ≠ 激活**：保存只是备用连接；只有「设为当前」（或 Agent 调 `rw_connect`）才进入会话的 remote context。
-2. **选工作区** —— 点侧边栏/会话的 **Add workspace**：
+1. **连接一台机器** —— 设置 → 远程工作区：页面**直接列出 `~/.ssh/config` 里的主机**（像 VSCode Remote-SSH），点「连接」即可（= 采用 + 设为当前 + 实测延迟，结果显示在这一行上）。
+   没有写进 ssh 配置的机器，展开「手动添加（密码 / 私钥 / 跳板机）」填一次即可。
+   > **保存 ≠ 激活**：保存只是备用连接；只有「连接」（或 Agent 调 `rw_connect`）才进入会话的 remote context。
+2. **选工作区** —— 连上之后会自动弹出目录选择（也可以点机器行的「选目录」）：
+   - **远程** → 浏览到远程目录（或输入 `/path`）→ 「设为远程工作区」⇒ 创建并收养本地镜像工作区。
    - **本机** → 系统文件夹选择（或手输路径）→ 本地工作区。宿主没有可用系统对话框时改用插件内置浏览器。
-   - **远程** → 选机器 → 浏览到远程目录（或输入 `/path`）→ 「设为远程工作区」⇒ 创建并收养本地镜像工作区。
 3. **让 Agent 工作** —— 当作普通工作区使用，例如 `rw_read_file` / `rw_write_file` / `rw_edit` / `rw_exec` / `rw_search` / `rw_sync` / `rw_push` / `rw_forward`（完整列表见上文）。
 
 > **Remote context 是 session 级的**：只有当前 session 的工作区是某个远程镜像时，system prompt 才注入「Remote workspace」段落；普通本地 session 不受影响，模型也不会主动调 `rw_*`。

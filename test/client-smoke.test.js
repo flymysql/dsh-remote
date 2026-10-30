@@ -93,7 +93,15 @@ test('lib/client.js registers through the module loader and its apply() runs', (
   const enKeys = Object.keys(dicts.en).sort()
   assert.deepEqual(enKeys, zhKeys, 'en must cover exactly the zh key set')
   const required = [
-    'settings.sshImport', 'settings.sshUseAlias', 'settings.sshCopyFields', 'settings.sshAliasHint',
+    // Issue #73: the first screen is the ~/.ssh/config host list, so these are the
+    // strings the primary path depends on. The old import-panel keys
+    // (sshImport/sshUseAlias/sshCopyFields/sshAliasHint) are gone with that panel —
+    // the list is always visible now and each row has one 连接 action.
+    'settings.pickHost', 'settings.hostListSource', 'settings.hostListRefresh',
+    'settings.hostListEmpty', 'settings.hostConnect', 'settings.hostConnected',
+    'settings.hostFillForm', 'settings.openWorkspace', 'settings.workspaceOpened',
+    'settings.addMachineManual',
+    // The alias/ssh-config semantics the list still relies on.
     'settings.useSshConfig', 'settings.useSshConfigHint', 'settings.sshResolvedTo',
     'settings.sshResolvedNone', 'settings.sshResolvedWarn', 'settings.badgeSshConfig',
   ]

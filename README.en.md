@@ -102,10 +102,11 @@ Since **v0.8.18** it installs and mounts only itself; the Web sidebar ([dsh-bett
 
 ## Quick start
 
-1. **Add a machine** — Settings → 远程工作区 → host/port/user + key or password → set it current.
-2. **Open a workspace** — click **Add workspace** in the sidebar / conversation:
+1. **Connect a machine** — Settings → 远程工作区: the page **lists the hosts from your `~/.ssh/config`** (like VSCode Remote-SSH). Click **Connect** — it adopts the host, makes it current and probes it, with the result shown on that row. A machine that is *not* in your ssh config is one click away under "手动添加（密码 / 私钥 / 跳板机）".
+   > **Saved ≠ active:** a saved machine is only a standby connection; only Connect (or the agent's `rw_connect`) puts it into the session's remote context.
+2. **Open a workspace** — the folder picker opens right after a successful connect (or click **选目录** on any saved machine):
+   - **Remote** → browse to a remote directory (or type `/path`) → "设为远程工作区" ⇒ a local mirror workspace is created and adopted.
    - **Local** → system folder chooser (or type a path) → local workspace. Falls back to the in-app browser when no OS dialog exists.
-   - **Remote** → choose the machine → browse to a remote directory (or type `/path`) → "设为远程工作区" ⇒ a local mirror workspace is created and adopted.
 3. **Work with the agent** — treat it like any workspace: `rw_read_file` / `rw_write_file` / `rw_edit` / `rw_exec` / `rw_search` / `rw_sync` / `rw_push` / `rw_forward` (full list above).
 
 > **Remote context is session-scoped:** the "Remote workspace" system-prompt section appears only when the current session's workspace is a remote mirror; local sessions are unaffected and the model will not call `rw_*` on its own.

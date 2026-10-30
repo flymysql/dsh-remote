@@ -1,6 +1,6 @@
 {
   "name": "dsh-remote",
-  "version": "0.8.60",
+  "version": "0.8.61",
   "description": "Remote-work assistant for DeepSeek Harness: connect SSH (password/key/agent/keyboard-interactive, multi-hop ProxyJump), pick a remote workspace, operate on it with 22 rw_* tools, conflict-aware mirror sync, an embedded PTY terminal, one-click remote dsh deploy + web UI attach, port forwarding, host grouping, remote sandbox fencing, audit log, keychain passwords.",
   "license": "MIT",
   "author": "flymysql <flyphp@outlook.com>",
