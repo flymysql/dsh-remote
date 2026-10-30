@@ -45,6 +45,18 @@ export function mountClient(opts = {}) {
   const fetchStub = opts.fetch || (async () => ({ ok: true, status: 200, json: async () => ({}) }))
   const slots = []
   let loaded = null
+  // Intervals registered by effects are CAPTURED, not started: a test fires them on
+  // demand with `ui.fireIntervals()`, which is the only way to assert "the page
+  // notices a change made elsewhere" (e.g. an agent calling rw_connect) without
+  // waiting on a real clock.
+  const intervals = []
+  const setIntervalStub = (fn, ms) => {
+    intervals.push({ fn, ms })
+    return intervals.length
+  }
+  const clearIntervalStub = (handle) => {
+    if (typeof handle === 'number' && handle > 0) intervals[handle - 1] = null
+  }
   const sandbox = {
     window: {
       addEventListener: () => {},
@@ -63,7 +75,7 @@ export function mountClient(opts = {}) {
       addEventListener: () => {},
     },
     navigator: { clipboard: null, userAgent: 'node', languages: opts.languages || ['zh-CN'] },
-    setTimeout, clearTimeout, setInterval, clearInterval, console,
+    setTimeout, clearTimeout, setInterval: setIntervalStub, clearInterval: clearIntervalStub, console,
     fetch: fetchStub,
   }
   const requireStub = (id) => {
@@ -72,9 +84,9 @@ export function mountClient(opts = {}) {
     throw new Error('unexpected require: ' + id)
   }
   const run = new Function(
-    'window', 'document', 'navigator', 'setTimeout', 'clearTimeout', 'console', 'fetch', 'require', CLIENT_SRC,
+    'window', 'document', 'navigator', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'console', 'fetch', 'require', CLIENT_SRC,
   )
-  run(sandbox.window, sandbox.document, sandbox.navigator, setTimeout, clearTimeout, console, fetchStub, requireStub)
+  run(sandbox.window, sandbox.document, sandbox.navigator, setTimeout, clearTimeout, setIntervalStub, clearIntervalStub, console, fetchStub, requireStub)
 
   const mod = loaded.factory(requireStub)
   const registered = new Map()
@@ -210,6 +222,15 @@ export function mountClient(opts = {}) {
     },
     /** Text of the whole tree (for "does the panel say X" assertions). */
     text(tree) { return textOf(tree) },
+    /** Fire every interval a mounted effect registered (the page's own polling). */
+    async fireIntervals() {
+      const live = intervals.filter(Boolean)
+      for (const t of live) { try { t.fn() } catch { /* one poll must not break the rest */ } }
+      await tick()
+      return live.length
+    },
+    /** Intervals currently registered (for asserting a poll exists / was cleared). */
+    intervals() { return intervals.filter(Boolean).map((t) => t.ms) },
     dispose() { for (const c of cleanups.splice(0)) { try { c() } catch { /* gone */ } } },
   }
 }

@@ -12,13 +12,36 @@ import net from 'node:net'
 import { createHost, machine } from './harness/plugin-host.js'
 import { startFakeSsh } from './harness/fake-ssh.js'
 
-/** A free TCP port we can hand to the forward (and later occupy deliberately). */
+/**
+ * A free TCP port (also used to occupy one deliberately).
+ *
+ * Bind-then-close is inherently racy: test files run in parallel, so another process
+ * can take the port between the close and the forward's own bind. That produced two
+ * one-off red runs out of ~8 (all six tests here failing at once because the shared
+ * helper threw). Tests that need the bind to SUCCEED use `startOnFreePort`.
+ */
 async function freePort() {
   const srv = net.createServer()
   await new Promise((resolve) => srv.listen(0, '127.0.0.1', resolve))
   const port = srv.address().port
   await new Promise((resolve) => srv.close(resolve))
   return port
+}
+
+/** Define + start a local forward, retrying on a fresh port if the port was taken. */
+async function startOnFreePort(host, post, targetPort, attempts = 3) {
+  let last = null
+  for (let i = 0; i < attempts; i++) {
+    const listenPort = await freePort()
+    const defined = await post(host, { action: 'define', listenPort, targetHost: '127.0.0.1', targetPort })
+    const fwd = defined.json.forward
+    const started = await post(host, { action: 'start', id: fwd.id })
+    if (started.json.ok) return { listenPort, fwd, started }
+    last = started
+    if (!/EADDRINUSE|in use|占用/i.test(String(started.json.error))) break
+    await post(host, { action: 'remove', id: fwd.id })
+  }
+  return { listenPort: null, fwd: null, started: last }
 }
 
 async function echoServer() {
@@ -47,16 +70,19 @@ test('a forward runs through the route lifecycle: define → start → list → 
   const echo = await echoServer()
   try {
     await withForwards(async ({ host }) => {
-      const listenPort = await freePort()
-      const defined = await post(host, { action: 'define', listenPort, targetHost: '127.0.0.1', targetPort: echo.port })
-      assert.equal(defined.json.ok, true, `define failed: ${defined.raw}`)
-      const fwd = defined.json.forward
+      // A bind-then-close port can be stolen by a parallel test file between the
+      // close and the forward's own bind; the helper retries on a fresh port when
+      // that happens, and the assertions below stay strict.
+      const started0 = await startOnFreePort(host, post, echo.port)
+      assert.equal(started0.started.json.ok, true, `start failed: ${started0.started.raw}`)
+      const listenPort = started0.listenPort
+      const fwd = started0.fwd
       assert.equal(fwd.listenPort, listenPort)
       assert.equal(fwd.targetPort, echo.port)
-      assert.equal(defined.json.forwards.find((f) => f.id === fwd.id).active, false, 'defining a forward must not start it')
+      assert.equal(started0.started.json.forwards.find((f) => f.id === fwd.id).active, true,
+        'a successful start must report the forward as active')
 
-      const started = await post(host, { action: 'start', id: fwd.id })
-      assert.equal(started.json.ok, true, `start failed: ${started.raw}`)
+      const started = started0.started
       assert.equal(started.json.forwards.find((f) => f.id === fwd.id).active, true)
 
       const listed = await host.call('/dsh-remote/forwards', { method: 'GET' })

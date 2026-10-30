@@ -144,6 +144,8 @@ UI 必须有 `test/harness/render.js`。
 `forwards-lifecycle.test.js` / `binding-fence.test.js` / `ui-deploy-flow.test.js` /
 `invariants-secrets.test.js` / `mirror-and-deploy-plan.test.js`；真机部分见 §6.5。
 
+已知偶发：docs-images.test.js 的「截图边缘截断」检查在**全量并行**时偶尔失败（单独跑 3/3 通过、全量连跑 3/3 通过），属图像分析在负载下的抖动；遇到时先单独重跑再判断。
+
 下一步优先级：GSSAPI 用例在有 Kerberos 的环境跑一遍 → 真远端从零 `npm install` 一次
 （用 `IT_WEB_*` 指向一台干净机器）→ 目录选择器的渲染级点击链。
 
