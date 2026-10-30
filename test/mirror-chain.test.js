@@ -16,7 +16,6 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { createHost, machine } from './harness/plugin-host.js'
 import { startFakeSsh } from './harness/fake-ssh.js'
-import { buildInstallPlan, stepResult, resolvePrefix, DEFAULT_PREFIX_SUFFIX } from '../lib/web-deploy.js'
 
 async function withRemote(config = {}, fn) {
   const srv = await startFakeSsh({
@@ -106,59 +105,4 @@ test('a session opened on a fresh mirror can sync it (the picker → sync chain)
   })
 })
 
-// ── the install plan ────────────────────────────────────────────────────────
 
-test('the install plan runs its steps in dependency order and stops at the first failure', () => {
-  // The REAL shape: `prefix` is a separate argument (resolved by resolvePrefix from
-  // the probe facts) and `facts.npm` is the npm BINARY PATH as parseProbe returns it.
-  const facts = {
-    platform: 'linux',
-    node: '/usr/bin/node',
-    nodeVersion: 'v22.1.0',
-    npm: '/usr/bin/npm',
-    npmVersion: '10.0.0',
-    home: '/home/user',
-    writable: '1',
-  }
-  const prefix = resolvePrefix(facts, {})
-  const { steps, command } = buildInstallPlan({ facts, prefix, version: '0.1.5-rc.2' })
-  assert.ok(Array.isArray(steps) && steps.length >= 3, `the plan must have several steps: ${JSON.stringify(steps)}`)
-  assert.equal(command, `${prefix}/node_modules/.bin/dsh`, 'the plan must report the binary it produces')
-  for (const step of steps) {
-    assert.ok(step.id, 'every step is identified so a failure can name it')
-    assert.ok(step.title, 'and human-readable')
-    assert.ok(typeof step.command === 'string' && step.command.length > 0, `step ${step.id} must have a command`)
-    assert.doesNotMatch(step.command, /''/, `step ${step.id} must not contain an empty shell argument: ${step.command}`)
-    assert.doesNotMatch(step.command, /\[object Object\]/, `step ${step.id} must not interpolate an object: ${step.command}`)
-  }
-  assert.equal(new Set(steps.map((s) => s.id)).size, steps.length, 'step ids must be unique')
-  // The install step must use the private prefix and the probed npm binary.
-  const install = steps.find((s) => s.id === 'install')
-  assert.ok(install.command.includes(prefix), 'the install step must target the private prefix')
-  assert.ok(install.command.includes('/usr/bin/npm'), 'and the npm binary the probe found')
-  assert.ok(steps.findIndex((s) => s.id === 'install') > steps.findIndex((s) => s.id === 'prepare'),
-    'the install must come AFTER preparing the directory')
-
-  // A failing step is reported as failed WITH its output, and the runner is
-  // expected to stop — this is the contract stepResult() encodes.
-  const failed = stepResult(steps[0], { code: 1, stdout: '', stderr: 'npm ERR! ETIMEDOUT' })
-  assert.equal(failed.ok, false)
-  assert.match(String(failed.output), /ETIMEDOUT/)
-  const ok = stepResult(steps[0], { code: 0, stdout: 'done', stderr: '' })
-  assert.equal(ok.ok, true)
-})
-
-test('an empty install prefix is refused instead of emitting commands that touch the filesystem root', () => {
-  for (const bad of ['', '   ', '/']) {
-    assert.throws(() => buildInstallPlan({ facts: {}, prefix: bad }), /prefix/i,
-      `prefix ${JSON.stringify(bad)} must be refused`)
-  }
-})
-
-test('resolvePrefix honours the default private prefix and never returns a system directory', () => {
-  const facts = { platform: 'linux', home: '/home/user', node: { version: 'v22.1.0' } }
-  const prefix = resolvePrefix(facts, {})
-  assert.match(prefix, new RegExp(DEFAULT_PREFIX_SUFFIX.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
-    `the install must stay inside a private directory, got: ${prefix}`)
-  assert.doesNotMatch(prefix, /^\/usr\/|^\/opt\/|^\/etc\//, 'installing into a system directory must not happen by default')
-})

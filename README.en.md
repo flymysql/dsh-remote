@@ -20,13 +20,13 @@ Manage several SSH machines, then pick a **remote workspace** (or a **local** on
 
 The harness Web UI intentionally binds `127.0.0.1` (the CLI rejects `--host 0.0.0.0` for safety). This plugin goes the other way: **you connect out** to the machines you maintain, pick a workspace, and work in it through the normal DSH workspace + agent fs flows — no changes to `dsh-workspace` or the harness core.
 
-It works the other way too: **you can open the remote machine's own DSH Web UI as a page in your local browser** — again without exposing any port on the remote. And when a connection will not come up, a **one-click health check & deploy** repairs and verifies the remote environment for you.
+It works the other way too: **you can open the remote machine's own DSH Web UI as a page in your local browser** — again without exposing any port on the remote. The remote dsh must be installed by you (the plugin no longer installs it).
 
 ## Screen previews
 
 **Settings → 远程工作区** — machine list, advanced config (key / jump host / agent), connection check, port forwarding, audit log, update:
 
-<img src="docs/shots/settings-panel.png" alt="dsh-remote settings: machine list, advanced config, remote DSH Web UI, health check &amp; deploy, port forwarding, audit log, update" width="612"/>
+<img src="docs/shots/settings-panel.png" alt="dsh-remote settings: host list, connect, pick folder, remote DSH Web UI, port forwarding, audit log, update" width="612"/>
 
 The native **"Add workspace"** flow — a centered modal with two tabs, opening on Local; here switched to **Remote**:
 
@@ -39,7 +39,7 @@ The native **"Add workspace"** flow — a centered modal with two tabs, opening 
 
 ## Features
 
-![Capabilities at a glance — multi-machine SSH, live alias resolution, the two-tab picker, three-way sync, remote @ completion, a remote DSH Web UI in your local browser, health check &amp; one-click deploy, audit, port forwarding, sidebar editing, self-update, and the 22 rw_* tools](docs/shots/features.png)
+![Capabilities at a glance — multi-machine SSH, live alias resolution, the two-tab picker, three-way sync, remote @ completion, a remote DSH Web UI in your local browser, audit, port forwarding, sidebar editing, self-update, and the 21 rw_* tools](docs/shots/features.png)
 
 The image above is the overview. What follows is only what the image does not make obvious.
 
@@ -52,14 +52,14 @@ The image above is the overview. What follows is only what the image does not ma
 
 **Settings** (machine list, connection check, port forwarding, audit log, update mode):
 
-<img src="docs/shots/settings-panel.png" alt="dsh-remote settings: machine list, advanced config, remote DSH Web UI, health check &amp; deploy, port forwarding, audit log, update" width="612"/>
+<img src="docs/shots/settings-panel.png" alt="dsh-remote settings: host list, connect, pick folder, remote DSH Web UI, port forwarding, audit log, update" width="612"/>
 
 The rest:
 
-- **22 model tools** (listed so they can be copied or searched): `rw_info`, `rw_connect`, `rw_machines`, `rw_pick_workspace`, `rw_list_dir`, `rw_stat`, `rw_read_file`, `rw_write_file`, `rw_edit`, `rw_append`, `rw_mkdir`, `rw_remove`, `rw_move`, `rw_exec`, `rw_search`, `rw_download`, `rw_upload`, `rw_sync`, `rw_push`, `rw_forward`, `rw_disconnect`, `rw_deploy_probe`.
+- **21 model tools** (listed so they can be copied or searched): `rw_info`, `rw_connect`, `rw_machines`, `rw_pick_workspace`, `rw_list_dir`, `rw_stat`, `rw_read_file`, `rw_write_file`, `rw_edit`, `rw_append`, `rw_mkdir`, `rw_remove`, `rw_move`, `rw_exec`, `rw_search`, `rw_download`, `rw_upload`, `rw_sync`, `rw_push`, `rw_forward`, `rw_disconnect`.
 - **Tell local and remote Sessions apart in the sidebar** (`0.8.43+`) — a remote Session row carries a **green dot** and its hover card names `user@host:port` plus the remote path; opening it also shows a host chip in the conversation header (a local Session shows neither). A Session counts as remote only when its cwd sits inside a `$DSH_HOME/remote-workspaces/…` mirror, so a machine that is merely saved never labels a local Session.
 - **Open a remote machine's DSH Web UI locally** (`0.8.36+`) — nothing has to be exposed on the remote: the plugin SSHes out, starts a `dsh web` there that binds **`127.0.0.1` only**, and tunnels its port back to a loopback port on this machine. The URL carries a one-time login token, consumed once by a redirect.
-- **One-click health check & deploy** (`0.8.36+`) — **a failed connection is usually the remote dsh version or environment, not the plugin.** The read-only check reports platform / node / npm / dsh version / **whether the native module can load** / proxy and npm registry, with a suggested fix; "Deploy & verify" installs into a remote **private directory** (no system directory, no PATH change, no replacing the version you use — deleting it is a complete rollback) and verifies step by step. The button **no longer requires running the check first** (`0.8.40+`) — the deploy re-checks internally. If that still fails, the built-in `dsh-remote-deploy` skill takes over.
+- **The audit log opens locally** — preview recent entries in the panel, or use 「打开日志文件」/「在文件夹中显示」 to open the log with a local program (the log lives on the DSH host, so a browser cannot open it).
 - **Cross-platform remotes** — all file access is SFTP-protocol-level (no POSIX shell), so Linux/macOS/Windows remotes all work.
 - **Windows remotes** — the platform is auto-detected and commands go through `bash -s` over stdin, so quoting and backslash escaping are never an issue (`config.shell` can pin a path or `native` disables wrapping); `C:\Users\dev` and `/c/Users/dev` are both accepted.
 - **Async long tasks** — `rw_sync`/`rw_push` with `async: true` return a `taskId` with progress/result/cancel.
@@ -137,7 +137,7 @@ A new tab opens showing that remote machine's full DSH interface (chat, tool tre
   at a scratch directory. This is **per machine**: Settings → Remote workspace → the machine card →
   expand "Advanced" → "Remote dsh command" (e.g.
   `/home/you/.nvm/versions/node/v22.19.0/bin/node /home/you/.dsh-remote/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js`).
-  Empty falls back to the global `webAttachCommand`. A successful "Deploy & verify" writes this field for you.
+  Empty falls back to the global `webAttachCommand`.
 - The tunnel follows the SSH connection: when it drops, the UI shows "Disconnected" and the local DSH
   process is **not** affected. After the pool reconnects the plugin re-resolves the remote port (restarting
   the remote process it started, if that one died), so hitting "Reconnect" is enough to carry on.
@@ -146,33 +146,15 @@ A new tab opens showing that remote machine's full DSH interface (chat, tool tre
   installs anyway, and the crash arrives later as
   `does not provide an export named 'parseEnv'` — so it has to be caught before the install.
 
-### Cannot connect? Check the environment, then deploy in one click
+### Cannot connect? Install dsh on the remote yourself
 
-**A failed connect is usually not the plugin's fault: the remote dsh version or environment is wrong.**
+**A failed connect is usually not the plugin's fault: the remote dsh is missing or too old.**
 The classic case: dsh 0.1.0-rc.6 depends on `node-pty@1.1.0`, whose published package ships
-**no `linux-x64` prebuild**, so `dsh web` cannot start on Linux at all. Previously all you saw was
-"the remote DSH did not report a startup token", with no way to tell why.
+**no `linux-x64` prebuild**, so `dsh web` cannot start on Linux at all.
 
-Settings → Remote workspaces → **"Remote dsh health check & deploy"**:
-
-1. **Check (read-only)** — probes the remote's platform / node / npm / dsh version / **whether the
-   native module can load** / whether it knows `--no-open` / proxy and npm registry, and reports a
-   verdict with a suggested fix. It **writes nothing**, so it is safe to run freely.
-2. **Deploy & verify** — appears only when step 1 says it is both needed and possible. It installs into
-   a **private directory** on the remote (default `~/.dsh-remote/dsh`): **no system directory, no PATH
-   change, no replacing the version you use**; deleting that directory is a complete rollback. It then
-   verifies step by step (binary / native module / `web` subcommand) and, on success, **records the
-   resulting dsh path per machine** so later connects use it.
-3. **Let the AI investigate** — appears only after a failure. It creates a session and hands the problem
-   to the built-in `dsh-remote-deploy` skill, which covers the long tail the deterministic path cannot
-   express (no npm, sudo-only systems, proxies, internal mirrors, Windows remotes). **Nothing is created
-   unless you click it**, because it spends model budget.
-
-Related config: `webInstallPrefix` (where; default `$HOME/.dsh-remote/dsh`), `webInstallVersion`
-(which version; default `0.1.5-rc.2`, the first that can start the web surface on Linux), and
-`webInstallRegistry` (npm registry; **empty keeps the remote's own config**, so an internal mirror is
-never overridden).
-
+The plugin no longer installs or health-checks dsh for you. Install it on the remote the way you
+install anything else, then point the plugin at it: Settings → Remote workspaces → the machine row →
+**Edit** → Advanced → **remote dsh command** (or the global `webAttachCommand`).
 ## CLI defaults (optional)
 
 Provide a default machine in `cordis.patch.yml`:
@@ -274,9 +256,6 @@ Deploying to a product profile is a separate, explicit action (`./sync.sh`) for 
 | `webAttachCommand` | string | `dsh` | command used to start `dsh web` on the remote; change it when the remote `dsh` is not on the SSH login PATH (also settable per machine under "Advanced" in the settings page, which wins over this default) |
 | `webAttachDshHome` | string | `''` | `DSH_HOME` exported on the remote when attaching; empty reuses the remote user's own harness home |
 | `webAttachWaitSeconds` | int | `45` | how long to wait for a freshly started remote `dsh web` to print its launch token |
-| `webInstallPrefix` | string | `''` | where an automatic deployment installs dsh; empty means `$HOME/.dsh-remote/dsh` (no system directory, no PATH change) |
-| `webInstallVersion` | string | `0.1.5-rc.2` | dsh version an automatic deployment installs; the default is the first that can start the web surface on Linux |
-| `webInstallRegistry` | string | `''` | npm registry for the install; **empty keeps the remote's own config**, so an internal mirror is never overridden |
 | `localTools` | string | `bootstrap` | which `rw_*` tools a LOCAL session (cwd outside every remote mirror) sees (issue #63): `bootstrap` keeps only the configuration loop `rw_machines`/`rw_connect`/`rw_pick_workspace` (the other 19 refuse a local session with "this session is LOCAL", so exposing them just wastes schema budget); `none` hides all `rw_*` (remote setup happens via the settings page only); `all` restores the legacy full surface. REMOTE sessions (cwd inside a mirror) always see everything; an invalid value degrades to `bootstrap` |
 | `remoteSandbox` | string | `inherit` | which sandbox semantics remote operations follow (0.8.54+): `inherit` reads the mode the local `ctx.sandboxPolicy` resolved (read-only refuses remote writes/commands/forwards, workspace-write fences remote writes to the workspace root, danger-full-access allows everything); `off` disables the fence (legacy behaviour); an explicit mode name is also accepted. **This is containment, not a security boundary** — deploy hard boundaries on the remote side |
 | `credentialFallback` | string | `refuse` | what to do when the OS secure store refuses a password (0.8.54+): `refuse` saves no password (the machine is still saved, the UI reports why, and nothing is written to machines.json in plaintext); `plain` restores the legacy plaintext fallback (with a warning). Turning encryption off explicitly (`backend: plain`) is unaffected |

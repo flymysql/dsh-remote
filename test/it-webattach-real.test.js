@@ -38,16 +38,6 @@ async function withRealMachine(fn) {
   }
 }
 
-test('the remote dsh is really installed and reports a version', { skip: canRun ? false : why }, async () => {
-  await withRealMachine(async ({ host }) => {
-    // rw_* tools need a workspace-bound session, exactly like a user's session does.
-    await host.run('rw_pick_workspace', { path: '/' })
-    const probe = await host.run('rw_deploy_probe')
-    const body = JSON.stringify(probe)
-    assert.ok(body.length > 10, 'the probe must answer something')
-    assert.doesNotMatch(body, /"installed"\s*:\s*(false|"")/, `the remote must report an installed dsh: ${body.slice(0, 300)}`)
-  })
-})
 
 test('a real tunnel to the remote dsh web serves the UI over loopback', { skip: canRun ? false : why }, async () => {
   await withRealMachine(async ({ host, rec }) => {

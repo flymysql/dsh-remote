@@ -137,8 +137,11 @@ test('the settings page renders, and it contains the cards the user expects', ()
   // to go): its card must not render, and its i18n keys must be gone entirely.
   assert.doesNotMatch(text, /工作区备份/, 'the backup card is gone')
   // The deploy entry must be present on a FRESH page (it used to require a prior
-  // probe plus a failing verdict, so users only ever saw 体检).
-  assert.match(text, /体检|部署/, 'the deploy entry is present without running a probe first')
+  // The deploy card was REMOVED on request: no deploy / health-check UI may come
+  // back, and the audit panel must now offer to open the log file itself.
+  assert.doesNotMatch(text, /体检|部署并验证|远端 dsh 体检|一键部署/, 'the deploy card is gone')
+  assert.match(text, /审计日志/, 'the audit card is still there')
+  assert.match(text, /打开日志文件/, 'and it can open the log file on the host')
   // No raw i18n key may leak into the UI (a missing dictionary entry renders the
   // key itself, which is how these panels silently show `settings.foo`).
   const leaked = text.match(/\bsettings\.[a-zA-Z][\w.]*/g)
@@ -176,4 +179,3 @@ test('no backup i18n key survives the capability removal', () => {
     assert.doesNotMatch(text, /工作区备份|备份时间点|选择要恢复/, 'no backup UI survives anywhere')
   }
 })
-

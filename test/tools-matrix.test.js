@@ -1,7 +1,7 @@
 // Every rw_* tool, end to end, against a real SSH connection.
 //
 // The tools are the surface the MODEL drives, and they are what the user sees as
-// "the agent did something to my server". Before this file, 6 of the 22 tools had
+// "the agent did something to my server". Before this file, 6 of the tools had
 // no test mention at all (rw_append, rw_download, rw_forward, rw_mkdir, rw_push,
 // rw_stat) and most of the rest were pinned by one narrow regression each. A tool
 // that silently writes to the wrong path, appends instead of replacing, deletes
@@ -362,16 +362,5 @@ test('rw_pick_workspace sets the remote workspace', async () => {
     const listed = await host.run('rw_list_dir', { path: '/home/user/src' })
     assert.match(JSON.stringify(listed), /app\.js/)
     assert.ok(srv.fs.has('/home/user/src/app.js'))
-  })
-})
-
-test('rw_deploy_probe reports a machine without dsh instead of pretending it is installed', async () => {
-  await withTools({}, async ({ host }) => {
-    // The fake shell answers every unknown command with exit 0 and no output, so
-    // the probe must conclude "no usable dsh" rather than a false success.
-    const res = await host.run('rw_deploy_probe')
-    const body = JSON.stringify(res)
-    assert.ok(body.length > 0, 'the probe must answer something')
-    assert.match(body, /dsh|version|install|node|npm/i)
   })
 })

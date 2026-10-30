@@ -62,10 +62,10 @@ test('fake SSH: a wrong password is rejected (so auth branches are testable)', a
 test('host harness: the plugin boots, registers every route and tool, and disposes cleanly', async () => {
   const host = await createHost()
   try {
-    // 34 routes and 22 tools are the documented surface; a registration that
+    // 34 routes and 21 tools are the documented surface; a registration that
     // silently disappears (e.g. a throw halfway through apply) must fail here.
     assert.ok(host.routes.size >= 34, `expected >=34 routes, got ${host.routes.size}`)
-    assert.ok(host.tools.size >= 22, `expected >=22 tools, got ${host.tools.size}`)
+    assert.ok(host.tools.size >= 21, `expected >=21 tools, got ${host.tools.size}`)
     assert.ok(host.commands.size >= 3, 'slash commands register too')
     const status = await host.call('/dsh-remote/status', { method: 'GET' })
     assert.equal(status.status, 200)

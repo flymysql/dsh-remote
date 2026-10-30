@@ -36,7 +36,9 @@ const ROUTES = [
   { path: '/dsh-remote/forwards', allow: ['GET', 'POST'], body: true },
   { path: '/dsh-remote/task', allow: ['GET', 'POST'], body: true },
   { path: '/dsh-remote/tasks', allow: ['GET'] },
-  { path: '/dsh-remote/audit', allow: ['GET'] },
+  // audit now serves POST too (it opens the log file on the host), so the
+  // wrong-method probe uses DELETE and the 405 branch still has to answer.
+  { path: '/dsh-remote/audit', allow: ['GET', 'POST'], body: true },
   { path: '/dsh-remote/ssh-config', allow: ['GET'] },
   // web-attach dispatches on `req.method === 'GET'` and treats anything else as an
   // action POST, so there is no 405 branch to assert.

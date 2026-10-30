@@ -12,7 +12,7 @@
 |---|---|---|---|
 | 纯逻辑 | `registry.js` `errors.js` `paths.js` `ignore.js` `search.js` `sshconfig.js` | 95–100% | 好，且大多是真正的断言 |
 | 传输/系统相关 | `pool.js` `openssh.js` `credential.js` `hostkey.js` `forwards.js` | 58–75% | 只覆盖了「连不上」的分支，**成功路径**几乎没测 |
-| **插件主体** | **`lib/index.js`**（34 条路由 + 22 个工具 + 启动/恢复） | **38% 行 / 16% 函数** | 用户点的就是这里 |
+| **插件主体** | **`lib/index.js`**（34 条路由 + 21 个工具 + 启动/恢复） | **38% 行 / 16% 函数** | 用户点的就是这里 |
 | **浏览器端** | **`lib/client.js`**（3830 行 UI） | **测不到** | 覆盖率工具看不见（字符串 eval），且只有 1 个渲染测试 |
 
 三个缺陷全部落在最后两行：`test-connect` 不合并已保存凭据、`passwordSet` 只认明文、保存后
@@ -30,7 +30,7 @@ fake ctx/temp home），也没有真正的 SSH 服务端（于是所有成功路
 | L1 纯函数 | 无 | 解析/决策/格式化 | `registry.test.js` `errors.test.js` |
 | L2 模块 | 注入依赖 | 一个模块的全部分支 | `sync.test.js` `update.test.js` |
 | L3 路由 | `test/harness/plugin-host.js` | 真实注册的 handler（fake webServer + 隔离 DSH_HOME） | `routes-matrix.test.js` `routes-e2e.test.js` |
-| L4 工具 | 同上 + `fake-ssh.js` | 22 个 `rw_*` 端到端（真 SSH、真 SFTP、真 exec） | `tools-matrix.test.js` |
+| L4 工具 | 同上 + `fake-ssh.js` | 21 个 `rw_*` 端到端（真 SSH、真 SFTP、真 exec） | `tools-matrix.test.js` |
 | L5 界面 | `test/harness/render.js` | 真 React 渲染 + 真点击（按钮禁用态、placeholder、提示文案） | `ui-panels.test.js` `settings-credentials-ui.test.js` |
 | L6 不变量 | 上述组合 | 「这类 bug 不许再出现」的通用断言 | 见 §4 |
 

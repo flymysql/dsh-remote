@@ -176,3 +176,28 @@ test('a live connection reads 已连接, a past one reads "上次连接 …"', a
     assert.match(text, /88ms/, 'and the latency it measured')
   } finally { ui.dispose() }
 })
+test('a FAILED ssh-config request says so — it must not masquerade as "no hosts in your config"', async () => {
+  // Real-GUI report: the panel showed 没在 C:\Users\…\.ssh\config 里找到主机 while the
+  // file plainly had Host blocks. Cause: loadSshHosts() swallowed the request error
+  // and set an empty list, so a 401 / 500 / an older host half that predates the
+  // route rendered "your config has no hosts" — sending the user to edit a file that
+  // was fine. The two states must read differently.
+  const machines = []
+  const ui = mountClient({
+    fetch: async (url, init) => {
+      const u = String(url)
+      if (u.includes('/dsh-remote/ssh-config')) {
+        return { ok: false, status: 500, json: async () => ({ ok: false, error: 'internal boom' }) }
+      }
+      if (u.includes('/dsh-remote/machines')) return { ok: true, status: 200, json: async () => ({ machines, currentId: '' }) }
+      return { ok: true, status: 200, json: async () => ({ ok: true }) }
+    },
+  })
+  try {
+    const tree = await ui.settle()
+    const text = ui.text(tree)
+    assert.doesNotMatch(text, /没在 .* 里找到主机/, 'a failed read must not claim the config has no hosts')
+    assert.match(text, /读取失败/, 'it must say the read failed')
+    assert.match(text, /internal boom|HTTP 500/, 'and carry the underlying reason')
+  } finally { ui.dispose() }
+})

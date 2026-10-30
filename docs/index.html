@@ -4,9 +4,9 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>dsh-remote — 把任意 SSH 机器变成真正的 DSH 工作区</title>
-<meta name="description" content="为 DeepSeek Harness（DSH）打造的远程工作助手：多机 SSH、远程工作区选择、22 个 rw_* 工具、冲突感知镜像同步、端口转发。"/>
+<meta name="description" content="为 DeepSeek Harness（DSH）打造的远程工作助手：多机 SSH、远程工作区选择、21 个 rw_* 工具、冲突感知镜像同步、端口转发。"/>
 <meta property="og:title" content="dsh-remote — 把任意 SSH 机器变成真正的 DSH 工作区"/>
-<meta property="og:description" content="多机 SSH 列表、远程工作区选择器、22 个 rw_* 工具、三路冲突检测镜像同步、端口转发。"/>
+<meta property="og:description" content="多机 SSH 列表、远程工作区选择器、21 个 rw_* 工具、三路冲突检测镜像同步、端口转发。"/>
 <meta property="og:image" content="https://flymysql.github.io/dsh-remote/cover.png"/>
 <meta name="theme-color" content="#07070b"/>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖥️</text></svg>"/>
@@ -195,7 +195,7 @@
         <h3 class="t" data-zh="远程工作区选择器" data-en="Remote workspace picker">远程工作区选择器</h3>
         <p class="t" data-zh="在原生弹窗里选本地或远程工作区。远程路径走 SFTP 实时补全，逐字符延迟保持在几十毫秒级。" data-en="Pick a local or remote workspace from the native modal. Remote paths autocomplete over SFTP with per-keystroke latency kept in the tens of milliseconds.">在原生弹窗里选本地或远程工作区。远程路径走 SFTP 实时补全，逐字符延迟保持在几十毫秒级。</p></div>
       <div class="card"><span class="ic">🛠️</span>
-        <h3 class="t" data-zh="22 个 <code>rw_*</code> 工具" data-en="22 <code>rw_*</code> tools">22 个 <code>rw_*</code> 工具</h3>
+        <h3 class="t" data-zh="21 个 <code>rw_*</code> 工具" data-en="21 <code>rw_*</code> tools">21 个 <code>rw_*</code> 工具</h3>
         <p class="t" data-zh="读 / 写 / 编辑 / 追加 / 建目录 / 删除 / 移动 / stat / 执行 / 搜索 / 上传 / 下载 / 同步 / 推送 / 转发……全部是一等 Agent 工具。" data-en="read / write / edit / append / mkdir / remove / move / stat / exec / search / upload / download / sync / push / forward and more — all as first-class agent tools.">读 / 写 / 编辑 / 追加 / 建目录 / 删除 / 移动 / stat / 执行 / 搜索 / 上传 / 下载 / 同步 / 推送 / 转发……全部是一等 Agent 工具。</p></div>
       <div class="card"><span class="ic">🔄</span>
         <h3 class="t" data-zh="冲突感知的镜像同步" data-en="Conflict-aware mirror">冲突感知的镜像同步</h3>
@@ -254,7 +254,6 @@
       <code>rw_push</code>
       <code>rw_forward</code>
       <code>rw_disconnect</code>
-      <code>rw_deploy_probe</code>
     </div>
   </div>
 </section>
@@ -269,7 +268,7 @@
          所以拆开：能力总览单独全宽，两张界面图并排（各自图注说明）。 -->
     <figure class="wide">
       <img src="./shots/features.png" alt="核心能力总览" loading="lazy"/>
-      <figcaption class="t" data-zh="<b>能力总览</b> —— 多机 SSH / 别名实时解析 / 三路同步 / 远程 @ 补全 / <b>远端 DSH 界面挂到本机</b> / <b>体检与一键部署</b> / 端口转发 / 自动更新，以及 22 个 <code>rw_*</code> 工具。" data-en="<b>Capabilities</b> — multi-machine SSH, live alias resolution, three-way sync, remote @ completion, <b>a remote DSH Web UI in your local browser</b>, <b>health check &amp; one-click deploy</b>, port forwarding, self-update, and the 22 rw_* tools."><b>能力总览</b> —— 多机 SSH / 别名实时解析 / 三路同步 / 远程 @ 补全 / <b>远端 DSH 界面挂到本机</b> / <b>体检与一键部署</b> / 端口转发 / 自动更新，以及 22 个 <code>rw_*</code> 工具。</figcaption>
+      <figcaption class="t" data-zh="<b>能力总览</b> —— 多机 SSH / 别名实时解析 / 三路同步 / 远程 @ 补全 / <b>远端 DSH 界面挂到本机</b> / <b>审计日志本机打开</b> / 端口转发 / 自动更新，以及 21 个 <code>rw_*</code> 工具。" data-en="<b>Capabilities</b> — multi-machine SSH, live alias resolution, three-way sync, remote @ completion, <b>a remote DSH Web UI in your local browser</b>, <b>audit log opens locally</b>, port forwarding, self-update, and the 21 rw_* tools."><b>能力总览</b> —— 多机 SSH / 别名实时解析 / 三路同步 / 远程 @ 补全 / <b>远端 DSH 界面挂到本机</b> / <b>审计日志本机打开</b> / 端口转发 / 自动更新，以及 21 个 <code>rw_*</code> 工具。</figcaption>
     </figure>
 
     <!-- 竖向排列，各自原始比例（不并排、不放大：两张比例差太大，并排会一高一矮） -->

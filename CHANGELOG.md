@@ -2,6 +2,44 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.66 — 2026-10-30
+### 去掉「远端 dsh 体检与部署」；审计日志可以在本机打开
+
+**① 移除远程 dsh 部署 / 体检能力**（按要求整体删掉，不留半可用状态）
+- 设置页那张「远端 dsh 体检与部署」卡片（体检 / 部署并验证 / 让 AI 排查 / 任务进度）**整块删除**。
+- host 侧对应动作全部删除：`/web-attach` 的 `probe` / `install` / `install-status` /
+  `install-cancel` / `investigate`；GET 响应也不再带 `deploys`/`deploy`
+  （现在只保留隧道本身：`open` / `close`）。
+- 删掉 `rw_deploy_probe` 工具、`lib/web-deploy.js`、`lib/deploy-tasks.js`、
+  `lib/web-deploy-skill.js`，以及 `webInstallPrefix` / `webInstallVersion` /
+  `webInstallRegistry` 三个配置项（工具总数 22 → **21**）。
+- 远端必须有可用的 `dsh`：用 `webAttachCommand`（全局或按机器）指向它，README 已改。
+
+**② 审计日志能打开日志文件**
+日志在「运行 DSH 的那台机器」上，浏览器打不开它 —— 所以由宿主执行并回报结果：
+- `POST /dsh-remote/audit {action:'open'}` —— 用本机默认程序打开日志（文件不存在则先创建）；
+- `POST /dsh-remote/audit {action:'reveal'}` —— 在文件管理器里定位它；
+- 面板新增「打开日志文件」「在文件夹中显示」两个按钮，并且**始终显示日志的完整路径**，
+  这样即便宿主没有桌面环境（服务器 / CI），用户也能复制路径自己打开；
+  失败时给的是「无法自动打开（原因）—— 可以直接复制上面的路径」，不是一句空错。
+
+实测（隔离实例 3213，真 GUI 点击）：点「打开日志文件」→ Notepad 真的被拉起、日志文件被创建、
+面板显示 `已打开：D:\tmp\dsh-it3\remote-workspaces\audit.log`；点「在文件夹中显示」→
+资源管理器定位到该文件、面板显示 `已在文件管理器中定位：…`。
+
+**③ 修「配置里明明有主机，列表却是空的」**
+
+用户报告：面板显示 `没在 C:\Users\…\.ssh\config 里找到主机`，但文件里 3 个 Host 都在。
+根因是 **UI 把请求失败谎报成「你的配置没有主机」**：`loadSshHosts()` 的 `.catch` 直接把列表设成空，
+于是 401/500（或宿主半热重载后路由/字段不一致）都会渲染成「去改 ssh 配置吧」—— 让人去修一个没坏的文件。
+现在两种状态分开：「读取失败：<原因>（这不是你的 ssh 配置问题，文件根本没读到；一直失败说明插件版本与服务端不一致，重启 DSH）」
+vs「没在 <文件> 里找到主机」。
+
+（另注：用户那台实例的进程是 10-25 启动的，而修复版代码是 10-30 写入磁盘 —— 他看到的空列表来自那个时间差，重启即对齐。）
+
+测试：新增 `test/audit-open-and-no-deploy.test.js`（6 条：工具不再注册、五个部署动作都被
+`action must be open | close` 拒绝、GET 不再返回部署状态、打开日志会创建文件并回报路径、
+未知动作 400、无桌面环境时给 501 + 路径）；删除 5 个部署相关测试文件；全套 842 条通过。
 ## 0.8.65 — 2026-10-30
 ### 「选目录」提交后多报一条 `not a directory (or unreachable)`（真机 GUI 测试抓出）
 

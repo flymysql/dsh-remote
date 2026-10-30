@@ -1,6 +1,6 @@
 // Issue #63: a LOCAL session must not carry the full rw_* schema surface.
 //
-// All 22 rw_* tools register globally (at registration time there is no
+// All 21 rw_* tools register globally (at registration time there is no
 // session to consult), yet 16 of them can never succeed in a local session —
 // bindingFor() refuses them with "this session is LOCAL". The plugin now
 // trims the per-request tool list in the `system-prompt/assemble` waterfall:
@@ -234,7 +234,7 @@ test('LOCAL_BOOTSTRAP_TOOLS only names tools the plugin really registers', async
   }
   // The bootstrap set must be usable in a local session: rw_pick_workspace is
   // the one tool deliberately allowed to fall back to the active machine.
-  assert.equal(tools.size, 22, 'the plugin still registers all 22 rw_* tools globally')
+  assert.equal(tools.size, 21, 'the plugin still registers all 21 rw_* tools globally')
 })
 
 test('normalizeLocalTools maps anything unrecognized to bootstrap', async () => {
