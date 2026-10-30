@@ -275,7 +275,13 @@ test('rw_forward opens a tunnel to a local echo server and closes it again', asy
   const echoPort = echo.address().port
   try {
     await withTools({}, async ({ host }) => {
-      const listenPort = 45999
+      // A FREE port, not a hardcoded one: test files run in parallel, and a fixed
+      // 45999 can still be in TIME_WAIT from an earlier run — that produced a
+      // one-off red run that took a re-run to clear.
+      const probe = net.createServer()
+      await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve))
+      const listenPort = probe.address().port
+      await new Promise((resolve) => probe.close(resolve))
       const defined = await host.run('rw_forward', {
         listenPort, targetHost: '127.0.0.1', targetPort: echoPort,
       })
