@@ -54,6 +54,23 @@ test('/status reports the bound machine and its workspace', async () => {
   })
 })
 
+test('/machines reports whether a machine is connected RIGHT NOW, not just a past latency', async () => {
+  // The settings row used to show only `latencyMs` from the last probe — a historical
+  // fact. `connected` is the live state: false before anything dialed, true once a
+  // real command has gone through a pool bound to that machine.
+  await withRemote({}, async ({ host, rec }) => {
+    const before = await host.call('/dsh-remote/machines', { method: 'GET' })
+    assert.equal(before.json.machines[0].connected, false, 'nothing has connected yet')
+
+    const ls = await host.call('/dsh-remote/ls' + q('/home/user'), { method: 'GET' })
+    assert.equal(ls.status, 200, `the listing must work: ${ls.raw.slice(0, 200)}`)
+
+    const after = await host.call('/dsh-remote/machines', { method: 'GET' })
+    const row = after.json.machines.find((m) => m.id === rec.id)
+    assert.equal(row.connected, true, 'after a real command the machine is connected')
+  })
+})
+
 test('/ls lists a directory with types and sizes, and reports a missing dir instead of failing', async () => {
   await withRemote({}, async ({ host }) => {
     const ok = await host.call('/dsh-remote/ls' + q('/home/user'), { method: 'GET' })

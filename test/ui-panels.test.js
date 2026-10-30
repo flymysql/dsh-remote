@@ -172,10 +172,15 @@ test('a machine that authenticates through an agent shows the agent fields it ne
   } finally { ui.dispose() }
 })
 
-test('the forwards panel renders and its add button stays disabled until a port is typed', async () => {
+test('the forwards panel starts collapsed and its add button stays disabled until a port is typed', async () => {
   const ui = mountClient({ fetch: stubFetch().fetch })
   try {
     let tree = await ui.settle()
+    // Collapsed by default: it sits below the host list and used to push the
+    // update/audit cards far down the page for a feature most sessions never touch.
+    assert.equal(ui.buttons(tree).some((b) => /^添加转发$/.test(b.label)), false,
+      'the forwards panel must start collapsed')
+    tree = await ui.click(tree, /端口转发/)
     const add = ui.buttons(tree).find((b) => /^添加转发$/.test(b.label))
     assert.ok(add, `the forwards panel must offer an add action, buttons: ${ui.buttons(tree).map((b) => b.label).join(' | ')}`)
     assert.equal(add.disabled, true, 'adding a forward without a listen port must be impossible')
