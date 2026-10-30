@@ -2,6 +2,19 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.65 — 2026-10-30
+### 「选目录」提交后多报一条 `not a directory (or unreachable)`（真机 GUI 测试抓出）
+
+用一个隔离实例（独立 `DSH_HOME`、端口 3212、插件 0.8.64）在真实 GUI 里走完整流程时暴露：
+选远程目录 → 「设为远程工作区」后工作区**确实建好了**，但面板同时报
+`not a directory (or unreachable): D:\tmp\...\remote-workspaces\...`。
+
+根因是双重提交：`DirPicker.commitPath()` 在 `/mirror` 成功后调用 `onPicked(res.localMirror)`，
+把**本地镜像路径**当成"用户选的路径"交回去；设置页拿到它又 POST 了一次 `/mirror`，于是远端去
+`stat` 一个 Windows 路径。修法：`commitPath` 同时交出远端路径 `onPicked(localMirror, remotePath)`
+（侧边栏只取第一个参数，不受影响），设置页用它做提示并停止二次提交。
+
+测试 +1（917 条）：提交目录**不许再 POST 一次** `/mirror`，且仍要刷新注册表、仍要说"已打开"。
 ## 0.8.64 — 2026-10-30
 ### 最近工作区按机器分组 + 页面自己发现别处改了机器
 

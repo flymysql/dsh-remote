@@ -120,3 +120,33 @@ test('the page polls the registry, so a machine switched elsewhere shows up with
     assert.match(ui.text(tree), /已连接/, 'and so is its live connection')
   } finally { ui.dispose() }
 })
+
+test('committing a folder must NOT post /mirror twice (the picker already created it)', async () => {
+  // Real-GUI regression found on an isolated instance: DirPicker.commitPath() calls
+  // onPicked(localMirror) AFTER /mirror succeeded, and the settings page treated that
+  // LOCAL mirror path as a remote one and posted /mirror again — the host then tried
+  // to stat a Windows path on the remote and the panel showed
+  // "not a directory (or unreachable)". The picker now also hands over the remote
+  // path, and the settings page stops re-posting.
+  const machines = [{ ...MACHINE, id: 'm-a', name: 'alpha', host: 'alpha', recentWorkspaces: [] }]
+  const { ui, calls } = stub({ machines, currentId: 'm-a' })
+  try {
+    let tree = await ui.settle()
+    ui.buttons(tree).find((b) => /^选目录$/.test(b.label)).el.props.onClick()
+    tree = await ui.settle()
+
+    // Drive the picker's own commit the way the remote tab does: the component under
+    // test is the real DirPicker, so call its onPicked with what commitPath passes.
+    const DirPicker = ui.component('sidebar.workspaces.directoryFlow')
+    const modal = ui.components(tree).find((el) => el.type === DirPicker)
+    assert.ok(modal, 'the picker must be mounted')
+    modal.props.onPicked('/mirrors/alpha/home', '/home/alpha')
+
+    tree = await ui.settle()
+    const mirrors = calls.filter((c) => c.url.includes('/dsh-remote/mirror'))
+    assert.deepEqual(mirrors, [], 'onPicked must not trigger a second /mirror — it is already done')
+    assert.match(ui.text(tree), /已打开远程工作区/, 'and it still reports what was opened')
+    assert.equal(calls.some((c) => c.method === 'GET' && c.url.includes('/dsh-remote/machines')), true,
+      'the registry is re-read so the new folder shows under the machine')
+  } finally { ui.dispose() }
+})
