@@ -190,7 +190,7 @@
     <div class="cards">
       <div class="card"><span class="ic">🖧</span>
         <h3 class="t" data-zh="多机 SSH 列表" data-en="Multi-machine registry">多机 SSH 列表</h3>
-        <p class="t" data-zh="增删改并一键切换多台主机。支持密码、私钥、SSH agent、keyboard-interactive（OTP），以及 <code>ProxyJump</code> 跳板机。" data-en="Add, edit, and switch between many SSH hosts. Password, private key, SSH agent, keyboard-interactive, and jump hosts via <code>ProxyJump</code>.">增删改并一键切换多台主机。支持密码、私钥、SSH agent、keyboard-interactive（OTP），以及 <code>ProxyJump</code> 跳板机。</p></div>
+        <p class="t" data-zh="设置页直接列出 <code>~/.ssh/config</code> 里的 Host，点「连接」即可。新主机写进这个文件（「打开配置文件」），不必再填一张表。密码、私钥、SSH agent、keyboard-interactive 与 <code>ProxyJump</code> 照常支持。" data-en="The settings page lists the Host blocks in <code>~/.ssh/config</code>; click Connect. Add a machine by editing that file, not by filling in a form. Password, private key, SSH agent, keyboard-interactive, and <code>ProxyJump</code> still work.">设置页直接列出 <code>~/.ssh/config</code> 里的 Host，点「连接」即可。新主机写进这个文件（「打开配置文件」），不必再填一张表。密码、私钥、SSH agent、keyboard-interactive 与 <code>ProxyJump</code> 照常支持。</p></div>
       <div class="card"><span class="ic">🗂️</span>
         <h3 class="t" data-zh="远程工作区选择器" data-en="Remote workspace picker">远程工作区选择器</h3>
         <p class="t" data-zh="在原生弹窗里选本地或远程工作区。远程路径走 SFTP 实时补全，逐字符延迟保持在几十毫秒级。" data-en="Pick a local or remote workspace from the native modal. Remote paths autocomplete over SFTP with per-keystroke latency kept in the tens of milliseconds.">在原生弹窗里选本地或远程工作区。远程路径走 SFTP 实时补全，逐字符延迟保持在几十毫秒级。</p></div>
@@ -207,8 +207,8 @@
         <h3 class="t" data-zh="远端 DSH 界面挂到本机" data-en="Remote DSH Web UI, locally">远端 DSH 界面挂到本机</h3>
         <p class="t" data-zh="不用在远端开任何端口：插件主动 SSH 连过去，在远端<b>只监听 <code>127.0.0.1</code></b> 地起一个 <code>dsh web</code>，再把端口经隧道搬回本机。地址带一次性登录令牌，仅本机使用。" data-en="Nothing to expose on the remote: the plugin SSHes out, starts a <code>dsh web</code> there bound to <b><code>127.0.0.1</code> only</b>, and tunnels its port back here. The URL carries a one-time login token, for this machine only.">不用在远端开任何端口：插件主动 SSH 连过去，在远端<b>只监听 <code>127.0.0.1</code></b> 地起一个 <code>dsh web</code>，再把端口经隧道搬回本机。地址带一次性登录令牌，仅本机使用。</p></div>
       <div class="card"><span class="ic">🩺</span>
-        <h3 class="t" data-zh="连不上？一键体检与部署" data-en="Connect fails? Check &amp; deploy">连不上？一键体检与部署</h3>
-        <p class="t" data-zh="<b>连不上大多不是插件的问题，而是远端 dsh 的版本或环境不对。</b>体检（只读）报出平台 / node / <b>原生模块能否启动</b> / 代理与 npm 源；「部署并验证」装到远端<b>私有目录</b>（不写系统目录、不改 PATH、不覆盖你在用的版本，删目录即回滚）并逐步校验。" data-en="<b>A failed connect is usually the remote dsh version or environment, not the plugin.</b> The read-only check reports platform / node / <b>whether the native module can load</b> / proxy and npm registry; &quot;Deploy &amp; verify&quot; installs into a remote <b>private directory</b> (no system dir, no PATH change, no replacing your version — deleting it rolls back) and verifies each step."><b>连不上大多不是插件的问题，而是远端 dsh 的版本或环境不对。</b>体检（只读）报出平台 / node / <b>原生模块能否启动</b> / 代理与 npm 源；「部署并验证」装到远端<b>私有目录</b>（不写系统目录、不改 PATH、不覆盖你在用的版本，删目录即回滚）并逐步校验。</p></div>
+        <h3 class="t" data-zh="远端 dsh 由你自己装好" data-en="Install remote dsh yourself">远端 dsh 由你自己装好</h3>
+        <p class="t" data-zh="插件<b>不再代装</b>远端 dsh。本机通过 SSH 连过去，在远端<b>只监听 <code>127.0.0.1</code></b> 地挂上你已经装好的 <code>dsh web</code>。不在登录 PATH 里时，用 <code>webAttachCommand</code> 指到它的绝对路径。" data-en="The plugin <b>no longer installs</b> dsh on the remote. It SSHes out and attaches the <code>dsh web</code> you already installed, bound to <b><code>127.0.0.1</code> only</b>. Point <code>webAttachCommand</code> at its absolute path when it is not on the login PATH.">插件<b>不再代装</b>远端 dsh。本机通过 SSH 连过去，在远端<b>只监听 <code>127.0.0.1</code></b> 地挂上你已经装好的 <code>dsh web</code>。不在登录 PATH 里时，用 <code>webAttachCommand</code> 指到它的绝对路径。</p></div>
       <div class="card"><span class="ic">♻️</span>
         <h3 class="t" data-zh="自动更新" data-en="Self-updating">自动更新</h3>
         <p class="t" data-zh="0.8.27 起默认自动检查并应用新版本；0.8.24 起可热切换宿主半——更新后无需重启 harness。" data-en="Since 0.8.27 it checks and applies new releases by default; since 0.8.24 it hot-swaps its own host half — an update takes effect without restarting the harness.">0.8.27 起默认自动检查并应用新版本；0.8.24 起可热切换宿主半——更新后无需重启 harness。</p></div>
@@ -279,7 +279,7 @@
       </figure>
       <figure>
         <img src="./shots/settings-panel.png" alt="多机 SSH 列表与设置" loading="lazy" style="max-width:612px"/>
-        <figcaption class="t" data-zh="<b>设置 → 远程工作区</b> —— 机器列表、高级配置（私钥/跳板机/agent）、连接体检、远程 DSH 界面、端口转发、审计日志、更新。" data-en="<b>Settings → 远程工作区</b> — machine list, advanced config (key / jump host / agent), connection check, remote DSH Web UI, port forwarding, audit log, update."><b>设置 → 远程工作区</b> —— 机器列表、高级配置（私钥/跳板机/agent）、连接体检、端口转发、审计日志、更新。</figcaption>
+        <figcaption class="t" data-zh="<b>设置 → 远程工作区</b> —— <code>~/.ssh/config</code> 主机列表、高级配置（私钥/跳板机/agent）、远程 DSH 界面、端口转发、审计日志、更新。" data-en="<b>Settings → 远程工作区</b> — hosts from <code>~/.ssh/config</code>, advanced config (key / jump host / agent), remote DSH Web UI, port forwarding, audit log, update."><b>设置 → 远程工作区</b> —— <code>~/.ssh/config</code> 主机列表、高级配置（私钥/跳板机/agent）、远程 DSH 界面、端口转发、审计日志、更新。</figcaption>
       </figure>
     </div>
   </div>

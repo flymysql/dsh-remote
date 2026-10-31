@@ -134,18 +134,19 @@ UI 必须有 `test/harness/render.js`。
 - **GSSAPI/Kerberos**：手边没有只接受 Kerberos 的机器。`it-openssh-real.test.js` 里那条用例留着
   （`IT_SSH_GSSAPI=1` + 一个别名），在能 `kinit` 的环境里直接可跑；本机无法验证。
 - **macOS 钥匙库**（`security`）：没有 macOS 机器。Windows DPAPI 与 Linux `secret-tool` 都已真机验证。
-- **从零 npm 安装**：`web-deploy.js` 的命令序列在假 shell 里校验过顺序与失败中断；真远端只验证了
+- **从零 npm 安装远端 dsh**：0.8.66 起插件不再代装。真远端只验证了
   「已装好的 dsh 能起 web」（106.52.92.20 上是 0.1.5-rc.2），没有再从零 `npm install` 一遍。
-- **目录选择器的渲染级点击链**：路由级（`/dsh-remote/mirror` → 镜像 → `rw_sync`）已覆盖
-  （`mirror-and-deploy-plan.test.js`），但 `client.js` 那一段只断言到首屏与提交按钮的禁用态。
+- **目录选择器的渲染级点击链**：路由级（`/dsh-remote/mirror` → 镜像 → `rw_sync`）已覆盖，
+  但 `client.js` 那一段只断言到首屏与提交按钮的禁用态。
 
-已补齐：终端 PTY 全链路、`forwards` 失败/回收分支、`binding` 跨机围栏矩阵、部署面板点击流、
-秘密不回传扫描、目录建镜像链路 + 部署命令序列 —— 见 `terminal-e2e.test.js` /
-`forwards-lifecycle.test.js` / `binding-fence.test.js` / `ui-deploy-flow.test.js` /
-`invariants-secrets.test.js` / `mirror-and-deploy-plan.test.js`；真机部分见 §6.5。
+已补齐：终端 PTY 全链路、`forwards` 失败/回收分支、`binding` 跨机围栏矩阵、
+秘密不回传扫描、目录建镜像链路 —— 见 `terminal-e2e.test.js` /
+`forwards-lifecycle.test.js` / `binding-fence.test.js` /
+`invariants-secrets.test.js`；真机部分见 §6.5。
+远端 dsh 的「体检 / 一键部署」已在 0.8.66 删除（`rw_deploy_probe`、`web-deploy.js`、
+`ui-deploy-flow.test.js` 都不在了）。
 
 已知偶发：docs-images.test.js 的「截图边缘截断」检查在**全量并行**时偶尔失败（单独跑 3/3 通过、全量连跑 3/3 通过），属图像分析在负载下的抖动；遇到时先单独重跑再判断。
 
-下一步优先级：GSSAPI 用例在有 Kerberos 的环境跑一遍 → 真远端从零 `npm install` 一次
-（用 `IT_WEB_*` 指向一台干净机器）→ 目录选择器的渲染级点击链。
+下一步优先级：GSSAPI 用例在有 Kerberos 的环境跑一遍 → 目录选择器的渲染级点击链。
 

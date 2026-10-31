@@ -24,7 +24,7 @@ DSH 的 Web 界面刻意只监听 `127.0.0.1`（CLI 为安全拒绝 `--host 0.0.
 
 ## 界面预览
 
-**设置 → 远程工作区** —— 多机列表、高级配置（私钥/跳板机/agent）、连接体检、远程 DSH 界面、端口转发、审计日志、更新：
+**设置 → 远程工作区** —— 直接列出 `~/.ssh/config` 里的主机、高级配置（私钥/跳板机/agent）、远程 DSH 界面、端口转发、审计日志、更新：
 
 <img src="docs/shots/settings-panel.png" alt="dsh-remote 设置页：主机列表、连接、选目录、远程 DSH 界面、端口转发、审计日志、更新" width="612"/>
 
@@ -39,7 +39,7 @@ DSH 的 Web 界面刻意只监听 `127.0.0.1`（CLI 为安全拒绝 `--host 0.0.
 
 ## 功能
 
-![核心能力总览 — 多机 SSH / 别名实时解析 / 双 tab 选择器 / 三路同步 / 远程 @ 补全 / 远端 DSH 界面挂到本机 / 体检与一键部署 / 安全审计 / 端口转发 / 侧栏编辑 / 自动更新，以及 21 个 rw_* 工具](docs/shots/features.png)
+![核心能力总览 — 多机 SSH / 别名实时解析 / 双 tab 选择器 / 三路同步 / 远程 @ 补全 / 远端 DSH 界面挂到本机 / 安全审计 / 端口转发 / 侧栏编辑 / 自动更新，以及 21 个 rw_* 工具](docs/shots/features.png)
 
 上图是能力总览；下面只列**上图没说清、但用起来需要知道**的部分。
 
@@ -93,7 +93,7 @@ dsh plugin add dsh-remote
 ## 快速上手
 
 1. **连接一台机器** —— 设置 → 远程工作区：页面**直接列出 `~/.ssh/config` 里的主机**（像 VSCode Remote-SSH），点「连接」即可（= 采用 + 设为当前 + 实测延迟，结果显示在这一行上）。
-   没有写进 ssh 配置的机器，展开「手动添加（密码 / 私钥 / 跳板机）」填一次即可。
+   要加一台配置里没有的机器，点「打开配置文件」写一个 Host 段，再点「刷新」。已保存的机器仍可「编辑」（密码、OpenSSH 后端、远端 dsh 命令这些 ssh 配置存不下的项）。
    > **保存 ≠ 激活**：保存只是备用连接；只有「连接」（或 Agent 调 `rw_connect`）才进入会话的 remote context。
 2. **选工作区** —— 连上之后会自动弹出目录选择（也可以点机器行的「选目录」）：
    - **远程** → 浏览到远程目录（或输入 `/path`）→ 「设为远程工作区」⇒ 创建并收养本地镜像工作区。
@@ -125,14 +125,14 @@ dsh plugin add dsh-remote
   **按机器设**：设置 → 远程工作区 → 机器卡片 → 展开「高级」→「远端 dsh 命令」，
   填绝对路径即可（例如
   `/home/you/.nvm/versions/node/v22.19.0/bin/node /home/you/.dsh-remote/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js`）；
-  留空则用全局的 `webAttachCommand`。「部署并验证」成功后也会自动写进这个字段。
+  留空则用全局的 `webAttachCommand`。
 - 隧道跟着 SSH 连接走：连接断了界面会显示「连接已断开」，**不会**影响本机 DSH 进程；
   池自动重连后插件会重新解析远端端口（必要时重启它自己启动的那个远端进程），界面点「重连」即可继续用。
 - 远端 node 需要 **≥ 20.12**（dsh 启动要用 `node:util` 的 `parseEnv`，该导出从 20.12 起才有）。
-  node 太旧时体检会直接报 blocker：npm 只会给 EBADENGINE 警告、照样把包装完，
-  直到启动才崩在 `does not provide an export named 'parseEnv'`，所以必须在装之前拦住。
+  更旧的 node 上 npm 只会给 EBADENGINE 警告、照样把包装完，直到启动才崩在
+  `does not provide an export named 'parseEnv'`，所以装之前先确认版本。
 
-### 连不上？先体检，再一键部署
+### 连不上？远端的 dsh 需要你自己装好
 
 **连不上大多不是插件的问题，而是远端 dsh 的版本或环境不对。** 最典型的一种：dsh 0.1.0-rc.6
 依赖 `node-pty@1.1.0`，而**那个版本发布的包里没有 `linux-x64` 预编译产物** ⇒ `dsh web`

@@ -276,9 +276,13 @@ test('canOpen CLAIMS Markdown links in a remote session (issue #74 supersedes #6
   // the LOCAL MIRROR, and a .md that was never synced dies with ENOENT — the user
   // sees nothing. The remote-link editor now opens the file over SFTP and RENDERS
   // it with the host's MarkdownText, so claiming .md is no longer a downgrade.
+  // A LOCAL session is still not a mirror, so its .md links stay with the built-in preview.
   const { types } = bootWithSidebar({
     routes: { '/dsh-remote/bindings': { mirrors: [MIRROR] } },
-    sessions: [{ id: 'remote-1', cwd: MIRROR.dir + '/sub' }],
+    sessions: [
+      { id: 'remote-1', cwd: MIRROR.dir + '/sub' },
+      { id: 'local-1', cwd: '/home/dev/project' },
+    ],
   })
   const { canOpen } = types.get('dsh-remote/remote-link')
   await new Promise((r) => setImmediate(r))
@@ -287,6 +291,8 @@ test('canOpen CLAIMS Markdown links in a remote session (issue #74 supersedes #6
   assert.equal(canOpen('dsh-resource://file/session/remote-1/NOTES.MD'), true)
   // ...and plain text files in the SAME session keep being claimed.
   assert.equal(canOpen('dsh-resource://file/session/remote-1/src/main.c'), true)
+  assert.equal(canOpen('dsh-resource://file/session/local-1/README.md'), false,
+    'a local session must keep the built-in Markdown preview')
 })
 
 test('a relative link maps onto the remote root, and an absolute one is kept', async () => {

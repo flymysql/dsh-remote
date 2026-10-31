@@ -14,14 +14,14 @@ DeepSeek Harness 的 Web UI 刻意只绑定 `127.0.0.1`（CLI 会拒绝 `--host 
 
 安装后你会得到一组 `rw_*` 工具，以及一个接管原生「添加工作区」流程的选择器：
 
-22 个工具，按用途分组：
+21 个工具，按用途分组：
 
 | 用途 | 工具 |
 |---|---|
 | 连接与机器 | `rw_connect`、`rw_machines`（可用 `environment`/`location`/`tags` 分组筛选）、`rw_info`、`rw_disconnect` |
 | 工作区 | `rw_pick_workspace`、`rw_list_dir`、`rw_stat` |
 | 文件读写 | `rw_read_file`、`rw_write_file`、`rw_edit`（原子写 + mtime 乐观锁）、`rw_append`、`rw_mkdir`、`rw_remove`、`rw_move` |
-| 执行与搜索 | `rw_exec`（单次超时 / 真取消 / 超时可转后台）、`rw_search`、`rw_deploy_probe` |
+| 执行与搜索 | `rw_exec`（单次超时 / 真取消 / 超时可转后台）、`rw_search` |
 | 同步 | `rw_sync`、`rw_push`（三路冲突感知） |
 | 传输与隧道 | `rw_download`、`rw_upload`、`rw_forward`（本地与反向端口转发） |
 

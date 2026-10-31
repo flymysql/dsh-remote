@@ -99,8 +99,7 @@ test('lib/client.js registers through the module loader and its apply() runs', (
     // the list is always visible now and each row has one 连接 action.
     'settings.pickHost', 'settings.hostListSource', 'settings.hostListRefresh',
     'settings.hostListEmpty', 'settings.hostConnect', 'settings.hostConnected',
-    'settings.hostFillForm', 'settings.openWorkspace', 'settings.workspaceOpened',
-    'settings.addMachineManual',
+    'settings.openSshConfig', 'settings.sshConfigOpened', 'settings.openWorkspace', 'settings.workspaceOpened',
     // The alias/ssh-config semantics the list still relies on.
     'settings.useSshConfig', 'settings.useSshConfigHint', 'settings.sshResolvedTo',
     'settings.sshResolvedNone', 'settings.sshResolvedWarn', 'settings.badgeSshConfig',
