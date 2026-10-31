@@ -56,11 +56,46 @@ test('every slot the client registers renders without throwing and leaks no raw 
     assert.ok(ui.registered.size >= 6, `expected the client to register its slots, got ${ui.registered.size}`)
     for (const [name, entry] of ui.registered) {
       assert.equal(typeof entry.comp, 'function', `${name}: a component must be registered`)
-      const tree = await ui.settleComponent(entry.comp, { sessionId: 's-1', path: '/a.txt', tab: { path: '/a.txt' } })
+      ui.resetState() // hook slots are positional; a new family must not inherit the previous one's
+      const tree = await ui.settleComponent(entry.comp, {
+        sessionId: 's-1', path: '/a.txt', tab: { path: '/a.txt' },
+        // Right-pane bodies (explorer/file/link) read the address off the tab info.
+        // This address parses but belongs to no known session, so the link body
+        // renders its "unresolved" explanation instead of throwing.
+        useTabInfo: () => ({ tab: { navigation: { address: 'dsh-resource://dsh-remote/file/' + encodeURIComponent('/a.txt') } } }),
+      })
       const text = ui.text(tree)
       assert.doesNotMatch(text, /\b(settings|file|picker|sidebar|common)\.[a-zA-Z][\w.]*/,
         `${name}: a raw i18n key leaked into the UI — ${text.slice(0, 200)}`)
     }
+  } finally { ui.dispose() }
+})
+
+test('a remote .md link renders through the host MarkdownText, not a raw source wall (issue #74)', async () => {
+  // The built-in Markdown preview reads the LOCAL MIRROR and dies with ENOENT on an
+  // unsynced file. The remote-link editor claims the address now and RENDERS the
+  // remote content with the host's MarkdownText — this test proves the rendered
+  // branch is taken (the harness stub marks it with className "md-stub").
+  const md = '# Title\n\n- one\n- two\n'
+  const ui = mountClient({
+    fetch: stubFetch({
+      overrides: {
+        '/dsh-remote/read': () => ({ content: md, mtime: 1, size: md.length }),
+      },
+    }).fetch,
+  })
+  try {
+    const body = ui.body('dsh-remote/file')
+    const tree = await ui.settleComponent(body, {
+      sessionId: 's-1',
+      useTabInfo: () => ({ tab: { navigation: { address: 'dsh-resource://dsh-remote/file/' + encodeURIComponent('/srv/app/README.md') } } }),
+    })
+    // Nested function components are NOT executed by the tree walker, so the
+    // MarkdownText stub appears as an element whose TYPE is the stub and whose
+    // props carry the markdown text.
+    const mdEls = ui.elements(tree).filter((el) => el.props && el.props.text === md)
+    assert.ok(mdEls.length > 0, `expected the MarkdownText branch to render, got: ${ui.text(tree).slice(0, 200)}`)
+    assert.match(ui.text(tree), /README\.md/)
   } finally { ui.dispose() }
 })
 

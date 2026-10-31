@@ -80,7 +80,15 @@ export function mountClient(opts = {}) {
   }
   const requireStub = (id) => {
     if (id === 'react') return React
-    if (id === '@deepseek-ai/dsh-client-ui-primitives') return { relativeTime: () => ({ unit: 'now', n: 0 }) }
+    if (id === '@deepseek-ai/dsh-client-ui-primitives') {
+      // The real package ships MarkdownText (used for remote .md rendering, issue
+      // #74); the stub renders text inside a marker element so tests can tell a
+      // rendered doc from a raw source wall.
+      return {
+        relativeTime: () => ({ unit: 'now', n: 0 }),
+        MarkdownText: (props) => React.createElement('div', { className: 'md-stub' }, props.text),
+      }
+    }
     throw new Error('unexpected require: ' + id)
   }
   const run = new Function(
@@ -90,14 +98,27 @@ export function mountClient(opts = {}) {
 
   const mod = loaded.factory(requireStub)
   const registered = new Map()
+  // Right-pane bodies share ONE slot name, so key by `key` when it exists.
+  const bodies = new Map()
+  const tabTypes = new Map()
   const ctx = {
     get(name) {
       if (name === 'locale') return { register: () => {}, bind: () => (k) => k }
       if (name === 'slots') {
         return {
           inject: (slot, fn) => { slots.push(slot); fn(); return () => {} },
-          register: (decl, comp) => { registered.set(decl && decl.name, { decl, comp }); return () => {} },
+          register: (decl, comp) => {
+            registered.set(decl && decl.name, { decl, comp })
+            bodies.set((decl && (decl.key || decl.name)) || '', comp)
+            return () => {}
+          },
           get: () => [],
+        }
+      }
+      if (name === 'sidebarRightTabs') {
+        return {
+          register: (type) => { tabTypes.set(type.kind || type.id, type); return () => tabTypes.delete(type.kind || type.id) },
+          get: (kind) => tabTypes.get(kind),
         }
       }
       if (name === 'sessions') return { list: { getSnapshot: () => ({ byId: {} }) } }
@@ -178,10 +199,25 @@ export function mountClient(opts = {}) {
       if (!entry) throw new Error(`slot ${slotName} is not registered (have: ${[...registered.keys()].join(', ')})`)
       return entry.comp
     },
+    /** Body registered under a right-pane key (e.g. 'dsh-remote/file'). */
+    body(key) {
+      const comp = bodies.get(key)
+      if (!comp) throw new Error(`body ${key} is not registered (have: ${[...bodies.keys()].filter(Boolean).join(', ')})`)
+      return comp
+    },
+    /** The native tab types captured from the sidebarRightTabs registry. */
+    tabTypes,
     /** Render a slot component and settle its effects. */
     settle(slotName = 'settings.section') { return settleFor(this.component(slotName)) },
     /** Render an arbitrary function component. */
     settleComponent(Comp, props = {}) { return settleFor(Comp, props) },
+    /**
+     * Drop all hook state. Mounting a SECOND component family without this lets
+     * the new component's `useState(0)` read the previous family's slot — e.g. the
+     * link body found the settings page's machines array where its own
+     * `remotePath` should be, and rendered the file tab with a non-string path.
+     */
+    resetState() { state.length = 0; refs.clear(); seen.clear() },
     tick,
     elements,
     textOf,

@@ -254,3 +254,17 @@ test('a supplied message factory is used when the composition has one', () => {
   assert.equal(msg.made, true)
   assert.ok(seen.source.kind === REMOTE_INSTRUCTIONS_KIND)
 })
+
+test('a message built WITHOUT a factory still carries an id (issue #75: session restore rejects id-less messages)', () => {
+  // The core validates every stored message at restore time
+  // (dsh-session/lib/types/index.js assertMessageEventShape: message.id must be a
+  // non-empty string) and rejects the WHOLE log on the first offender — a remote
+  // instruction injected without an id made a 130+-turn session fail to reopen.
+  // The fallback object (factory absent, as in a composition where ctx.get('llm')
+  // has no createUserMessage) must therefore carry its own identity.
+  const msg = buildInstructionMessage([item('a/AGENTS.md', '# a rules')], [])
+  assert.ok(typeof msg.id === 'string' && msg.id.length > 0,
+    `the fallback message must carry an id, got: ${JSON.stringify(msg).slice(0, 200)}`)
+  assert.equal(msg.role, 'user')
+  assert.equal(msg.source.kind, REMOTE_INSTRUCTIONS_KIND)
+})

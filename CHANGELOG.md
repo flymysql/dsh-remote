@@ -2,6 +2,27 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.67 — 2026-10-30
+### 修两个数据级 bug：远端指令注入的消息没有 id（整份会话打不开）；远程会话的 .md 链接读本地镜像（ENOENT）
+
+**#75 — 远端工作区指令注入的回退分支产出的 user 消息没有 id**
+拿不到核心 `createUserMessage` 工厂时，回退对象是 `{ role:'user', content, source }` —— 没有 `id`。
+核心只在**恢复会话**时校验（`assertMessageEventShape` 要求 `message.id` 为非空字符串），写入时不报错，
+于是一条注入消息静默落盘，下次打开会话时**整份历史拒绝加载**（`历史加载失败`，130+ 轮会话全废）。
+回退分支现在生成 `id: randomUUID()`（与工厂自身的身份源一致）。不改为直接 `import` dsh-llm：
+该包不在本插件依赖里（pnpm 隔离布局 resolve 不到），且插件按设计要在没有 llm 服务的最小组合里也能跑。
+回归测试：`a message built WITHOUT a factory still carries an id`。
+
+**#74 — 远程会话里 .md 链接打开本地镜像而不是远程文件**
+`canOpen` 曾明确把 `.md/.markdown` 让给内置 Markdown 预览（#64：源码墙不如渲染），但内置预览读的是
+**本地镜像** —— 没同步过的文件直接 `ENOENT`，什么都打不开。现在：
+- 远程会话的 md 链接由 remote-link 认领，走 SFTP 打开（本地会话 `cwd` 不是镜像，仍让位给内置预览）；
+- 查看器检测到 md 时用宿主自带的 `MarkdownText` **渲染**（#64 的「渲染」诉求保住），老构建没有该组件
+  才回退源码。
+测试：canOpen 决策翻转用例 + 渲染级用例（证明走 `MarkdownText` 分支而非源码墙）。
+
+另：测试 harness 补了一个已知短板 —— 跨组件挂载时 hook state 现在可 `resetState()` 重置
+（sweep 测试里 link body 曾读到设置页的 state 槽残留）。
 ## 0.8.66 — 2026-10-30
 ### 去掉「远端 dsh 体检与部署」；审计日志可以在本机打开
 
