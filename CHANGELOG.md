@@ -9,8 +9,8 @@ All notable changes to **dsh-remote**.
 拿不到核心 `createUserMessage` 工厂时，回退对象是 `{ role:'user', content, source }` —— 没有 `id`。
 核心只在**恢复会话**时校验（`assertMessageEventShape` 要求 `message.id` 为非空字符串），写入时不报错，
 于是一条注入消息静默落盘，下次打开会话时**整份历史拒绝加载**（`历史加载失败`，130+ 轮会话全废）。
-回退分支现在生成 `id: randomUUID()`（与工厂自身的身份源一致）。不改为直接 `import` dsh-llm：
-该包不在本插件依赖里（pnpm 隔离布局 resolve 不到），且插件按设计要在没有 llm 服务的最小组合里也能跑。
+现在先找 `llm` 服务上的工厂，再用 `createRequire` 试 `@deepseek-ai/dsh-llm` 的模块导出（pnpm 隔离解析不到就当没有）。
+工厂缺失、抛错或没给 `id` 时，回退对象自己带 `randomUUID()`。最小组合里没有这个包也能跑。
 回归测试：`a message built WITHOUT a factory still carries an id`。
 
 **#74 — 远程会话里 .md 链接打开本地镜像而不是远程文件**
