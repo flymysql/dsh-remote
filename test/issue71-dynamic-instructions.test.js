@@ -24,6 +24,7 @@ import {
   descendantDirs, instructionCandidates, contentDigest, createInjectionTracker,
   refreshTouched, buildInstructionMessage, REMOTE_INSTRUCTIONS_KIND,
   INSTRUCTION_MESSAGE_MAX_BYTES, REFRESH_THROTTLE_MS,
+  pickUserMessageFactory, loadBundledUserMessageFactory,
 } from '../lib/instructions-dynamic.js'
 import { MemFs, makeSftp, seed } from './helpers.js'
 
@@ -249,9 +250,10 @@ test('removals get their own line; nothing to say returns null', () => {
 test('a supplied message factory is used when the composition has one', () => {
   let seen = null
   const msg = buildInstructionMessage([item('a/AGENTS.md', '# x')], [], {
-    createUserMessage: (input) => { seen = input; return { role: 'user', ...input, made: true } },
+    createUserMessage: (input) => { seen = input; return { role: 'user', ...input, made: true, id: 'kept' } },
   })
   assert.equal(msg.made, true)
+  assert.equal(msg.id, 'kept')
   assert.ok(seen.source.kind === REMOTE_INSTRUCTIONS_KIND)
 })
 
@@ -267,4 +269,38 @@ test('a message built WITHOUT a factory still carries an id (issue #75: session 
     `the fallback message must carry an id, got: ${JSON.stringify(msg).slice(0, 200)}`)
   assert.equal(msg.role, 'user')
   assert.equal(msg.source.kind, REMOTE_INSTRUCTIONS_KIND)
+})
+
+test('a factory that omits id is repaired instead of stored bare', () => {
+  const msg = buildInstructionMessage([item('a/AGENTS.md', '# x')], [], {
+    createUserMessage: (input) => ({ role: 'user', ...input }),
+  })
+  assert.equal(typeof msg.id, 'string')
+  assert.ok(msg.id.length > 0)
+  assert.equal(msg.role, 'user')
+})
+
+test('pickUserMessageFactory only trusts a real createUserMessage method', () => {
+  assert.equal(pickUserMessageFactory(null), null)
+  assert.equal(pickUserMessageFactory({ name: 'llm' }), null)
+  const make = pickUserMessageFactory({
+    createUserMessage: (input) => ({ ...input, role: 'user', id: 'from-service' }),
+  })
+  assert.equal(make({ content: [], source: { kind: 'x' } }).id, 'from-service')
+  const nested = pickUserMessageFactory({
+    default: { createUserMessage: (input) => ({ ...input, role: 'user', id: 'from-default' }) },
+  })
+  assert.equal(nested({ content: [], source: { kind: 'x' } }).id, 'from-default')
+})
+
+test('the bundled dsh-llm factory stamps an id when the package resolves', () => {
+  const make = loadBundledUserMessageFactory()
+  if (!make) return
+  const msg = make({
+    content: [{ type: 'text', text: 'hi' }],
+    source: { kind: REMOTE_INSTRUCTIONS_KIND },
+  })
+  assert.equal(msg.role, 'user')
+  assert.equal(typeof msg.id, 'string')
+  assert.ok(msg.id.length > 0)
 })

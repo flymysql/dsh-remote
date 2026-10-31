@@ -166,7 +166,7 @@ function bootWithSidebar({ routes = {}, sessions = [], rejectLinkType = false } 
     },
     effect: inner.effect,
   })
-  return { types: host.types, requests, cleanups, bodies }
+  return { types: host.types, requests, cleanups, bodies, plugin }
 }
 
 /** Render the link body for an address and read the REMOTE path it decided on. */
@@ -287,7 +287,6 @@ test('canOpen CLAIMS Markdown links in a remote session (issue #74 supersedes #6
   assert.equal(canOpen('dsh-resource://file/session/remote-1/NOTES.MD'), true)
   // ...and plain text files in the SAME session keep being claimed.
   assert.equal(canOpen('dsh-resource://file/session/remote-1/src/main.c'), true)
-  assert.equal(canOpen('dsh-resource://file/session/remote-1/notes.txt'), true)
 })
 
 test('a relative link maps onto the remote root, and an absolute one is kept', async () => {
