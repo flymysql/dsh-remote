@@ -24,7 +24,7 @@ It works the other way too: **you can open the remote machine's own DSH Web UI a
 
 ## Screen previews
 
-**Settings → 远程工作区** — machine list, advanced config (key / jump host / agent), connection check, port forwarding, audit log, update:
+**Settings → 远程工作区** — hosts from `~/.ssh/config`, advanced config (key / jump host / agent), remote DSH Web UI, port forwarding, audit log, update:
 
 <img src="docs/shots/settings-panel.png" alt="dsh-remote settings: host list, connect, pick folder, remote DSH Web UI, port forwarding, audit log, update" width="612"/>
 
@@ -50,7 +50,7 @@ The image above is the overview. What follows is only what the image does not ma
 - The path field autocompletes live; on Windows hosts the root shows a multi-drive view; the floating browser fills the field without committing.
 - On confirm a **real local mirror** is created and adopted by the harness, kept in sync over SFTP; the choice persists on the machine.
 
-**Settings** (machine list, connection check, port forwarding, audit log, update mode):
+**Settings** (hosts from `~/.ssh/config`, port forwarding, audit log, update mode):
 
 <img src="docs/shots/settings-panel.png" alt="dsh-remote settings: host list, connect, pick folder, remote DSH Web UI, port forwarding, audit log, update" width="612"/>
 
@@ -102,7 +102,7 @@ Since **v0.8.18** it installs and mounts only itself; the Web sidebar ([dsh-bett
 
 ## Quick start
 
-1. **Connect a machine** — Settings → 远程工作区: the page **lists the hosts from your `~/.ssh/config`** (like VSCode Remote-SSH). Click **Connect** — it adopts the host, makes it current and probes it, with the result shown on that row. A machine that is *not* in your ssh config is one click away under "手动添加（密码 / 私钥 / 跳板机）".
+1. **Connect a machine** — Settings → 远程工作区: the page **lists the hosts from your `~/.ssh/config`** (like VSCode Remote-SSH). Click **Connect** — it adopts the host, makes it current and probes it, with the result shown on that row. A machine that is *not* in your ssh config is added by **Open config** (edit a Host block, then Refresh). **Edit** on a saved machine is only for what ssh config cannot store (a password, the OpenSSH backend, the remote dsh command).
    > **Saved ≠ active:** a saved machine is only a standby connection; only Connect (or the agent's `rw_connect`) puts it into the session's remote context.
 2. **Open a workspace** — the folder picker opens right after a successful connect (or click **选目录** on any saved machine):
    - **Remote** → browse to a remote directory (or type `/path`) → "设为远程工作区" ⇒ a local mirror workspace is created and adopted.
@@ -142,9 +142,8 @@ A new tab opens showing that remote machine's full DSH interface (chat, tool tre
   process is **not** affected. After the pool reconnects the plugin re-resolves the remote port (restarting
   the remote process it started, if that one died), so hitting "Reconnect" is enough to carry on.
 - The remote node must be **≥ 20.12** (booting dsh needs `parseEnv` from `node:util`, which only exists
-  from 20.12). An older node is reported as a blocker by the check: npm only warns (EBADENGINE) and
-  installs anyway, and the crash arrives later as
-  `does not provide an export named 'parseEnv'` — so it has to be caught before the install.
+  from 20.12). On an older node npm only warns (EBADENGINE) and installs anyway, and the crash arrives
+  later as `does not provide an export named 'parseEnv'` — check the version before you install.
 
 ### Cannot connect? Install dsh on the remote yourself
 

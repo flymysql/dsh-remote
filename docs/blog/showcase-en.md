@@ -12,14 +12,14 @@ The DSH Web GUI intentionally binds `127.0.0.1` (the CLI rejects `--host 0.0.0.0
 
 After install you get `rw_*` tools plus a picker that takes over the native **Add workspace** flow:
 
-22 tools, grouped by purpose:
+21 tools, grouped by purpose:
 
 | Purpose | Tools |
 |---|---|
 | Connect & machines | `rw_connect`, `rw_machines` (filter by `environment`/`location`/`tags`), `rw_info`, `rw_disconnect` |
 | Workspace | `rw_pick_workspace`, `rw_list_dir`, `rw_stat` |
 | Files | `rw_read_file`, `rw_write_file`, `rw_edit` (atomic write + mtime optimistic lock), `rw_append`, `rw_mkdir`, `rw_remove`, `rw_move` |
-| Run & search | `rw_exec` (per-call timeout, real cancellation, promote-to-background), `rw_search`, `rw_deploy_probe` |
+| Run & search | `rw_exec` (per-call timeout, real cancellation, promote-to-background), `rw_search` |
 | Sync | `rw_sync`, `rw_push` (conflict-aware, three-way) |
 | Transfer & tunnels | `rw_download`, `rw_upload`, `rw_forward` (local and reverse port forwarding) |
 

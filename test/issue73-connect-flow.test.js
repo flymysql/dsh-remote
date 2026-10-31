@@ -52,6 +52,8 @@ test('clicking 连接 on a ~/.ssh/config host adopts it, probes it, and reports 
     let tree = await ui.settle()
     // The discovered host is on screen with exactly one 连接 button.
     assert.match(ui.text(tree), /fresh/)
+    assert.match(ui.text(tree), /打开配置文件/, 'a new host is added by editing ssh config')
+    assert.doesNotMatch(ui.text(tree), /手动添加|填表/, 'the add-machine form is gone')
     const rowButtons = ui.buttons(tree).filter((b) => /^连接$/.test(b.label))
     assert.equal(rowButtons.length, 2, 'one 连接 for the discovered host, one for the saved machine')
 

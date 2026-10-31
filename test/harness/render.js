@@ -110,6 +110,8 @@ export function mountClient(opts = {}) {
           register: (decl, comp) => {
             registered.set(decl && decl.name, { decl, comp })
             bodies.set((decl && (decl.key || decl.name)) || '', comp)
+            // Tab bodies share one slot name and are distinguished by `key`.
+            if (decl && decl.key) registered.set('key:' + decl.key, { decl, comp })
             return () => {}
           },
           get: () => [],

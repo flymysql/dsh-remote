@@ -12,7 +12,7 @@
 //     action that activates + probes, with the result on that row.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { writeFileSync, mkdtempSync, rmSync } from 'node:fs'
+import { writeFileSync, mkdtempSync, rmSync, existsSync, readFileSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createHost } from './harness/plugin-host.js'
@@ -118,6 +118,61 @@ test('adopting a bare Host still produces a usable machine (the case the old lis
     assert.ok(row && row.sshConfigResolved, 'the client row must carry the resolution')
     assert.equal(row.sshConfigResolved.matched, true)
     assert.equal(row.sshConfigResolved.host, 'bare')
+  })
+})
+
+/** Like withSshConfig, but the file may be missing and native dialogs are off. */
+async function withSshEnv(fn, { text = null } = {}) {
+  const savedCfg = process.env.DSH_REMOTE_SSH_CONFIG
+  const savedDialog = process.env.DSH_REMOTE_NO_NATIVE_DIALOG
+  const dir = mkdtempSync(path.join(tmpdir(), 'dsh-remote-sshcfg-'))
+  const file = path.join(dir, 'config')
+  if (text != null) writeFileSync(file, text, { encoding: 'utf8', mode: 0o600 })
+  process.env.DSH_REMOTE_SSH_CONFIG = file
+  process.env.DSH_REMOTE_NO_NATIVE_DIALOG = '1'
+  const host = await createHost()
+  try {
+    await fn({ host, file })
+  } finally {
+    await host.dispose()
+    if (savedCfg === undefined) delete process.env.DSH_REMOTE_SSH_CONFIG
+    else process.env.DSH_REMOTE_SSH_CONFIG = savedCfg
+    if (savedDialog === undefined) delete process.env.DSH_REMOTE_NO_NATIVE_DIALOG
+    else process.env.DSH_REMOTE_NO_NATIVE_DIALOG = savedDialog
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+test('POST /ssh-config opens the real config file and ignores a path in the body', async () => {
+  await withSshEnv(async ({ host, file }) => {
+    const r = await host.call('/dsh-remote/ssh-config', { body: { action: 'open', file: '/etc/passwd' } })
+    assert.equal(r.status, 501, `headless open must refuse the dialog: ${r.raw}`)
+    assert.equal(r.json.ok, false)
+    assert.equal(r.json.file, file, 'the opened path is sshConfigPath(), never the body')
+    assert.notEqual(r.json.file, '/etc/passwd')
+    assert.match(String(r.json.error), /DSH_REMOTE_NO_NATIVE_DIALOG/)
+    assert.equal(existsSync(file), true, 'a missing config is created so the editor has a file')
+    assert.equal(readFileSync(file, 'utf8'), '')
+    assert.equal(statSync(file).mode & 0o777, 0o600, 'a new config must not be world-readable')
+  })
+})
+
+test('POST /ssh-config does not truncate a config the user already wrote', async () => {
+  const original = 'Host keepme\n  HostName 10.1.1.1\n'
+  await withSshEnv(async ({ host, file }) => {
+    const r = await host.call('/dsh-remote/ssh-config', { body: { action: 'reveal', file: '/tmp/nope' } })
+    assert.equal(r.status, 501)
+    assert.equal(r.json.file, file)
+    assert.equal(readFileSync(file, 'utf8'), original)
+  }, { text: original })
+})
+
+test('POST /ssh-config rejects an action that is not open or reveal', async () => {
+  await withSshEnv(async ({ host, file }) => {
+    const r = await host.call('/dsh-remote/ssh-config', { body: { action: 'install', file } })
+    assert.equal(r.status, 400)
+    assert.match(String(r.json.error), /open \| reveal/)
+    assert.equal(existsSync(file), false, 'a rejected action must not create the file')
   })
 })
 

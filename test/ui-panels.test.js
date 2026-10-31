@@ -172,18 +172,21 @@ test('an empty registry explains itself instead of showing a blank panel', async
   } finally { ui.dispose() }
 })
 
-test('the manual form starts collapsed and opens on demand', async () => {
-  const ui = mountClient({ fetch: stubFetch().fetch })
+test('there is no add-machine form; editing a saved machine still opens one (issue #73)', async () => {
+  const stub = stubFetch()
+  const ui = mountClient({ fetch: stub.fetch })
   try {
     let tree = await ui.settle()
     const before = ui.text(tree)
-    // Issue #73: the form is the SECONDARY path now — the host list comes first.
-    assert.doesNotMatch(before, /HostKey 模式/, 'the manual form must be collapsed by default')
-    const openForm = ui.button(tree, /手动添加/)
-    openForm.el.props.onClick()
-    tree = await ui.settle()
-    assert.match(ui.text(tree), /主机/, 'the form must reveal its fields')
-    // …and its advanced block is still reachable.
+    assert.doesNotMatch(before, /手动添加|添加机器|填表/, 'the add-machine form the reporter circled is gone')
+    assert.match(before, /打开配置文件/, 'new hosts are added by opening ~/.ssh/config')
+    assert.doesNotMatch(before, /HostKey 模式/, 'the edit form is not on screen until 编辑')
+    ui.button(tree, /打开配置文件/).el.props.onClick()
+    await ui.tick()
+    assert.ok(stub.calls.some((c) => c.url.includes('/dsh-remote/ssh-config') && c.body && c.body.action === 'open'),
+      '打开配置文件 must ask the host to open the ssh config, not a form')
+    tree = await ui.click(tree, /^编辑$/)
+    assert.match(ui.text(tree), /主机/, 'editing a saved machine still shows the credential form')
     const expand = ui.button(tree, /高级配置/)
     expand.el.props.onClick()
     tree = await ui.settle()
