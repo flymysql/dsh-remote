@@ -2,6 +2,32 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.70 — 2026-11-02
+### 修 openssh 后端 `rw_exec` 输出全部丢失（issue #80）
+
+**#80 — openssh 后端的 `rw_exec` 恒返回 `(no output)`**
+0.8.53（#70）把 `rw_exec` 默认路径改成「先注册成 job、前台从 job ring 回读输出」，ring 的唯一输入是
+`pool.exec` 的 `onData` 流式钩子 —— 而这个钩子只接在了原生 ssh2 后端上，openssh 后端漏了：
+输出只累积在 `_runSsh` 的返回值里，job 层拿到返回值只取 exit code，stdout/stderr 整个丢弃。
+命令确实执行了（副作用都在），就是输出拿不回来，**没有任何报错**；后台/超时转后台路径更糟，
+输出永久丢失，`job_output` 事后也读不到。GSSAPI/Kerberos-only 的机器只能用 openssh 后端（#51），
+没有「换 native」的逃生口，受影响最深。
+
+- `lib/openssh.js`：`_runSsh` 实现 `onData` tap（语义与原生后端逐一对齐：tap 抛错不算命令错误；
+  本地累积截断后 tap 仍继续喂，ring 有自己的界）；`exec()` 的 posix 直连与 Git-Bash stdin
+  两个分支都转发该选项 —— 此前两个分支一起漏。
+- `lib/exec-job.js`：`startExecJob` 增加兜底：整个执行过程没有任何字节流过 tap 时（当前/未来
+  缺 onData 实现的后端），settle 前把返回值里的 stdout/stderr 灌进 ring；流式正常的后端
+  不会因此重复一份。
+- `lib/openssh.js`：池级 `opts.knownHostsFile`（原生后端早已支持，透传多跳链路的每一程）此前被
+  构造函数存下却从未生效，本版接通到 `UserKnownHostsFile`（`_runSsh` / `spawnSsh` / SFTP 三处
+  一致），函数形态与原生后端一样按次解析。校验强度不变（StrictHostKeyChecking 照旧），测试借此
+  把 loopback 主机密钥挡在用户真实 known_hosts 之外。
+
+回归测试：`test/issue80-openssh-ondata.test.js`（8 例）。其中一例用真实 `ssh` CLI 连内存假 sshd，
+证明 tap 在 settle 之前逐块触发；另两例钉住 job 层兜底（无流式后端输出不丢、流式后端不重复），
+以及 issue 报告的原样症状——前台 `rw_exec` 在静默后端上不再显示 `(no output)`。
+
 ## 0.8.69 — 2026-11-02
 ### 远程工作区在创建时就带上机器名，不再和本地同名目录混在一起
 
