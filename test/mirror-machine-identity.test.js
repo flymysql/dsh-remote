@@ -165,8 +165,14 @@ test('the picker sends machineId on /mirror and /home', () => {
     return clientSrc.slice(start, next > 0 ? start + 1 + next : start + 1400)
   }
   const mirror = bodyOf('commitPath')
-  assert.match(mirror, /api\('POST', '\/dsh-remote\/mirror', \{ path: target, machineId \}\)/,
+  assert.match(mirror, /api\('POST', '\/dsh-remote\/mirror', \{ path: target, machineId[^}]*\}\)/,
     'commitPath must name the machine the pick was made on')
+  // The same commit also tells the host whether the core will adopt the mirror
+  // as a workspace (the native Add-workspace flow) or the picker only chose a
+  // folder (settings / Remote Files); the host uses it to decide whether to
+  // pre-register a host-qualified workspace title.
+  assert.match(mirror, /registerWorkspace: registerWorkspace !== false/,
+    'commitPath must forward the picker\'s workspace-registration intent')
   const home = bodyOf('pickHome')
   assert.match(home, /api\('POST', '\/dsh-remote\/home', \{ machineId \}\)/,
     'pickHome must name the machine it is describing')
