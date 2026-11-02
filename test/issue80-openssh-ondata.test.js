@@ -111,8 +111,10 @@ test('#80: the REAL ssh binary streams stdout/stderr through onData', {
   assert.ok(errTap, `stderr must reach the tap, got ${JSON.stringify(taps)}`)
 
   // The host key went to the throwaway file, not the developer's real one.
+  // (Ubuntu's ssh hashes known_hosts entries by default, so don't anchor on
+  // the plaintext `[host]:port` form — the key type is the stable part.)
   const kh = readFileSync(knownHostsFile, 'utf8')
-  assert.match(kh, /\[127\.0\.0\.1\]:\d+ ssh-ed25519/, 'the loopback key must land in the redirected known_hosts')
+  assert.match(kh, /ssh-ed25519/, 'the loopback key must land in the redirected known_hosts')
 })
 
 test('#80: opts.knownHostsFile accepts a function, resolved per use (native parity)', async () => {
