@@ -2,6 +2,25 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.69 — 2026-11-02
+### 远程工作区在创建时就带上机器名，不再和本地同名目录混在一起
+
+DSH 的工作区标题取自注册目录的最后一段，而远程工作区注册的是**本地镜像**
+`$DSH_HOME/remote-workspaces/<host>-<user>-<port>/<basename>` —— 最后一段仍是远端目录名。
+于是本地 `/mnt/xdfs` 和远程 `/mnt/xdfs` 在侧边栏里都叫 `xdfs`，只能事后手动重命名。
+
+核心的 `workspace.create` 只接受 `path`（`WorkspaceCreateRequest`），创建时无法命名；但底层
+`WorkspaceRegistry.create(path, title?)` 支持标题。现在 `POST /dsh-remote/mirror` 在「Add workspace」
+流程里先按 `机器名-目录名` 预注册工作区（如 `code-server-xdfs`），随后核心的
+`workspace.create({ path: localMirror })` 按规范化路径复用这条记录，标题保持不变：
+
+- **只创建、不重命名**：已有工作区（可能已被手动改名）原样保留；
+- 标题已被其他工作区占用时自动加 `-2`、`-3` 后缀；
+- **设置页 / Remote Files 的「选目录」只选目录**，传 `registerWorkspace: false`，不会凭空多出工作区；
+- 注册表不可用或创建失败只影响命名，**绝不影响镜像本身**。
+
+测试：`mirror-workspace-name.test.js`（5 条）+ `remoteWorkspaceTitle` 纯函数用例。
+
 ## 0.8.68 — 2026-10-31
 ### 设置页不再用表单加机器；文档不再写已经删掉的部署
 

@@ -34,6 +34,7 @@ The native **"Add workspace"** flow — a centered modal with two tabs, opening 
 
 - The path field autocompletes live; on Windows hosts the root shows a multi-drive view; the floating browser fills the field without committing.
 - On confirm a **real local mirror** is created and adopted by the harness, kept in sync over SFTP; the choice persists on the machine.
+- A remote workspace is named **`<machine>-<folder>` at creation** (e.g. `code-server-xdfs`), so it never collides with a local folder of the same name; rename it later from the sidebar if you prefer.
 
 ---
 

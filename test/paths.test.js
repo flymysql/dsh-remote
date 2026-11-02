@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   shq, normalizeRemotePath, joinRemotePath, remoteDirname, mkdirRemoteDirs,
-  toSftpPath, toShellPath, toDisplayPath, remotePathBase, truncate, shortHash, relPathUnder,
+  toSftpPath, toShellPath, toDisplayPath, remotePathBase, remoteWorkspaceTitle, truncate, shortHash, relPathUnder,
 } from '../lib/paths.js'
 
 test('shq quotes single quotes', () => {
@@ -77,6 +77,23 @@ test('remotePathBase', () => {
   assert.equal(remotePathBase('/home/user/proj'), 'proj')
   assert.equal(remotePathBase('D:\\Code\\x'), 'x')
   assert.equal(remotePathBase('D:\\'), 'workspace')
+})
+
+test('remoteWorkspaceTitle qualifies a remote folder with its machine', () => {
+  // The whole point: a remote /mnt/xdfs must not be confused with a local one.
+  assert.equal(remoteWorkspaceTitle('/mnt/xdfs', { name: 'code-server', host: '10.16.152.64' }), 'code-server-xdfs')
+  // Windows remotes use their own basename rules.
+  assert.equal(remoteWorkspaceTitle('D:\\Code\\proj', { name: 'build-box' }), 'build-box-proj')
+  // No display name → the host keeps the title unique.
+  assert.equal(remoteWorkspaceTitle('/home/u/app', { name: '', host: '10.0.0.9' }), '10.0.0.9-app')
+  // A machine named after the folder itself would read "xdfs-xdfs"; the host is
+  // the more useful qualifier there.
+  assert.equal(remoteWorkspaceTitle('/mnt/xdfs', { name: 'xdfs', host: '10.0.0.9' }), '10.0.0.9-xdfs')
+  // A title must never be empty: no machine at all still yields the basename.
+  assert.equal(remoteWorkspaceTitle('/mnt/xdfs'), 'xdfs')
+  assert.equal(remoteWorkspaceTitle('/mnt/xdfs', { name: '', host: '' }), 'xdfs')
+  // Filesystem roots get the synthetic basename, never an empty title.
+  assert.equal(remoteWorkspaceTitle('/', { name: 'host' }), 'host-workspace')
 })
 
 test('relPathUnder', () => {
