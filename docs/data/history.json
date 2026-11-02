@@ -364,13 +364,13 @@
   },
   {
     "day": "2026-11-02",
-    "at": "2026-11-02T05:58:26.567Z",
+    "at": "2026-11-02T15:46:32.883Z",
     "dau": null,
     "wau": null,
     "mau": null,
     "installs": null,
-    "npmLastWeek": 20765,
-    "stars": 230,
+    "npmLastWeek": 29082,
+    "stars": 232,
     "forks": 42
   }
 ]

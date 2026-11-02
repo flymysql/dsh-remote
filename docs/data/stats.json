@@ -1,26 +1,14 @@
 {
-  "generatedAt": "2026-11-02T05:58:26.567Z",
+  "generatedAt": "2026-11-02T15:46:32.883Z",
   "heartbeat": null,
   "heartbeatError": "stats endpoint returned no response",
   "npm": {
     "package": "dsh-remote",
-    "checkedAt": "2026-11-02T05:58:26.195Z",
+    "checkedAt": "2026-11-02T15:46:32.556Z",
     "latest": "0.8.67",
-    "lastWeek": 20765,
-    "lastMonth": 38874,
+    "lastWeek": 29082,
+    "lastMonth": 49134,
     "daily": [
-      {
-        "day": "2026-09-30",
-        "downloads": 2148
-      },
-      {
-        "day": "2026-10-01",
-        "downloads": 328
-      },
-      {
-        "day": "2026-10-02",
-        "downloads": 900
-      },
       {
         "day": "2026-10-03",
         "downloads": 844
@@ -128,6 +116,18 @@
       {
         "day": "2026-10-29",
         "downloads": 3607
+      },
+      {
+        "day": "2026-10-30",
+        "downloads": 7713
+      },
+      {
+        "day": "2026-10-31",
+        "downloads": 4281
+      },
+      {
+        "day": "2026-11-01",
+        "downloads": 1642
       }
     ],
     "zeroDays": [
@@ -143,9 +143,9 @@
     "note": "npm daily counts have reporting gaps; zero-value days are flagged and are not real zero usage."
   },
   "repo": {
-    "stars": 230,
+    "stars": 232,
     "forks": 42,
-    "openIssues": 2,
-    "pushedAt": "2026-11-01T21:59:38Z"
+    "openIssues": 3,
+    "pushedAt": "2026-11-02T15:36:09Z"
   }
 }
