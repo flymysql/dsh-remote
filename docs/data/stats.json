@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-11-01T21:59:38.137Z",
+  "generatedAt": "2026-11-02T05:58:26.567Z",
   "heartbeat": null,
   "heartbeatError": "stats endpoint returned no response",
   "npm": {
     "package": "dsh-remote",
-    "checkedAt": "2026-11-01T21:59:37.843Z",
+    "checkedAt": "2026-11-02T05:58:26.195Z",
     "latest": "0.8.67",
     "lastWeek": 20765,
     "lastMonth": 38874,
@@ -143,9 +143,9 @@
     "note": "npm daily counts have reporting gaps; zero-value days are flagged and are not real zero usage."
   },
   "repo": {
-    "stars": 226,
-    "forks": 40,
-    "openIssues": 1,
-    "pushedAt": "2026-11-01T13:19:10Z"
+    "stars": 230,
+    "forks": 42,
+    "openIssues": 2,
+    "pushedAt": "2026-11-01T21:59:38Z"
   }
 }
