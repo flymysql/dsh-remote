@@ -1,0 +1,81 @@
+name: Release
+
+# Tag-triggered publish: push `vX.Y.Z` and the pipeline runs the full gates,
+# publishes to npm WITH provenance, and creates the GitHub Release from the
+# CHANGELOG section (mechanically, so Release and CHANGELOG cannot drift).
+#
+# One-time setup: repo secret NPM_TOKEN = a Granular Access Token with
+# Bypass-2FA and publish permission on dsh-remote (npm 2026 policy).
+#
+# Why tag-triggered and not "version changed on main": the tag IS the release
+# decision. A mismatch guard below refuses to publish when the tag and
+# package.json disagree, so a stray/wrong tag fails loudly instead of shipping.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # create the GitHub Release
+  id-token: write # npm --provenance (sigstore attestation)
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # bundleDependencies ship the ssh2 closure from node_modules AS IS, so the
+      # tree must never run install scripts (PUBLISH.md §3): --ignore-scripts
+      # keeps native build artifacts out of the tarball. The gates below then
+      # run against exactly the tree that gets packed — a feature, not a risk.
+      - run: npm ci --legacy-peer-deps --no-audit --no-fund --ignore-scripts
+
+      - name: Gates (same three as PUBLISH.md)
+        run: |
+          for f in lib/*.js; do node --check "$f"; done
+          node check.mjs
+          npm test
+
+      - name: Tag must match package.json version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VER="v$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$VER" ]; then
+            echo "tag $TAG does not match package.json $VER — move the tag or bump the version"
+            exit 1
+          fi
+
+      - name: Publish to npm (with provenance)
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: GitHub Release from the CHANGELOG section
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          node scripts/extract-release-notes.mjs "$VER" > notes.md
+          gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file notes.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The registry packument flips before the CDN serves the tarball; verify
+      # the ARTIFACT, not the metadata (PUBLISH.md §3), with a bounded retry.
+      - name: Verify the published tarball installs
+        run: |
+          export VER="${GITHUB_REF_NAME#v}"
+          for i in $(seq 1 12); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/dsh-remote/-/dsh-remote-${VER}.tgz")
+            [ "$CODE" = 200 ] && break
+            echo "tarball not on CDN yet (HTTP $CODE), waiting 10s ($i/12)"
+            sleep 10
+          done
+          [ "$CODE" = 200 ] || { echo "tarball still 404 after 2min"; exit 1; }
+          TMP=$(mktemp -d) && cd "$TMP"
+          npm init -y >/dev/null
+          npm install "dsh-remote@${VER}" --prefer-online
+          node -e "const p=require('dsh-remote/package.json'); if(p.version!==process.env.VER){process.exit(1)}; console.log('installed', p.version)"

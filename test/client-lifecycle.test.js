@@ -5,6 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
+import { fakeTimers } from './harness/fake-timers.js'
 
 const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
@@ -52,7 +53,7 @@ function dependencies(initial = []) {
   }
 }
 
-function loadClient(protocol = 'https:', platform = 'Linux x86_64') {
+function loadClient(protocol = 'https:', platform = 'Linux x86_64', fetchImpl = null) {
   let plugin
   const requests = []
   // Effects are recorded (and run on demand by `runEffects`) so a component
@@ -76,10 +77,13 @@ function loadClient(protocol = 'https:', platform = 'Linux x86_64') {
     setItem(k, v) { store.set(k, String(v)) },
     removeItem(k) { store.delete(k) },
   }
+  const timers = fakeTimers()
   vm.runInNewContext(source, {
     window: {
       location: { protocol },
       localStorage,
+      setTimeout: timers.setTimeout,
+      clearTimeout: timers.clearTimeout,
       __ModuleLoader__: {
         load({ id, factory }) {
           assert.equal(id, 'dsh-remote')
@@ -93,8 +97,13 @@ function loadClient(protocol = 'https:', platform = 'Linux x86_64') {
     navigator: { languages: ['en'], platform },
     URL,
     console,
+    setTimeout: timers.setTimeout,
+    clearTimeout: timers.clearTimeout,
+    setInterval: timers.setInterval,
+    clearInterval: timers.clearInterval,
     fetch: async (url, options) => {
       requests.push({ url, options })
+      if (fetchImpl) return fetchImpl(url, options)
       return { ok: true, json: async () => ({}) }
     },
   }, { filename: 'lib/client.js' })
@@ -499,4 +508,71 @@ test('late sessions supply cwd and disposal restores host-side session fallback'
   assert.equal(host.registrations.get(SETTINGS), settings, 'sessions hotplug leaves settings mounted')
   // Let the stubbed fetch/json promises settle before test cleanup.
   await new Promise((resolve) => setImmediate(resolve))
+})
+
+// Issue #78: the auto-open must be (a) ON by default — existing users keep the
+// behaviour they know — and (b) suppressible PERSISTENTLY, so a restart does
+// not pop the panel again at a user who already said no.
+const ISSUE78_REMOTE = { ok: true, json: async () => ({ remotePath: '/home/os/proj' }) }
+function issue78Fetch(url, options) {
+  if (String(url).includes('/resolve-mirror')) return ISSUE78_REMOTE
+  return { ok: true, json: async () => ({}) }
+}
+// Poll-until, never a fixed tick count: a magic number of ticks leaves the
+// chain's tail load-dependent (and shows up as coverage wobble on client.js).
+const until78 = async (cond, what) => {
+  for (let i = 0; i < 200; i++) {
+    if (cond()) return
+    await new Promise((resolve) => setImmediate(resolve))
+  }
+  assert.fail(`timed out waiting for: ${what}`)
+}
+
+test('issue #78: auto-open fires by default, and only once per session per run', async (t) => {
+  const opened = []
+  const { plugin } = loadClient('https:', 'Linux x86_64', issue78Fetch)
+  const host = createHost()
+  t.after(() => host.ctx.dispose())
+  plugin.apply(host.ctx)
+  const sidebar = betterSidebar()
+  sidebar.openTab = (spec) => opened.push(spec)
+  host.services.set('betterSidebar', sidebar)
+
+  sidebar.emit('sess-remote')
+  await until78(() => opened.length === 1, 'the default auto-open')
+  assert.equal(opened[0].type, 'dsh-remote:explorer')
+  assert.equal(opened[0].path, '/home/os/proj')
+  sidebar.emit('sess-remote')
+  // The repeat exits synchronously at the autoOpenedFor check (before any
+  // fetch), so there is nothing to wait for on the second emit.
+  assert.equal(opened.length, 1, 'the in-memory set already suppresses repeats within a run')
+})
+
+test('issue #78: a persistent opt-out survives "restart" (fresh plugin instance)', async (t) => {
+  // First "run": the user turns the feature off (writes the durable key).
+  const first = loadClient('https:', 'Linux x86_64', issue78Fetch)
+  first.localStorage.setItem('dsh-remote:explorerAutoOpen', '0')
+  // NOTE: each loadClient has its own storage — simulate the restart by
+  // seeding the SAME key in the second instance's storage, which is exactly
+  // what a real browser profile does across restarts.
+  const second = loadClient('https:', 'Linux x86_64', issue78Fetch)
+  second.localStorage.setItem('dsh-remote:explorerAutoOpen', '0')
+
+  const opened = []
+  const host = createHost()
+  t.after(() => host.ctx.dispose())
+  second.plugin.apply(host.ctx)
+  const sidebar = betterSidebar()
+  sidebar.openTab = (spec) => opened.push(spec)
+  host.services.set('betterSidebar', sidebar)
+
+  sidebar.emit('sess-remote')
+  // The opt-out guard is the FIRST statement of tryAutoOpen — synchronous,
+  // nothing to wait for: no fetch, no open, ever.
+  assert.equal(opened.length, 0, 'opted-out users must never get the panel popped')
+  // The guard sits BEFORE any resolve-mirror fetch — opting out costs zero
+  // network. (The negative control is the previous test: same machinery with
+  // the default setting DOES open, so this zero is the guard's doing.)
+  const mirrorCalls = second.requests.filter((r) => String(r.url).includes('/resolve-mirror'))
+  assert.equal(mirrorCalls.length, 0, 'the guard runs BEFORE any resolve-mirror fetch')
 })

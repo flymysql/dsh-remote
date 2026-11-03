@@ -16,6 +16,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
+import { fakeTimers } from './harness/fake-timers.js'
 
 const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
 
@@ -99,6 +100,7 @@ function loadClient() {
     useCallback: (fn) => fn,
   }
   const store = new Map()
+  const timers = fakeTimers()
   vm.runInNewContext(source, {
     window: {
       location: { protocol: 'https:' },
@@ -109,6 +111,8 @@ function loadClient() {
         setItem(k, v) { store.set(k, String(v)) },
         removeItem(k) { store.delete(k) },
       },
+      setTimeout: timers.setTimeout,
+      clearTimeout: timers.clearTimeout,
       __ModuleLoader__: { load({ factory }) { plugin = factory(() => React) } },
     },
     navigator: { languages: ['en'], platform: 'Linux x86_64' },
@@ -119,6 +123,10 @@ function loadClient() {
     },
     URL,
     console,
+    setTimeout: timers.setTimeout,
+    clearTimeout: timers.clearTimeout,
+    setInterval: timers.setInterval,
+    clearInterval: timers.clearInterval,
     fetch: async () => ({ ok: true, json: async () => ({}) }),
   }, { filename: 'lib/client.js' })
   assert.ok(plugin, 'the classic module loader receives the plugin')

@@ -179,7 +179,7 @@ test('side-by-side figures are constrained so different aspect ratios stay balan
   assert.ok(constrained >= 2, `each stacked figure needs a max-width cap, found ${constrained}`)
 })
 
-test('no screenshot has text cut off at its edges', (t) => {
+test('no screenshot has text cut off at its edges', async (t) => {
   // 回归（用户在评审里直接指出的问题："截的区域太窄了，有些边界的文字都被切割了"）：
   // 我两次都用"若干**选定**文字节点的并集"当裁剪框，而那些节点不是最宽的 ——
   // 设置面板真实容器是 612x746（内容 1325 高、页面不可滚动，要滚内部容器），
@@ -198,15 +198,34 @@ test('no screenshot has text cut off at its edges', (t) => {
     return
   }
 
+  const files = ['docs/shots/settings-panel.png', 'docs/shots/picker-dialog.png', 'docs/shots/features.png']
+    .map((rel) => ({ rel, p: path.join(root, rel) }))
+    .filter(({ p }) => existsSync(p) && pngSize(p))
+
+  // 防抖设计（这条在全量并行下偶发失败过）：
+  //  · 一个 Python 进程扫全部图（原来是每图一个进程，spawn 开销 ×3 就是全部负载敏感性）；
+  //  · 进程级失败重试一次 —— 图片是静态文件、像素分析是确定性的，进程死了只可能是环境瞬态；
+  //  · 用探测到的那个解释器（原来探测认 python3、执行却写死 'python'，只有 python3 的机器必炸）。
+  const script = path.join(root, 'scripts/check-edge-clipping.py')
+  const runOnce = () => execFileSync(probe.python, [script, ...files.map((f) => f.p)],
+    { encoding: 'utf8', timeout: 60000, maxBuffer: 4 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })
+  let out
+  try {
+    out = runOnce()
+  } catch {
+    await new Promise((r) => setTimeout(r, 1000))
+    out = runOnce() // 第二次进程失败是真环境问题——让它带着 stderr 抛出来
+  }
+
   const offenders = []
-  for (const rel of ['docs/shots/settings-panel.png', 'docs/shots/picker-dialog.png', 'docs/shots/features.png']) {
-    const p = path.join(root, rel)
-    if (!existsSync(p)) continue
-    const { w, h } = pngSize(p) || {}
-    if (!w || !h) continue
-    const out = execFileSync('python', [path.join(root, 'scripts/check-edge-clipping.py'), p], { encoding: 'utf8' })
-    const cut = [...out.matchAll(/边缘"(\w+)" 发现 (\d+)/g)].map((m) => `${m[1]}=${m[2]}`)
-    if (cut.length) offenders.push(`${rel}: ${cut.join(', ')}`)
+  // 输出按 `--- <path> (WxH) ---` 分块；块内"发现 N 个高亮像素"即该图有边缘切断。
+  for (const block of out.split(/^--- /m)) {
+    if (!block.trim()) continue
+    const m = block.match(/边缘"(\w+)" 发现 (\d+) 个高亮像素/g)
+    if (!m) continue
+    const rel = files.find((f) => block.includes(f.p) || block.includes(f.rel))
+    const cuts = m.map((s) => s.replace(/边缘"(\w+)" 发现 (\d+) 个高亮像素.*/, '$1'))
+    if (cuts.length) offenders.push(`${rel ? rel.rel : block.slice(0, 60)}: ${cuts.join(',')}`)
   }
   assert.deepEqual(offenders, [],
     `screenshot text is clipped at the edge:\n  ${offenders.join('\n  ')}`)

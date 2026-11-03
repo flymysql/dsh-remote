@@ -1,0 +1,51 @@
+name: Nightly real-host
+
+# Runs the it-* REAL-MACHINE integration suites against a dedicated test host.
+# These prove what no fake can: the system-OpenSSH backend against a real sshd,
+# and the remote Web UI tunnel against a real `dsh web`.
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   IT_SSH_HOST / IT_SSH_PORT / IT_SSH_USER / IT_SSH_PASSWORD or IT_SSH_KEY
+#     — a disposable host the suite may dial (it cleans up after itself).
+#   IT_WEB_HOST / IT_WEB_PORT / IT_WEB_USER / IT_WEB_PASSWORD or IT_WEB_KEY
+#     — the same host works; it must have `dsh` installed for the web tests.
+#   IT_SSH_GSSAPI=1 + IT_SSH_ALIAS                             — optional Kerberos case.
+#
+# With NO secrets the job skips cleanly (green), so forks don't get a red
+# nightly they can't act on.
+
+on:
+  schedule:
+    - cron: '19 18 * * *' # 02:19 北京
+  workflow_dispatch:
+
+jobs:
+  it-real-host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --legacy-peer-deps --no-audit --no-fund
+      - name: Real-host integration suites
+        env:
+          IT_SSH_HOST: ${{ secrets.IT_SSH_HOST }}
+          IT_SSH_PORT: ${{ secrets.IT_SSH_PORT }}
+          IT_SSH_USER: ${{ secrets.IT_SSH_USER }}
+          IT_SSH_PASSWORD: ${{ secrets.IT_SSH_PASSWORD }}
+          IT_SSH_KEY: ${{ secrets.IT_SSH_KEY }}
+          IT_SSH_ALIAS: ${{ secrets.IT_SSH_ALIAS }}
+          IT_SSH_GSSAPI: ${{ secrets.IT_SSH_GSSAPI }}
+          IT_WEB_HOST: ${{ secrets.IT_WEB_HOST }}
+          IT_WEB_PORT: ${{ secrets.IT_WEB_PORT }}
+          IT_WEB_USER: ${{ secrets.IT_WEB_USER }}
+          IT_WEB_PASSWORD: ${{ secrets.IT_WEB_PASSWORD }}
+          IT_WEB_KEY: ${{ secrets.IT_WEB_KEY }}
+        run: |
+          if [ -z "$IT_SSH_HOST" ] && [ -z "$IT_WEB_HOST" ] && [ -z "$IT_SSH_ALIAS" ]; then
+            echo "no real-host secrets configured — skipping (the it-* suites self-skip without env)"
+            exit 0
+          fi
+          node --import ./test/setup-telemetry-off.mjs --test --test-timeout=120000 test/it-openssh-real.test.js test/it-webattach-real.test.js

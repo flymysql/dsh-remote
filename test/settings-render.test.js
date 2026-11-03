@@ -21,6 +21,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { fakeTimers } from './harness/fake-timers.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..')
@@ -29,14 +30,17 @@ const React = require('react')
 const src = readFileSync(path.join(root, 'lib', 'client.js'), 'utf8')
 
 /** Load the client bundle and run apply(), returning the settings component. */
-function mountClient() {
+function mountClient(opts = {}) {
   let loaded = null
+  const timers = fakeTimers()
   const sandbox = {
     window: {
       addEventListener: () => {},
       location: { protocol: 'http:', href: 'http://127.0.0.1:3080/' },
-      localStorage: { getItem: () => null, setItem: () => {} },
+      localStorage: opts.localStorage || { getItem: () => null, setItem: () => {} },
       confirm: () => true,
+      setTimeout: timers.setTimeout,
+      clearTimeout: timers.clearTimeout,
       __ModuleLoader__: { load: (m) => { loaded = m } },
     },
     document: {
@@ -45,7 +49,7 @@ function mountClient() {
       getElementById: () => null,
     },
     navigator: { clipboard: null, userAgent: 'node', languages: ['zh-CN'] },
-    setTimeout, clearTimeout, console,
+    setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout, console,
     fetch: async () => ({ ok: true, json: async () => ({}) }),
   }
   const requireStub = (id) => {
@@ -56,7 +60,7 @@ function mountClient() {
   const run = new Function(
     'window', 'document', 'navigator', 'setTimeout', 'clearTimeout', 'console', 'fetch', 'require', src,
   )
-  run(sandbox.window, sandbox.document, sandbox.navigator, setTimeout, clearTimeout, console, sandbox.fetch, requireStub)
+  run(sandbox.window, sandbox.document, sandbox.navigator, timers.setTimeout, timers.clearTimeout, console, sandbox.fetch, requireStub)
 
   const mod = loaded.factory(requireStub)
   let Page = null
@@ -148,6 +152,70 @@ test('the settings page renders, and it contains the cards the user expects', ()
   assert.deepEqual(leaked, null, `raw i18n keys leaked into the UI: ${leaked}`)
   assert.ok(sections.some((d) => d && d.name === 'settings.section'), 'registered into settings.section')
   assert.ok(slotsSeen.includes('settings.section'), 'the settings slot was used')
+})
+
+/** Issue #78 helpers: find elements by predicate, and a per-test hook rig. */
+function findAll(tree, pred, out = []) {
+  if (Array.isArray(tree)) { tree.forEach((n) => findAll(n, pred, out)); return out }
+  if (tree == null || typeof tree !== 'object') return out
+  if (tree.props && pred(tree)) out.push(tree)
+  if (typeof tree.type === 'function' && tree.type !== React.Fragment) {
+    try { findAll(tree.type(tree.props), pred, out) } catch { /* needs effects */ }
+  }
+  if (tree.props && tree.props.children) findAll(tree.props.children, pred, out)
+  return out
+}
+
+function installHookRig() {
+  const hookState = []
+  let hookIndex = 0
+  React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher.current = {
+    useState(init) {
+      const i = hookIndex++
+      if (hookState[i] === undefined) hookState[i] = typeof init === 'function' ? init() : init
+      return [hookState[i], (v) => { hookState[i] = typeof v === 'function' ? v(hookState[i]) : v }]
+    },
+    useEffect() {}, useLayoutEffect() {}, useInsertionEffect() {},
+    useMemo(fn) { return fn() }, useCallback(fn) { return fn },
+    useRef(v) { return { current: v } }, useContext() { return {} },
+    useReducer(_r, init) { return [init, () => {}] },
+    useDebugValue() {}, useId() { return 'id' },
+    useTransition() { return [false, (f) => f && f()] }, useDeferredValue(v) { return v },
+    useImperativeHandle() {},
+  }
+  return () => { hookIndex = 0 }
+}
+
+test('issue #78: auto-open checkbox defaults on, persists off, reads back on remount', () => {
+  const store = new Map()
+  const localStorage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+  }
+  const { Page } = mountClient({ localStorage })
+  const reset = installHookRig()
+  const render = () => { reset(); return Page({}) }
+
+  let tree = render()
+  let box = findAll(tree, (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')
+  assert.equal(box.length, 1, 'exactly one auto-open checkbox renders')
+  assert.equal(box[0].props.checked, true, 'default is ON (existing behaviour preserved)')
+  // The label must carry the TRANSLATED text, not a raw key (the global leak
+  // check in the first test guards everything; this pins the text to THIS control).
+  assert.match(collectText(tree), /打开远程工作区时，自动在侧边栏展开「远程文件」/)
+
+  box[0].props.onChange({ target: { checked: false } })
+  assert.equal(store.get('dsh-remote:explorerAutoOpen'), '0', 'uncheck persists immediately')
+  tree = render()
+  box = findAll(tree, (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')
+  assert.equal(box[0].props.checked, false, 're-render reflects the stored choice')
+
+  // A fresh mount (the "restart") starts from the stored value.
+  const remount = mountClient({ localStorage })
+  installHookRig()()
+  const tree2 = remount.Page({})
+  const box2 = findAll(tree2, (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')
+  assert.equal(box2[0].props.checked, false, 'a restart reads the persisted opt-out')
 })
 
 test('no backup i18n key survives the capability removal', () => {

@@ -40,23 +40,26 @@ const fileGate = fileGateIndex >= 0 ? Number(args[fileGateIndex + 1]) : null
 // tells you to delete it the day the file rises above the global gate.
 const FILE_FLOORS = new Map([
   ['lib/openssh.js', 55], // drives the LOCAL ssh binary; its real proof is it-openssh-real against a live host, which CI does not have
-  ['lib/index.js', 59], // 252KB host-side god-file; the floor ratchets up as routes get extracted into their own modules
-  ['lib/client.js', 45], // browser code at render-level vm coverage; measured 47–50% run-to-run (real-timer stubs in the render harness fire nondeterministically) — floor carries margin until the harness is de-flaked; tightening WITHOUT fixing that is how you get a flaky gate
 ])
 
-// Files counted per-file but EXCLUDED from the weighted average: client.js is
-// a 265KB browser bundle at a structurally lower ceiling — letting it into the
-// weighted number would anchor every host-side improvement to one file that can
-// only move with a browser e2e. The weighted metric stays the host-side signal;
-// client.js is watched by its per-file floor above.
-const WEIGHTED_EXCLUDE = new Set(['lib/client.js'])
+// (There used to be a WEIGHTED_EXCLUDE keeping client.js out of the weighted
+// average: at ~50% it would have anchored the host-side signal. The
+// verdict-level merge fixed the undercount — client.js now measures 71.7%
+// deterministically, above the global floor, so the weighted metric is one
+// honest number over ALL of lib/.)
 
 const covDir = mkdtempSync(path.join(tmpdir(), 'dsh-remote-cov-'))
 const started = Date.now()
 const run = spawnSync(
   process.execPath,
-  ['--import', './test/setup-telemetry-off.mjs', '--import', './test/setup-coverage.mjs', '--test', '--test-timeout=40000', '--test-force-exit'],
-  { cwd: repo, env: { ...process.env, NODE_V8_COVERAGE: covDir }, stdio: 'pipe', encoding: 'utf8' },
+  // NO --test-force-exit here (npm test keeps it): force-exit cuts whatever
+  // fire-and-forget promise chains are pending when a file's last test
+  // completes, and the cut point is wall-clock dependent — that was the
+  // client.js statement-coverage wobble (42.7…55.1% on identical code).
+  // Serial + natural exit makes every chain land identically every run; the
+  // 40s per-test timeout is still the watchdog against a genuinely hung file.
+  ['--import', './test/setup-telemetry-off.mjs', '--import', './test/setup-coverage.mjs', '--test', '--test-timeout=40000', '--test-concurrency=1'],
+  { cwd: repo, env: { ...process.env, NODE_V8_COVERAGE: covDir }, stdio: 'pipe', encoding: 'utf8', timeout: 600000 },
 )
 const seconds = ((Date.now() - started) / 1000).toFixed(0)
 if (run.status !== 0) {
@@ -66,7 +69,15 @@ if (run.status !== 0) {
   process.exit(run.status || 1)
 }
 
-/** Union of covered offsets per source file (query string stripped). */
+/** Union of covered offsets per source file (query string stripped).
+ *  Ranges stay grouped PER EVALUATION INSTANCE: mixing all instances' ranges
+ *  into one pool and then applying "innermost wins" lets one instance's small
+ *  uncovered range outrank another instance's bigger covered range at the same
+ *  offset — a merge artifact that made client.js line coverage wobble
+ *  (42.7…55.1% on identical code) while the plainly-unioned function coverage
+ *  stayed pinned at 44.2%. The union over instances happens at the VERDICT
+ *  level below: a line is covered if ANY instance covers it at ITS innermost
+ *  level. */
 const sources = new Map()
 for (const name of readdirSync(covDir)) {
   if (!name.endsWith('.json')) continue
@@ -87,21 +98,21 @@ for (const name of readdirSync(covDir)) {
     } else continue
     if (!/[\\/]lib[\\/]/.test(file)) continue
     if (/[\\/]node_modules[\\/]/.test(file)) continue
-    if (!sources.has(file)) sources.set(file, { ranges: new Map(), functions: new Map() })
+    if (!sources.has(file)) sources.set(file, { instances: [], functions: new Map() })
     const entry = sources.get(file)
+    const instance = new Map() // "start:end" → covered?
     for (const fn of script.functions || []) {
       for (const range of fn.ranges || []) {
-        // Same source range can appear in EVERY cache-busted instance, with a
-        // different count. Union the counts per exact range, otherwise an instance
-        // that never ran a block wins the innermost-range race and hides the
-        // instance that did.
+        // Within ONE instance the same range can repeat (cache-busted re-entry
+        // into the module): union, so a copy that ran beats one that didn't.
         const key = range.startOffset + ':' + range.endOffset
-        entry.ranges.set(key, (entry.ranges.get(key) || 0) || (range.count > 0 ? 1 : 0))
+        instance.set(key, (instance.get(key) || 0) || (range.count > 0 ? 1 : 0))
       }
       const key = `${fn.functionName || '(anonymous)'}@${fn.ranges && fn.ranges[0] ? fn.ranges[0].startOffset : 0}`
       const prev = entry.functions.get(key)
       entry.functions.set(key, !!prev || (fn.ranges || []).some((r) => r.count > 0))
     }
+    entry.instances.push(instance)
   }
 }
 rmSync(covDir, { recursive: true, force: true })
@@ -122,6 +133,15 @@ function coveredAt(ranges, offset) {
   return !!best && best.count > 0
 }
 
+/** Verdict-level union: covered if ANY evaluation instance covers it at its
+ *  own innermost range (see the big comment at the collection site). */
+function coveredByAnyInstance(instances, offset) {
+  for (const inst of instances) {
+    if (coveredAt(inst, offset)) return true
+  }
+  return false
+}
+
 const rows = []
 for (const [file, entry] of sources) {
   let text = ''
@@ -136,7 +156,7 @@ for (const [file, entry] of sources) {
     const firstNonSpace = line.search(/\S/)
     if (firstNonSpace >= 0 && !/^\s*(\/\/|\*|\/\*)/.test(line)) {
       total += 1
-      if (coveredAt(entry.ranges, offset + firstNonSpace)) hit += 1
+      if (coveredByAnyInstance(entry.instances, offset + firstNonSpace)) hit += 1
     }
     offset += line.length + 1
   }
@@ -151,16 +171,15 @@ for (const [file, entry] of sources) {
 rows.sort((a, b) => a.lines - b.lines)
 
 const measurable = rows.filter((r) => r.size > 0)
-const weightedRows = measurable.filter((r) => !WEIGHTED_EXCLUDE.has(r.file.replace(/\\/g, '/')))
-const totalBytes = weightedRows.reduce((n, r) => n + r.size, 0)
-const weighted = weightedRows.reduce((n, r) => n + (r.lines * r.size), 0) / (totalBytes || 1)
+const totalBytes = measurable.reduce((n, r) => n + r.size, 0)
+const weighted = measurable.reduce((n, r) => n + (r.lines * r.size), 0) / (totalBytes || 1)
 
 console.log(`\nUnion coverage over ${measurable.length} lib/*.js files (suite ran in ${seconds}s)\n`)
 console.log('file'.padEnd(28) + 'lines'.padStart(8) + 'funcs'.padStart(8))
 for (const r of rows) {
   console.log(r.file.padEnd(28) + r.lines.toFixed(1).padStart(7) + '%' + r.functions.toFixed(1).padStart(7) + '%')
 }
-console.log(`\nweighted line coverage: ${weighted.toFixed(1)}%${WEIGHTED_EXCLUDE.size ? ` (excluding ${[...WEIGHTED_EXCLUDE].join(', ')} — watched by its own floor)` : ''}`)
+console.log(`\nweighted line coverage: ${weighted.toFixed(1)}%`)
 if (FILE_FLOORS.size) {
   console.log('documented per-file exceptions: ' + [...FILE_FLOORS.entries()].map(([f, v]) => `${f} ≥ ${v}%`).join(', '))
 }

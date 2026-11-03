@@ -20,6 +20,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
+import { fakeTimers } from './harness/fake-timers.js'
 
 const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
 const MARK = 'sidebar.session.row.leading:dsh-remote-remote-mark'
@@ -42,6 +43,7 @@ function loadClient(responses = {}) {
     useMemo: (fn) => fn(),
   }
   const store = new Map()
+  const timers = fakeTimers()
   vm.runInNewContext(source, {
     window: {
       location: { protocol: 'https:', href: 'http://127.0.0.1:3080/' },
@@ -52,6 +54,8 @@ function loadClient(responses = {}) {
         setItem(k, v) { store.set(k, String(v)) },
         removeItem(k) { store.delete(k) },
       },
+      setTimeout: timers.setTimeout,
+      clearTimeout: timers.clearTimeout,
       __ModuleLoader__: { load({ factory }) { plugin = factory((name) => {
         if (name === 'react') return React
         throw new Error('unexpected require: ' + name)
@@ -60,6 +64,8 @@ function loadClient(responses = {}) {
     navigator: { languages: ['en'], platform: 'Win32' },
     URL,
     console,
+    setTimeout: timers.setTimeout,
+    clearTimeout: timers.clearTimeout,
     setInterval: () => 0,
     clearInterval: () => {},
     fetch: async (url) => {
@@ -257,14 +263,18 @@ test('the conversation header chip shows the host only for a remote session', as
 test('a failed registry read degrades to no badge, never to a wrong one', async () => {
   let loaded = null
   const React = { createElement: (t, p, ...c) => ({ type: t, props: p || {}, children: c }), useState: (v) => [typeof v === 'function' ? v() : v, () => {}], useEffect: () => {} }
+  const timers = fakeTimers()
   vm.runInNewContext(source, {
     window: {
       location: { protocol: 'https:' },
       localStorage: { length: 0, key: () => null, getItem: () => null, setItem: () => {} },
+      setTimeout: timers.setTimeout,
+      clearTimeout: timers.clearTimeout,
       __ModuleLoader__: { load({ factory }) { loaded = factory((n) => { if (n === 'react') return React; throw new Error(n) }) } },
     },
     navigator: { languages: ['en'], platform: 'Linux x86_64' },
     URL, console,
+    setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout,
     setInterval: () => 0, clearInterval: () => {},
     fetch: async () => ({ ok: false, status: 500, json: async () => ({ error: 'boom' }) }),
   }, { filename: 'lib/client.js' })

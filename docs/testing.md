@@ -61,20 +61,27 @@ assert.equal(srv.fs.readText('/home/user/b.txt'), 'x')   // 真落盘
 `v8.takeCoverage()`（能活过 `--test-force-exit`）按源文件取并集：
 
 ```
-weighted line coverage: 76.0%   （宿主侧 lib 加权，client.js 单列；865 条测试，13s）
+weighted line coverage: 80.3%   （全部 33 个 lib 文件加权；870+ 条测试，约 50s）
 ```
 
 加这套脚手架之前同一指标是 **41.3%**。最弱处（都是「需要真机/真 OS」的分支）：
-`openssh.js` 56%（需要本机 `ssh`）、`index.js` 60%、`forwards.js` 65%、`binding.js` 66%、
-`hostkey.js` 68%、`pool.js` 72%。门禁是双层的：`--gate 70` 管加权均值，`--file-gate 60`
-管每一个文件的下限（少数例外在脚本 `FILE_FLOORS` 里逐条注明原因，且例外一旦不再必要
-会被 stale 检查点名要求删除）。
+`openssh.js` 56%（需要本机 `ssh`，真机夜跑见 nightly.yml）、`binding.js` 66%、
+`hostkey.js` 68%、`forwards.js` 69%、`client.js` 72%、`pool.js` 72%。门禁是双层的：
+`--gate 70` 管加权均值，`--file-gate 60` 管每一个文件的下限（例外在脚本 `FILE_FLOORS`
+里逐条注明原因——当前只剩 openssh.js 一条；例外一旦不再必要会被 stale 检查点名要求删除）。
 
-`lib/client.js` 是浏览器代码，测试从字符串求值——但所有求值点都带
-`sourceURL`/`filename: 'lib/client.js'`，V8 覆盖率因此**能归源**（实测 47–50%，渲染级；
-渲染脚手架用真实定时器桩，运行间有 ±3% 波动，所以它的下限带余量定在 45% 而不是贴着
-实测值）。它不进加权均值：一个 265KB 的浏览器包会把宿主侧信号锚死，交互路径的提升
-留给真浏览器 e2e。
+`lib/client.js` 是浏览器代码，测试从字符串求值——所有求值点都带
+`sourceURL`/`filename: 'lib/client.js'`，V8 覆盖率因此**能归源**，实测 **71.7% 且逐位稳定**。
+这个数字的稳定来之不易，值得记录两层根因：
+
+1. **定时器**：真实 `setTimeout` 让 2s/5s/220ms 回调只在"worker 活得够久"时触发，
+   负载决定覆盖。现在全部 sandbox 用 `test/harness/fake-timers.js`（0ms →
+   queueMicrotask，长延时排队等 `flush(ms)`），行为逐位确定。
+2. **合并算法（更隐蔽）**：union 最初把所有求值实例的 range 混在一个池子里做
+   「最内层 range 决胜」——实例 A 的已覆盖大 range 会被实例 B 的未覆盖小 range 顶掉，
+   行覆盖在 42.7–55.1% 间漂移（而按单调并集算的函数覆盖恒为 44.2%，正是这个反差
+   暴露了合并侧假象）。改成**每个实例各自决胜、再在裁决层并集**后，行覆盖成为
+   真正的"有任一实例执行过该行"，数值稳定。
 
 ## 4. 不变量：把「这类 bug」变成测试
 
@@ -137,12 +144,13 @@ weighted line coverage: 76.0%   （宿主侧 lib 加权，client.js 单列；865
 ## 7. 还没覆盖的（诚实清单）
 
 - **GSSAPI/Kerberos**：手边没有只接受 Kerberos 的机器。`it-openssh-real.test.js` 里那条用例留着
-  （`IT_SSH_GSSAPI=1` + 一个别名），在能 `kinit` 的环境里直接可跑；本机无法验证。
-- **macOS 钥匙库**（`security`）：没有 macOS 机器。Windows DPAPI 与 Linux `secret-tool` 都已真机验证。
+  （`IT_SSH_GSSAPI=1` + 一个别名），在能 `kinit` 的环境里直接可跑；nightly.yml 已留好 secrets 门控的入口。
+- **macOS 钥匙库**（`security`）：✅ 已由 CI 的 `test-macos` leg 覆盖（每次 push 实跑真钥匙串读写）。
 - **从零 npm 安装远端 dsh**：0.8.66 起插件不再代装。真远端只验证了
   「已装好的 dsh 能起 web」（106.52.92.20 上是 0.1.5-rc.2），没有再从零 `npm install` 一遍。
-- **目录选择器的渲染级点击链**：路由级（`/dsh-remote/mirror` → 镜像 → `rw_sync`）已覆盖，
-  但 `client.js` 那一段只断言到首屏与提交按钮的禁用态。
+- **目录选择器的渲染级点击链**：✅ 已补（`issue52-picker-dialog.test.js` 的 "click chain" 用例：
+  输入 → 220ms 防抖（假定时器确定性触发）→ 建议列表 → 选中 → 提交 →
+  `/current` 先于 `/mirror` 的身份契约 + `onPicked(localMirror, remotePath)`）。
 
 已补齐：终端 PTY 全链路、`forwards` 失败/回收分支、`binding` 跨机围栏矩阵、
 秘密不回传扫描、目录建镜像链路 —— 见 `terminal-e2e.test.js` /
@@ -151,7 +159,9 @@ weighted line coverage: 76.0%   （宿主侧 lib 加权，client.js 单列；865
 远端 dsh 的「体检 / 一键部署」已在 0.8.66 删除（`rw_deploy_probe`、`web-deploy.js`、
 `ui-deploy-flow.test.js` 都不在了）。
 
-已知偶发：docs-images.test.js 的「截图边缘截断」检查在**全量并行**时偶尔失败（单独跑 3/3 通过、全量连跑 3/3 通过），属图像分析在负载下的抖动；遇到时先单独重跑再判断。
+~~已知偶发：docs-images 边缘截断检查在全量并行下抖动~~ ✅ 已修：一个 Python 进程扫全部图
+（原来每图一个进程，spawn 开销 ×3 即全部负载敏感性）+ 进程级失败重试一次 + 执行用探测到的
+解释器（原来探测认 python3、执行却写死 'python'，只有 python3 的机器必炸）。
 
 下一步优先级：GSSAPI 用例在有 Kerberos 的环境跑一遍 → 目录选择器的渲染级点击链。
 

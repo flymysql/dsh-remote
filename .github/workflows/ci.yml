@@ -56,3 +56,23 @@ jobs:
         run: node check.mjs
       - name: Unit tests
         run: npm test
+
+  test-macos:
+    # macOS is a first-class user platform, and its keychain backend
+    # (`security` CLI) was the one credential path never exercised anywhere
+    # (testing.md §7) — this leg runs it on every push.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --legacy-peer-deps --no-audit --no-fund
+      - name: Syntax check
+        run: |
+          for f in lib/*.js; do node --check "$f"; done
+      - name: Static framework gate
+        run: node check.mjs
+      - name: Unit tests
+        run: npm test

@@ -20,6 +20,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { fakeTimers } from './harness/fake-timers.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..')
@@ -70,12 +71,15 @@ function mountClient() {
     return reply({})
   }
   let loaded = null
+  const timers = fakeTimers()
   const sandbox = {
     window: {
       addEventListener: () => {},
       location: { protocol: 'http:', href: 'http://127.0.0.1:3080/' },
       localStorage: { getItem: () => null, setItem: () => {} },
       confirm: () => true,
+      setTimeout: timers.setTimeout,
+      clearTimeout: timers.clearTimeout,
       __ModuleLoader__: { load: (m) => { loaded = m } },
     },
     document: {
@@ -84,7 +88,7 @@ function mountClient() {
       getElementById: () => null,
     },
     navigator: { clipboard: null, userAgent: 'node', languages: ['zh-CN'] },
-    setTimeout, clearTimeout, console,
+    setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout, console,
     fetch: fetchStub,
   }
   const requireStub = (id) => {
@@ -93,9 +97,9 @@ function mountClient() {
     throw new Error('unexpected require: ' + id)
   }
   const run = new Function(
-    'window', 'document', 'navigator', 'setTimeout', 'clearTimeout', 'console', 'fetch', 'require', src,
+    'window', 'document', 'navigator', 'setTimeout', 'clearTimeout', 'console', 'fetch', 'require', `${src}\n//# sourceURL=lib/client.js`,
   )
-  run(sandbox.window, sandbox.document, sandbox.navigator, setTimeout, clearTimeout, console, fetchStub, requireStub)
+  run(sandbox.window, sandbox.document, sandbox.navigator, timers.setTimeout, timers.clearTimeout, console, fetchStub, requireStub)
 
   const mod = loaded.factory(requireStub)
   let Page = null

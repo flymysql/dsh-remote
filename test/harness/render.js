@@ -26,6 +26,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { fakeTimers } from './fake-timers.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const CLIENT_SRC = readFileSync(path.join(here, '..', '..', 'lib', 'client.js'), 'utf8')
@@ -57,6 +58,11 @@ export function mountClient(opts = {}) {
   const clearIntervalStub = (handle) => {
     if (typeof handle === 'number' && handle > 0) intervals[handle - 1] = null
   }
+  // setTimeout is FAKE and deterministic (queueMicrotask for 0ms, queue for
+  // longer): real timers fired only when the worker lived long enough, which
+  // made lib/client.js coverage wobble with machine load. Intervals keep the
+  // older capture-and-fireIntervals pattern above (also deterministic).
+  const timers = fakeTimers()
   const sandbox = {
     window: {
       addEventListener: () => {},
@@ -64,6 +70,10 @@ export function mountClient(opts = {}) {
       location: { protocol: 'http:', href: 'http://127.0.0.1:3080/' },
       localStorage: { getItem: () => null, setItem: () => {} },
       confirm: () => true,
+      // The bundle calls window.setTimeout too (update check); it used to be
+      // MISSING here — a latent crash for any effect that reached it.
+      setTimeout: timers.setTimeout,
+      clearTimeout: timers.clearTimeout,
       __ModuleLoader__: { load: (m) => { loaded = m } },
     },
     document: {
@@ -75,7 +85,7 @@ export function mountClient(opts = {}) {
       addEventListener: () => {},
     },
     navigator: { clipboard: null, userAgent: 'node', languages: opts.languages || ['zh-CN'] },
-    setTimeout, clearTimeout, setInterval: setIntervalStub, clearInterval: clearIntervalStub, console,
+    setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout, setInterval: setIntervalStub, clearInterval: clearIntervalStub, console,
     fetch: fetchStub,
   }
   const requireStub = (id) => {
@@ -272,6 +282,8 @@ export function mountClient(opts = {}) {
     },
     /** Intervals currently registered (for asserting a poll exists / was cleared). */
     intervals() { return intervals.filter(Boolean).map((t) => t.ms) },
+    /** Deterministic sandbox timers: flush(ms) runs due long-delay callbacks. */
+    timers,
     dispose() { for (const c of cleanups.splice(0)) { try { c() } catch { /* gone */ } } },
   }
 }

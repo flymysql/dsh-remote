@@ -25,6 +25,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { fakeTimers } from './harness/fake-timers.js'
 import vm from 'node:vm'
 
 const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
@@ -76,15 +77,22 @@ function loadClient({ routes = {}, sessions = [] } = {}) {
     useState: (value) => [typeof value === 'function' ? value() : value, () => {}],
     useEffect: (fn) => { effects.push(fn) },
   }
+  const timers = fakeTimers()
   vm.runInNewContext(source, {
     window: {
       location: { protocol: 'https:' },
       localStorage: { getItem: () => null, setItem() {}, removeItem() {}, get length() { return 0 }, key: () => null },
+      setTimeout: timers.setTimeout,
+      clearTimeout: timers.clearTimeout,
       __ModuleLoader__: { load({ id, factory }) { plugin = factory(() => React) } },
     },
     navigator: { languages: ['en'], platform: 'Linux x86_64' },
     URL,
     console,
+    setTimeout: timers.setTimeout,
+    clearTimeout: timers.clearTimeout,
+    setInterval: timers.setInterval,
+    clearInterval: timers.clearInterval,
     fetch: async (url) => {
       requests.push(url)
       for (const [needle, body] of Object.entries(routes)) {

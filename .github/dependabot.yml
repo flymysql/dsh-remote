@@ -1,0 +1,20 @@
+# Dependabot: turn "someone remembered to run npm audit" into a PR.
+# (The 2026-11 zod oversized-collection DoS was found by hand — that class of
+# miss is what this file exists to prevent.)
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    # ssh2 is bundled into the release tarball; its updates must ride the full
+    # gates, which the CI leg runs on every PR anyway.
+    groups:
+      production:
+        dependency-type: production
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3

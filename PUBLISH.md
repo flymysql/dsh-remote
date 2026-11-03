@@ -5,6 +5,17 @@ SSH, remote workspace picker, 22 `rw_*` tools, conflict-aware SFTP sync, port
 forwarding, optional sidebar editor). This is **not** the early “print SSH
 tunnel commands” plugin.
 
+## 0. Automated release (preferred)
+
+Push a tag whose name matches `package.json` (`vX.Y.Z`) and
+`.github/workflows/release.yml` does the rest: full gates on a script-free
+tree, `npm publish --provenance`, GitHub Release from the CHANGELOG section,
+and a real install check of the published tarball.
+
+One-time setup: repo secret `NPM_TOKEN` (Granular Access Token, Bypass-2FA,
+publish on dsh-remote). The manual path below stays as the fallback and as the
+documentation of what the pipeline does.
+
 ## 1. Version and changelog
 
 Bump `package.json` `version`, add a section to `CHANGELOG.md`, keep

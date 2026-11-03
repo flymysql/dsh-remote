@@ -10,6 +10,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { fakeTimers } from './harness/fake-timers.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const src = readFileSync(path.join(here, '..', 'lib', 'client.js'), 'utf8')
@@ -54,10 +55,13 @@ function makeClientCtx() {
 
 test('lib/client.js registers through the module loader and its apply() runs', () => {
   let loaded = null
+  const timers = fakeTimers()
   const sandbox = {
     window: {
       addEventListener: () => {},
       localStorage: { getItem: () => null, setItem: () => {} },
+      setTimeout: timers.setTimeout,
+      clearTimeout: timers.clearTimeout,
       __ModuleLoader__: { load: (mod) => { loaded = mod } },
     },
     document: {
@@ -65,7 +69,7 @@ test('lib/client.js registers through the module loader and its apply() runs', (
       createElement: () => ({ style: {}, setAttribute: () => {}, appendChild: () => {} }),
       getElementById: () => null,
     },
-    setTimeout, clearTimeout, console,
+    setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout, console,
   }
   const requireStub = (id) => {
     if (id === 'react') return React
@@ -75,7 +79,7 @@ test('lib/client.js registers through the module loader and its apply() runs', (
   // Execute the classic script with the sandboxed globals in scope.
   // (sourceURL: attribute V8 coverage of the eval'd body to lib/client.js)
   const run = new Function('window', 'document', 'setTimeout', 'clearTimeout', 'console', 'require', `${src}\n//# sourceURL=lib/client.js`)
-  run(sandbox.window, sandbox.document, setTimeout, clearTimeout, console, requireStub)
+  run(sandbox.window, sandbox.document, timers.setTimeout, timers.clearTimeout, console, requireStub)
   assert.ok(loaded, 'the script must register a module')
   assert.equal(loaded.id, 'dsh-remote')
   assert.equal(typeof loaded.factory, 'function')
