@@ -2,6 +2,23 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.71 — 2026-11-03
+### 心跳/用量统计切到新的 CloudBase 环境（旧环境欠费停服）
+
+用量看板（GitHub Pages）的 DAU/WAU/MAU/装机量自 2026-10-31 起空白：承载心跳的
+CloudBase 环境 `gitbolg-*`（个人版）到期停服，`/dsh-hb/*` 全部入口返回 HTTP 402。
+数据与函数其实已于 10-28 整库迁往新环境 `slippery-iguana-*`（实测函数与密钥校验
+在线），但仓库里三处硬编码端点从未跟着切换：
+
+- `lib/telemetry.js`：`DEFAULT_HEARTBEAT_URL` → 新环境域名。**0.8.25–0.8.70 的
+  心跳永远打向已停服的旧环境**，只有升级到本版才恢复上报；10-31 起至本版发布期间的
+  心跳数据永久缺失（新旧两边都没收到）。
+- `scripts/snapshot-stats.mjs` / `scripts/stats.mjs`：统计端点同步切换，CI 快照在
+  推送后第一个周期恢复，看板随即复活。
+- `test/telemetry.test.js`：端点断言同步更新。
+
+端点仍可用 `DSH_REMOTE_HEARTBEAT_URL` 覆盖，仅接受 https 的约束不变。
+
 ## 0.8.70 — 2026-11-02
 ### 修 openssh 后端 `rw_exec` 输出全部丢失（issue #80）
 

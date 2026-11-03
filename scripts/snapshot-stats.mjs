@@ -18,7 +18,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const STATS_URL = process.env.DSH_HB_STATS_URL
-  || 'https://gitbolg-d7gmnsrw46e011706-1256429518.ap-shanghai.app.tcloudbase.com/dsh-hb/stats'
+  || 'https://slippery-iguana-d1fhb1xmd469ee8c-1256429518.ap-shanghai.app.tcloudbase.com/dsh-hb/stats'
 const NPM_PACKAGE = 'dsh-remote'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const dataDir = path.join(here, '..', 'docs', 'data')

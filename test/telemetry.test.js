@@ -209,7 +209,7 @@ test('the endpoint is overridable and defaults to production', () => {
     process.env.DSH_REMOTE_HEARTBEAT_URL = 'http://example.invalid/hb'
     assert.match(heartbeatUrl(), /^https:\/\//)
     delete process.env.DSH_REMOTE_HEARTBEAT_URL
-    assert.match(heartbeatUrl(), /^https:\/\/gitbolg-d7gmnsrw46e011706/)
+    assert.match(heartbeatUrl(), /^https:\/\/slippery-iguana-d1fhb1xmd469ee8c/)
   } finally {
     if (saved === undefined) delete process.env.DSH_REMOTE_HEARTBEAT_URL
     else process.env.DSH_REMOTE_HEARTBEAT_URL = saved

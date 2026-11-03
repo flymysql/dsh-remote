@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const STATS_URL = 'https://gitbolg-d7gmnsrw46e011706-1256429518.ap-shanghai.app.tcloudbase.com/dsh-hb/stats'
+const STATS_URL = 'https://slippery-iguana-d1fhb1xmd469ee8c-1256429518.ap-shanghai.app.tcloudbase.com/dsh-hb/stats'
 const here = path.dirname(fileURLToPath(import.meta.url))
 
 function arg(name, fallback) {
