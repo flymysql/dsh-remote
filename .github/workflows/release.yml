@@ -51,17 +51,33 @@ jobs:
           fi
 
       # Idempotent by design: a tag pushed after a MANUAL publish (or a re-run
-      # of this workflow) must not go red on "version already exists".
+      # of this workflow) must not go red on "version already exists". Uses the
+      # public registry over curl: setup-node's generated .npmrc references
+      # NODE_AUTH_TOKEN, and with the secret missing that auth header breaks
+      # even PUBLIC npm reads — public metadata needs no auth anyway.
       - name: Detect an already-published version
         id: pub
         run: |
           VER="${GITHUB_REF_NAME#v}"
-          if npm view "dsh-remote@${VER}" version >/dev/null 2>&1; then
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/dsh-remote/${VER}")
+          if [ "$CODE" = 200 ]; then
             echo "already=true" >> "$GITHUB_OUTPUT"
             echo "dsh-remote@${VER} is already on npm — the publish step will skip"
           else
             echo "already=false" >> "$GITHUB_OUTPUT"
           fi
+
+      # Preflight only when there IS something to publish: without the secret,
+      # npm publish can only fail — say so clearly instead of a bare 403.
+      - name: Preflight: NPM_TOKEN secret is present
+        if: steps.pub.outputs.already != 'true'
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN}" ]; then
+            echo "::error::repo secret NPM_TOKEN is not set — see PUBLISH.md §0 (Granular Access Token, Bypass-2FA, publish on dsh-remote)"
+            exit 1
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to npm (with provenance)
         if: steps.pub.outputs.already != 'true'
@@ -83,7 +99,11 @@ jobs:
 
       # The registry packument flips before the CDN serves the tarball; verify
       # the ARTIFACT, not the metadata (PUBLISH.md §3), with a bounded retry.
+      # A public package installs without auth — bypass the generated .npmrc so
+      # a missing/empty token can never break the check.
       - name: Verify the published tarball installs
+        env:
+          NPM_CONFIG_USERCONFIG: /dev/null
         run: |
           export VER="${GITHUB_REF_NAME#v}"
           for i in $(seq 1 12); do
