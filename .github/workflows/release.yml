@@ -69,7 +69,7 @@ jobs:
 
       # Preflight only when there IS something to publish: without the secret,
       # npm publish can only fail — say so clearly instead of a bare 403.
-      - name: Preflight: NPM_TOKEN secret is present
+      - name: "Preflight: NPM_TOKEN secret is present"
         if: steps.pub.outputs.already != 'true'
         run: |
           if [ -z "${NODE_AUTH_TOKEN}" ]; then
