@@ -50,7 +50,21 @@ jobs:
             exit 1
           fi
 
+      # Idempotent by design: a tag pushed after a MANUAL publish (or a re-run
+      # of this workflow) must not go red on "version already exists".
+      - name: Detect an already-published version
+        id: pub
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          if npm view "dsh-remote@${VER}" version >/dev/null 2>&1; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "dsh-remote@${VER} is already on npm — the publish step will skip"
+          else
+            echo "already=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to npm (with provenance)
+        if: steps.pub.outputs.already != 'true'
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -59,7 +73,11 @@ jobs:
         run: |
           VER="${GITHUB_REF_NAME#v}"
           node scripts/extract-release-notes.mjs "$VER" > notes.md
-          gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file notes.md
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "release ${GITHUB_REF_NAME} already exists — leaving it untouched"
+          else
+            gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file notes.md
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
