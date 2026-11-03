@@ -13,11 +13,14 @@
 // FILE (query string stripped), which is the number a human means by "coverage".
 //
 //   node scripts/coverage-union.mjs                 # report
-//   node scripts/coverage-union.mjs --gate 70       # exit 1 below 70% line coverage
+//   node scripts/coverage-union.mjs --gate 70       # exit 1 below 70% weighted line coverage
+//   node scripts/coverage-union.mjs --file-gate 60  # exit 1 if ANY file is below its per-file floor
 //
-// Limits, stated honestly: `lib/client.js` is evaluated from a string via
-// `new Function`, so V8 attributes it to the test file that ran it — it is reported
-// separately as "not measurable here" rather than silently as 0%.
+// `lib/client.js` is browser code that tests evaluate from a string; every
+// evaluation site tags the source with `sourceURL`/`filename: 'lib/client.js'`,
+// and V8 honours that as the coverage script url (offsets stay relative to the
+// passed source — verified by probe), so it unions like any other file via the
+// bare-name branch below.
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -29,6 +32,24 @@ const repo = path.dirname(here)
 const args = process.argv.slice(2)
 const gateIndex = args.indexOf('--gate')
 const gate = gateIndex >= 0 ? Number(args[gateIndex + 1]) : null
+const fileGateIndex = args.indexOf('--file-gate')
+const fileGate = fileGateIndex >= 0 ? Number(args[fileGateIndex + 1]) : null
+
+// Per-file floors BELOW the global --file-gate, each with the reason it exists.
+// An exception is a deliberate, visible act — and the stale check at the bottom
+// tells you to delete it the day the file rises above the global gate.
+const FILE_FLOORS = new Map([
+  ['lib/openssh.js', 55], // drives the LOCAL ssh binary; its real proof is it-openssh-real against a live host, which CI does not have
+  ['lib/index.js', 59], // 252KB host-side god-file; the floor ratchets up as routes get extracted into their own modules
+  ['lib/client.js', 45], // browser code at render-level vm coverage; measured 47–50% run-to-run (real-timer stubs in the render harness fire nondeterministically) — floor carries margin until the harness is de-flaked; tightening WITHOUT fixing that is how you get a flaky gate
+])
+
+// Files counted per-file but EXCLUDED from the weighted average: client.js is
+// a 265KB browser bundle at a structurally lower ceiling — letting it into the
+// weighted number would anchor every host-side improvement to one file that can
+// only move with a browser e2e. The weighted metric stays the host-side signal;
+// client.js is watched by its per-file floor above.
+const WEIGHTED_EXCLUDE = new Set(['lib/client.js'])
 
 const covDir = mkdtempSync(path.join(tmpdir(), 'dsh-remote-cov-'))
 const started = Date.now()
@@ -53,12 +74,17 @@ for (const name of readdirSync(covDir)) {
   try { data = JSON.parse(readFileSync(path.join(covDir, name), 'utf8')) } catch { continue }
   for (const script of data.result || []) {
     const url = String(script.url || '')
-    if (!url.startsWith('file://')) continue
-    // fileURLToPath, not string surgery: on Windows the URL pathname is
-    // `/C:/…`, which is not a readable path — the first version of this script
-    // silently skipped every file because of exactly that.
     let file = ''
-    try { file = fileURLToPath(url.replace(/\?.*$/, '')) } catch { continue }
+    if (url.startsWith('file://')) {
+      // fileURLToPath, not string surgery: on Windows the URL pathname is
+      // `/C:/…`, which is not a readable path — the first version of this script
+      // silently skipped every file because of exactly that.
+      try { file = fileURLToPath(url.replace(/\?.*$/, '')) } catch { continue }
+    } else if (/^lib[\\/][^?]+\.(js|cjs|mjs)$/.test(url)) {
+      // vm { filename } / `new Function` + sourceURL surface as a bare
+      // repo-relative name (this is how lib/client.js becomes measurable).
+      file = path.join(repo, url)
+    } else continue
     if (!/[\\/]lib[\\/]/.test(file)) continue
     if (/[\\/]node_modules[\\/]/.test(file)) continue
     if (!sources.has(file)) sources.set(file, { ranges: new Map(), functions: new Map() })
@@ -125,16 +151,19 @@ for (const [file, entry] of sources) {
 rows.sort((a, b) => a.lines - b.lines)
 
 const measurable = rows.filter((r) => r.size > 0)
-const totalBytes = measurable.reduce((n, r) => n + r.size, 0)
-const weighted = measurable.reduce((n, r) => n + (r.lines * r.size), 0) / (totalBytes || 1)
+const weightedRows = measurable.filter((r) => !WEIGHTED_EXCLUDE.has(r.file.replace(/\\/g, '/')))
+const totalBytes = weightedRows.reduce((n, r) => n + r.size, 0)
+const weighted = weightedRows.reduce((n, r) => n + (r.lines * r.size), 0) / (totalBytes || 1)
 
 console.log(`\nUnion coverage over ${measurable.length} lib/*.js files (suite ran in ${seconds}s)\n`)
 console.log('file'.padEnd(28) + 'lines'.padStart(8) + 'funcs'.padStart(8))
 for (const r of rows) {
   console.log(r.file.padEnd(28) + r.lines.toFixed(1).padStart(7) + '%' + r.functions.toFixed(1).padStart(7) + '%')
 }
-console.log(`\nweighted line coverage: ${weighted.toFixed(1)}%`)
-console.log('lib/client.js: not measurable with V8 coverage (evaluated from a string) — covered by test/ui-panels.test.js + test/settings-credentials-ui.test.js at the render level.')
+console.log(`\nweighted line coverage: ${weighted.toFixed(1)}%${WEIGHTED_EXCLUDE.size ? ` (excluding ${[...WEIGHTED_EXCLUDE].join(', ')} — watched by its own floor)` : ''}`)
+if (FILE_FLOORS.size) {
+  console.log('documented per-file exceptions: ' + [...FILE_FLOORS.entries()].map(([f, v]) => `${f} ≥ ${v}%`).join(', '))
+}
 
 if (gate !== null) {
   if (weighted < gate) {
@@ -142,4 +171,25 @@ if (gate !== null) {
     process.exit(1)
   }
   console.log(`\n✔ coverage gate: ${weighted.toFixed(1)}% >= ${gate}%`)
+}
+
+if (fileGate !== null) {
+  const breaches = []
+  for (const r of measurable) {
+    const floor = FILE_FLOORS.get(r.file.replace(/\\/g, '/')) ?? fileGate
+    if (r.lines < floor - 1e-9) breaches.push(`${r.file}: ${r.lines.toFixed(1)}% < floor ${floor}%`)
+  }
+  // A gate that never tells you to remove exceptions rots: once a file climbs
+  // above the global gate its allowance is dead weight and must go.
+  for (const [f] of FILE_FLOORS) {
+    const row = measurable.find((r) => r.file.replace(/\\/g, '/') === f)
+    if (row && row.lines >= fileGate) {
+      console.log(`note: ${f} measures ${row.lines.toFixed(1)}% ≥ ${fileGate}% — its FILE_FLOORS exception is stale, delete it`)
+    }
+  }
+  if (breaches.length) {
+    console.error(`\n✖ per-file coverage floor breached:\n  ${breaches.join('\n  ')}`)
+    process.exit(1)
+  }
+  console.log(`\n✔ per-file coverage floor: every file ≥ its floor (global ${fileGate}%, ${FILE_FLOORS.size} documented exception(s))`)
 }

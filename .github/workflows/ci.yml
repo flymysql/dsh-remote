@@ -35,3 +35,24 @@ jobs:
         run: npm run test:coverage:gate
       - name: Boot smoke (plugin loads in an isolated profile)
         run: bash scripts/boot-smoke.sh || echo "boot-smoke skipped (needs a desktop harness install)"
+
+  test-windows:
+    # The maintainer develops on Windows — without this leg a POSIX-only
+    # assertion stayed red locally by default, which erodes what "red" means.
+    # Coverage stays on the ubuntu leg only (one authoritative number).
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --legacy-peer-deps --no-audit --no-fund
+      - name: Syntax check
+        shell: bash
+        run: |
+          for f in lib/*.js; do node --check "$f"; done
+      - name: Static framework gate
+        run: node check.mjs
+      - name: Unit tests
+        run: npm test

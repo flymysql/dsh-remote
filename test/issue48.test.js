@@ -347,7 +347,10 @@ test('B4: /test-connect with the passphrase gets PAST parsing to the network err
       assert.equal(r.status, 200)
       assert.equal(r.json.ok, false)
       assert.doesNotMatch(r.json.error, /passphrase|Cannot parse/i)
-      assert.match(r.json.error, /拒绝|ECONNREFUSED|超时/i)
+      // Assert the CLASSIFIED hint, not the raw errno: POSIX loopback refuses
+      // with ECONNREFUSED, Windows under load can report ECONNRESET — both must
+      // land on a classified network hint (拒绝/重置/超时), never a bare errno.
+      assert.match(r.json.error, /拒绝|重置|超时/i)
     })
   } finally {
     rmSync(dir, { recursive: true, force: true })

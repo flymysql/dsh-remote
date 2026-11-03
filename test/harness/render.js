@@ -91,8 +91,11 @@ export function mountClient(opts = {}) {
     }
     throw new Error('unexpected require: ' + id)
   }
+  // The sourceURL suffix lets V8 coverage attribute the eval'd body to
+  // lib/client.js itself (verified: offsets stay relative to the passed
+  // source) instead of vanishing into an anonymous script.
   const run = new Function(
-    'window', 'document', 'navigator', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'console', 'fetch', 'require', CLIENT_SRC,
+    'window', 'document', 'navigator', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'console', 'fetch', 'require', `${CLIENT_SRC}\n//# sourceURL=lib/client.js`,
   )
   run(sandbox.window, sandbox.document, sandbox.navigator, setTimeout, clearTimeout, setIntervalStub, clearIntervalStub, console, fetchStub, requireStub)
 

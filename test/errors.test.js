@@ -18,6 +18,11 @@ test('network categories', () => {
   assert.equal(classifyError(new Error('getaddrinfo ENOTFOUND host')).category, 'network')
   assert.equal(classifyError(new Error('connect ECONNREFUSED 127.0.0.1:22')).category, 'network')
   assert.equal(classifyError(new Error('connect ETIMEDOUT')).category, 'timeout')
+  // Windows returns ECONNRESET where POSIX returns ECONNREFUSED — both are the
+  // same user action, so both must classify as network with a real hint.
+  const reset = classifyError(new Error('read ECONNRESET'))
+  assert.equal(reset.category, 'network')
+  assert.match(reset.hint, /重置/)
 })
 
 test('credentials + sftp categories', () => {

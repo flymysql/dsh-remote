@@ -153,7 +153,12 @@ test('POST /ssh-config opens the real config file and ignores a path in the body
     assert.match(String(r.json.error), /DSH_REMOTE_NO_NATIVE_DIALOG/)
     assert.equal(existsSync(file), true, 'a missing config is created so the editor has a file')
     assert.equal(readFileSync(file, 'utf8'), '')
-    assert.equal(statSync(file).mode & 0o777, 0o600, 'a new config must not be world-readable')
+    // POSIX mode bits don't exist on Windows — fs reports 0o666 no matter what
+    // chmod asked for. The chmod still runs on every platform; only its
+    // assertion is meaningful on POSIX.
+    if (process.platform !== 'win32') {
+      assert.equal(statSync(file).mode & 0o777, 0o600, 'a new config must not be world-readable')
+    }
   })
 })
 

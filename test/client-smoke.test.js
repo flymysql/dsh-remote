@@ -73,7 +73,8 @@ test('lib/client.js registers through the module loader and its apply() runs', (
     throw new Error('unexpected require: ' + id)
   }
   // Execute the classic script with the sandboxed globals in scope.
-  const run = new Function('window', 'document', 'setTimeout', 'clearTimeout', 'console', 'require', src)
+  // (sourceURL: attribute V8 coverage of the eval'd body to lib/client.js)
+  const run = new Function('window', 'document', 'setTimeout', 'clearTimeout', 'console', 'require', `${src}\n//# sourceURL=lib/client.js`)
   run(sandbox.window, sandbox.document, setTimeout, clearTimeout, console, requireStub)
   assert.ok(loaded, 'the script must register a module')
   assert.equal(loaded.id, 'dsh-remote')

@@ -94,6 +94,6 @@
   "scripts": {
     "test": "node --import ./test/setup-telemetry-off.mjs --test --test-timeout=40000 --test-force-exit --test-concurrency=8",
     "test:coverage": "node scripts/coverage-union.mjs",
-    "test:coverage:gate": "node scripts/coverage-union.mjs --gate 70"
+    "test:coverage:gate": "node scripts/coverage-union.mjs --gate 70 --file-gate 60"
   }
 }

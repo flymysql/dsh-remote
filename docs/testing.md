@@ -61,15 +61,20 @@ assert.equal(srv.fs.readText('/home/user/b.txt'), 'x')   // 真落盘
 `v8.takeCoverage()`（能活过 `--test-force-exit`）按源文件取并集：
 
 ```
-weighted line coverage: 73.9%   （34 个 lib/*.js，855 条测试，13s）
+weighted line coverage: 76.0%   （宿主侧 lib 加权，client.js 单列；865 条测试，13s）
 ```
 
 加这套脚手架之前同一指标是 **41.3%**。最弱处（都是「需要真机/真 OS」的分支）：
-`openssh.js` 48%（需要本机 `ssh`）、`credential.js` 50%（OS 钥匙串）、`index.js` 56%、
-`routes-term.js` 61%、`pool.js` 63%、`forwards.js` 64%、`binding.js` 66%、`hostkey.js` 68%。
+`openssh.js` 56%（需要本机 `ssh`）、`index.js` 60%、`forwards.js` 65%、`binding.js` 66%、
+`hostkey.js` 68%、`pool.js` 72%。门禁是双层的：`--gate 70` 管加权均值，`--file-gate 60`
+管每一个文件的下限（少数例外在脚本 `FILE_FLOORS` 里逐条注明原因，且例外一旦不再必要
+会被 stale 检查点名要求删除）。
 
-`lib/client.js` 用 V8 覆盖率**测不到**（`new Function` 求值），只能靠 L5 渲染测试——这就是为什么
-UI 必须有 `test/harness/render.js`。
+`lib/client.js` 是浏览器代码，测试从字符串求值——但所有求值点都带
+`sourceURL`/`filename: 'lib/client.js'`，V8 覆盖率因此**能归源**（实测 47–50%，渲染级；
+渲染脚手架用真实定时器桩，运行间有 ±3% 波动，所以它的下限带余量定在 45% 而不是贴着
+实测值）。它不进加权均值：一个 265KB 的浏览器包会把宿主侧信号锚死，交互路径的提升
+留给真浏览器 e2e。
 
 ## 4. 不变量：把「这类 bug」变成测试
 

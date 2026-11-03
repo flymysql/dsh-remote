@@ -54,7 +54,8 @@ function loadDirPicker() {
     throw new Error('unexpected require: ' + id)
   }
   const run = new Function(
-    'window', 'document', 'navigator', 'setTimeout', 'clearTimeout', 'console', 'fetch', 'require', src,
+    // (sourceURL: attribute V8 coverage of the eval'd body to lib/client.js)
+    'window', 'document', 'navigator', 'setTimeout', 'clearTimeout', 'console', 'fetch', 'require', `${src}\n//# sourceURL=lib/client.js`,
   )
   run(sandbox.window, sandbox.document, sandbox.navigator, setTimeout, clearTimeout, console, sandbox.fetch, requireStub)
 
