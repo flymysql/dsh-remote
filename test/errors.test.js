@@ -37,3 +37,40 @@ test('friendlyMessage keeps the raw message for unknown errors', () => {
   assert.match(m, /认证失败/)
   assert.match(m, /Permission denied/)
 })
+
+test('friendlyMessage is idempotent (pool classifies, callers re-classify)', () => {
+  const once = friendlyMessage(new Error('connect ECONNREFUSED 10.0.0.1:22'), { host: '10.0.0.1', port: 22 })
+  assert.match(once, /^连接被拒绝/)
+  const twice = friendlyMessage(new Error(once), { host: '10.0.0.1', port: 22 })
+  assert.equal(twice, once, 'a classified message must pass through unchanged, not grow a second shell')
+})
+
+test('every classifyError hint starts with a known prefix (the idempotence table stays honest)', () => {
+  // One representative error per branch. The prefix list here is DELIBERATELY
+  // a second copy (not imported): if a new hint lands without its prefix being
+  // registered in BOTH places, this fails before the double-wrap bug ships.
+  const battery = [
+    'host key CHANGED (stored a, received b)',
+    'Permission denied (publickey)',
+    'no SSH agent available',
+    'no credentials: set a password',
+    'getaddrinfo ENOTFOUND x',
+    'Connection lost before handshake',
+    'connect ECONNREFUSED 1.2.3.4:22',
+    'read ECONNRESET',
+    'sftp operation timed out',
+    'ETIMEDOUT',
+    'cannot read private key "/x"',
+    'no passphrase given',
+  ]
+  const PREFIXES = [
+    '主机指纹校验失败', '认证失败', 'SSH agent 不可用', '缺少凭据', '主机不可达',
+    'SSH 握手未完成', '连接被拒绝', '连接被重置', 'SFTP 操作失败', '连接/操作超时',
+    '无法读取私钥文件', '私钥解析失败',
+  ]
+  for (const raw of battery) {
+    const { category, hint } = classifyError(new Error(raw))
+    assert.notEqual(category, 'other', `battery entry must exercise a real branch: ${raw}`)
+    assert.ok(PREFIXES.some((p) => hint.startsWith(p)), `hint for "${raw}" starts with an unregistered prefix: ${hint.slice(0, 20)}…`)
+  }
+})
