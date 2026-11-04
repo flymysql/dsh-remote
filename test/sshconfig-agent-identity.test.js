@@ -132,9 +132,13 @@ function startServer(allowed) {
 }
 
 test('a .pub IdentityFile + IdentityAgent authenticates with the matching agent key only', async (t) => {
-  // unix socket paths are length-limited: keep the dir short
+  // unix socket paths are length-limited: keep the dir short. Windows cannot
+  // listen on a file path at all — an agent there is a named pipe (which
+  // ssh2's createAgent also treats as an OpenSSH agent).
   const dir = mkdtempSync(path.join(tmpdir(), 'dra-'))
-  const sockPath = path.join(dir, 'a.sock')
+  const sockPath = process.platform === 'win32'
+    ? `\\\\.\\pipe\\dra-${path.basename(dir)}`
+    : path.join(dir, 'a.sock')
   const pairs = [0, 1, 2].map(() => utils.generateKeyPairSync('ed25519'))
   const agent = await startAgent(sockPath, pairs.map((p) => utils.parseKey(p.private)))
   const want = pairs[2]
