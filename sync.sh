@@ -54,7 +54,11 @@ if [ ! -d "$INSTALL_DIR" ]; then
 fi
 
 echo "同步 $SRC_DIR/lib → $INSTALL_DIR/lib"
-cp -v "$SRC_DIR"/lib/*.js "$INSTALL_DIR/lib/"
+# 递归：lib/ 下自 0.8.73 起有子目录（lib/tui/ = dsh-tui 适配层）。
+# 只铺 lib/*.js 会漏掉它——插件里对 ./tui/index.js 的 import 会失败（现已改成
+# 惰性加载 + 降级，但部署仍必须完整），且下面的 diff 自检会直接报错。
+mkdir -p "$INSTALL_DIR/lib"
+cp -R "$SRC_DIR"/lib/. "$INSTALL_DIR/lib/"
 
 # 顺带同步 cordis 补丁与包清单（幂等）
 for f in cordis.patch.yml package.json; do

@@ -56,6 +56,7 @@ DSH 的 Web 界面刻意只监听 `127.0.0.1`（CLI 为安全拒绝 `--host 0.0.
 - **数据跟随 Harness 根目录** —— 机器清单与镜像在 `$DSH_HOME/remote-workspaces`；0.6 之前的数据首次启动自动迁移。
 - **`~/.ssh/config` 是连接四字段的唯一来源**（`0.8.50+`，issue #50）—— 保存机器时把 主机/用户/端口/私钥 写入 `~/.ssh/config` 的受管块（`# dsh-remote: managed` 标记，只动自己的块；你手写的同名 Host 块绝不覆盖，会提示冲突）。之后**改这个文件立即生效**：任何 Host 块点名的主机（含字面 IP），连接都按文件解析（裸 `Host *` 是通用默认，不算点名）；机器记录里的副本只做兜底，插件自己的状态（最近工作区/延迟等）仍存注册表。
 - **不改动 `dsh-workspace` 官方代码** —— 全部作为普通插件实现。
+- **终端界面（dsh-tui）里也有页面** —— `/dsh-remote` 打开服务器管理页（增删改/连接/浏览远端目录/设为工作区），新建工作区时可直接挑远程项目目录；同样不改 dsh-tui 本体。见下文「在 TUI 里使用」。
 
 ## 安装
 
@@ -142,6 +143,67 @@ dsh plugin add dsh-remote
 远端如果没有可用的 `dsh`，需要你自己先装好（插件不再代装）：把 `webAttachCommand`
 指向它的绝对路径即可（设置 → 远程工作区 → 机器行「编辑」→ 高级配置 → 远端 dsh 命令，
 或全局 `webAttachCommand`）。
+
+## 在 TUI（dsh-tui）里使用
+
+插件自带 TUI 适配层：装进 `dsh-tui` profile 后，同一份机器清单、SSH 池和远程工作区在
+终端界面里也能用，**不修改 dsh-tui 本体**（全部通过它的插件接缝注册）。
+
+### 安装
+
+```bash
+# 已装好 dsh-tui 的机器只需这一条；本地开发可直接给绝对路径
+dsh plugin --profile dsh-tui add dsh-remote
+# 或：dsh plugin --profile dsh-tui add /path/to/dsh-remote
+```
+
+装完重启 dsh-tui 生效。Web profile 不受影响：TUI 层在缺少终端接缝时静默关闭，不注册任何东西。
+
+### `/dsh-remote` —— 终端里的远程服务器设置页
+
+输入 `/dsh-remote` 打开全屏设置页（命令同时出现在 `/` 补全与 `/help` 里）：
+
+- `↑/↓` 选机器，`Enter` 打开动作菜单；`a` 新增、`e` 编辑、`d` 删除、`t` 测试连接、
+  `c` 连接、`b` 浏览远端目录、`m` 工作区管理、`Esc`/`q` 关闭（子视图里先返回列表）。
+- 新增/编辑：名称、主机、端口、用户名、认证方式（密码 / 私钥 / SSH agent）、密码或私钥路径、
+  分组。密码**只写不回显**，编辑时留空表示不修改。
+- `b` 浏览远端目录，按 `w` 把当前目录**设为工作区**：自动建本地镜像、注册成 DSH 工作区
+  （标题形如 `机器名-目录名`），并按配置切换过去。
+
+### 新建工作区时直接选远程目录
+
+- `/workspace` 的选择器里除了本地目录，还会列出每台机器的最近远程项目（徽标是机器名，
+  说明是 `user@host:/远端路径`）。选中即在新会话里打开该远程工作区。
+- 也可以直接给 URI：`/workspace open dshremote://<机器名或 id>/<URL 编码的远端绝对路径>`。
+- 启动参数同样支持：`dst dshremote://<机器>/<远端路径>`。
+- 列出的条目数量由下面的配置控制。
+
+### 工作区清理（彻底删除工作区或其中对话）
+
+`/dsh-remote` → 选中机器 → `m`（工作区管理）列出该机器全部本地镜像：
+
+- `d`：**彻底删除该工作区** —— 依次删除它的全部对话、工作区登记、每台机器「最近工作区」
+  里的该远端路径，最后删掉本地镜像目录
+  `$DSH_HOME/remote-workspaces/<host>-<user>-<port>/<name>`。删最近项是必须的，
+  否则 provider 下次启动会按它把镜像重建回来。
+- `x`：只删该工作区下的对话（保留镜像与登记）；被占用的会话会跳过并在提示里报数。
+- `r`：只把远端路径移出「最近列表 / 当前工作区」（不删镜像、不删对话），用来止住自动重建。
+- 仍有会话在使用该工作区时 `d` 会被拒绝（先 `Ctrl+X` 停止后台会话，或退出对应终端）；
+  删除不可恢复，且**不会**动远端目录（远端文件仍由你自己管理）。
+
+### 配置
+
+TUI 适配层的五个开关与其它配置项一样写在 `cordis.patch.yml` 的同一行里，见下文
+[配置](#配置) 表的最后五行（`tui` / `tuiProviderListRecent` / `tuiProviderRecentLimit` /
+`tuiAutoSwitchWorkspace` / `tuiLang`）。
+
+### 说明
+
+- 远程项目在终端里以**本地镜像目录**呈现：那才是会话 cwd，也是 `rw_*` 工具工作的地方；
+  远端路径只出现在标题/描述里。远程身份由镜像里的 `.dsh-remote-meta.json` 决定。
+- 工作区 provider 是 dsh-tui 较新的接缝：旧版 dsh-tui（或没挂载该服务的 profile）上，
+  `/dsh-remote` 页面与工作区台账仍然可用，只是选择器里不会出现远程项目。
+- 设计与宿主 API 契约见 [docs/tui.md](docs/tui.md)。
 
 ## 可选：CLI 默认机
 
@@ -246,6 +308,11 @@ scripts/dev-run.sh --status    # 是否在运行
 | `webAttachDshHome` | string | `''` | 远端启动时导出的 `DSH_HOME`；留空则复用远端用户自己的 harness home |
 | `webAttachWaitSeconds` | int | `45` | 等待远端 `dsh web` 打印启动令牌的秒数 |
 | `localTools` | string | `bootstrap` | 本地 session（cwd 不在远程镜像里）暴露哪些 `rw_*` 工具（issue #63）：`bootstrap`=只暴露配置闭环 `rw_machines`/`rw_connect`/`rw_pick_workspace`（其余 19 个在本地 session 必然报 "this session is LOCAL"，暴露只是白占 schema）；`none`=完全不暴露 `rw_*`（远程配置只能走设置页）；`all`=旧的 full 暴露。远程 session（cwd 在镜像里）不受影响，始终全量；非法值按 `bootstrap` 处理 |
+| `tui` | bool | `true` | TUI 适配层（dsh-tui）总开关；`false` 时不注册 `/dsh-remote` 页面、工作区 provider 与状态行字段 |
+| `tuiProviderListRecent` | bool | `true` | TUI 工作区选择器里是否列出每台机器最近的远程项目 |
+| `tuiProviderRecentLimit` | int | `5` | 每台机器列出的最近远程项目数（1–20） |
+| `tuiAutoSwitchWorkspace` | bool | `true` | 在 `/dsh-remote` 页面「设为工作区」后立即把会话切过去 |
+| `tuiLang` | string | `''` | TUI 层文案语言：`''`=自动（中文；`DSH_TUI_LANG=en` 时英文），`zh` / `en` 固定 |
 | `remoteSandbox` | string | `inherit` | 远程操作套用哪套 sandbox 语义（0.8.54+）：`inherit`=读取本机 `ctx.sandboxPolicy` 已解析的模式（read-only 拒远端写入/命令/转发，workspace-write 把远端写入围在 workspace 根内，danger-full-access 全放行）；`off`=不设围栏（旧行为）；也可显式写某一模式。**这是遏制不是安全边界**，硬边界请在远端一侧做 |
 | `credentialFallback` | string | `refuse` | 系统密钥库写密码失败时怎么办（0.8.54+）：`refuse`=不保存该密码（机器照常保存，界面报出失败原因，绝不把明文写进 machines.json）；`plain`=旧的明文回退（会警告）。主动关掉加密（`backend: plain`）不受影响 |
 
