@@ -453,6 +453,112 @@ test('the macOS bundle is derived from the executable path, not the Windows layo
   }
 })
 
+// ── issue #91: DSH NEXT 2.x nests the runtime under an arch directory ────────
+
+test('the bundled interpreter is found under the DSH NEXT 2.x arch segment', () => {
+  // `resources/runtime/x64/primary-runtime/…` — the layout issue #91 hit,
+  // where the arch-less candidate misses and the launcher fell through to the
+  // Electron masquerade.
+  const base = mkdtempSync(path.join(os.tmpdir(), 'dsh-remote-arch-'))
+  try {
+    for (const host of HOST_PLATFORMS) {
+      const exe = host.platform === 'win32' ? 'node.exe' : 'node'
+      const resourcesPath = path.join(base, host.platform, 'resources')
+      const node = path.join(resourcesPath, 'runtime', process.arch, 'primary-runtime', 'dependencies', 'node', 'bin', exe)
+      mkdirSync(path.dirname(node), { recursive: true })
+      writeFileSync(node, '')
+      const found = runtimeNodeCandidates({
+        platform: host.platform,
+        resourcesPath,
+        execPath: '',
+        env: {},
+      })
+      assert.deepEqual(found, [node], host.platform)
+    }
+  } finally {
+    rmSync(base, { recursive: true, force: true })
+  }
+})
+
+test('the arch-specific runtime wins over the legacy layout and other arch dirs', () => {
+  const base = mkdtempSync(path.join(os.tmpdir(), 'dsh-remote-arch-order-'))
+  try {
+    const resourcesPath = path.join(base, 'resources')
+    const make = (...segments) => {
+      const node = path.join(resourcesPath, 'runtime', ...segments, 'primary-runtime', 'dependencies', 'node', 'bin', 'node.exe')
+      mkdirSync(path.dirname(node), { recursive: true })
+      writeFileSync(node, '')
+      return node
+    }
+    const legacy = make()
+    const otherArch = make('arm64')
+    const exactArch = make(process.arch)
+    const found = runtimeNodeCandidates({ platform: 'win32', resourcesPath, execPath: '', env: {} })
+    // Preference order: this arch, then the pre-2.x layout, then any other
+    // arch directory (renamed segments still resolve instead of Electron).
+    assert.deepEqual(found, [exactArch, legacy, otherArch])
+  } finally {
+    rmSync(base, { recursive: true, force: true })
+  }
+})
+
+test('a renamed arch segment still resolves through the runtime scan', () => {
+  const base = mkdtempSync(path.join(os.tmpdir(), 'dsh-remote-arch-renamed-'))
+  try {
+    const resourcesPath = path.join(base, 'resources')
+    const node = path.join(resourcesPath, 'runtime', 'win-x64', 'primary-runtime', 'dependencies', 'node', 'bin', 'node.exe')
+    mkdirSync(path.dirname(node), { recursive: true })
+    writeFileSync(node, '')
+    const found = runtimeNodeCandidates({ platform: 'win32', resourcesPath, execPath: '', env: {} })
+    assert.deepEqual(found, [node])
+  } finally {
+    rmSync(base, { recursive: true, force: true })
+  }
+})
+
+test('the Electron fallback prints its hint BEFORE running, not after exit /b', () => {
+  const source = launcherSource({
+    platform: 'win32',
+    nodePath: '',
+    electronPath: 'C:\\dsh\\Harness.exe',
+    childPath: 'C:\\pkg\\child.cjs',
+    machinesFile: 'C:\\m.json',
+  })
+  const hint = source.indexOf('DSH_REMOTE_TERMINAL_NODE')
+  const fallback = source.indexOf('ELECTRON_RUN_AS_NODE')
+  assert.ok(hint !== -1 && fallback !== -1, 'the fallback keeps its escape-hatch hint')
+  assert.ok(hint < fallback, 'the hint must execute before the fallback; after `exit /b` it is dead code')
+  assert.match(source, /falling back to the bundled runtime/)
+})
+
+// ── issue #91: refuse a terminal that can never receive input ───────────────
+
+test('a pipe on stdin is not interactive; a console is', () => {
+  assert.equal(child.stdinIsInteractive({ stdin: { isTTY: true }, fstat: () => { throw new Error('unused') } }), true)
+  // Some runtimes never set isTTY; the fd itself still tells the truth.
+  assert.equal(child.stdinIsInteractive({ stdin: {}, fstat: () => ({ isCharacterDevice: () => true }) }), true)
+  assert.equal(child.stdinIsInteractive({ stdin: {}, fstat: () => ({ isCharacterDevice: () => false }) }), false)
+  assert.equal(child.stdinIsInteractive({ stdin: {}, fstat: () => { throw new Error('EBADF') } }), false)
+})
+
+test('a deaf terminal is refused loudly instead of spawning a dead ssh', () => {
+  const lines = []
+  let code = null
+  const result = child.main([], {
+    cwd: fsRoot(),
+    stdin: {}, // no isTTY, exactly what an Electron-as-node stdio looks like
+    fstat: () => ({ isCharacterDevice: () => false }),
+    exists: () => false,
+    write: (line) => lines.push(line),
+    exit: (value) => { code = value },
+  })
+  // Nothing was spawned: the refusal IS the result.
+  assert.equal(result, undefined)
+  assert.equal(code, 126)
+  assert.ok(lines.some((line) => line.includes('stdin')), JSON.stringify(lines))
+  assert.ok(lines.some((line) => line.includes('DSH_REMOTE_TERMINAL_NODE')), JSON.stringify(lines))
+})
+
 // ── the menu label vs the file that runs ───────────────────────────────────
 //
 // The label is `executableName(candidate)` and nothing is stripped from it, so

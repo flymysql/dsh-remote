@@ -2,6 +2,30 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.73 — 2026-11-06
+### 修复：DSH NEXT 2.x 上「remote ssh」终端连得上却打不了字（issue #91）
+
+**根因（@d2461795341 报告并定位）**
+DSH NEXT 2.x 把内置 node 挪到了带架构段的目录
+（`resources/runtime/x64/primary-runtime/dependencies/node/bin/node.exe`），
+而启动器只认旧的无架构段路径，于是找不到真 node 时回退到「拿 Electron 冒充
+node」（`ELECTRON_RUN_AS_NODE`）：远端 pty 照常分配，所以输出、颜色、提示符全
+正常；但 stdin 继承到的不是 ConPTY 控制台，按键全部丢失——终端看起来活着，
+实质是聋的。
+
+**修复（三层）**
+- 候选路径按新布局解析：先试本机架构目录、再试旧布局、再扫描 `runtime/` 下任意
+  架构目录（架构段改了名也能命中），Windows 上不再落到 Electron 回退；
+- 就算真落进回退，启动器现在**先**打印提示再执行（此前提示写在 `exit /b` 之后，
+  正好是走回退时永远执行不到的死代码）；
+- 终端子进程拉起 ssh 前检查 stdin 是否真控制台（`isTTY` / `fstat(0)` 字符设备），
+  不是就直接打出中英双语报错并以 126 退出，不再开一个只能看不能用的终端。
+
+验证：新增 5 例单测（arch 布局命中、候选优先级、改名架构段兜底、提示先于回退
+执行、聋终端拒绝）；POSIX 启动器纳入真实 `sh -n` 语法闸门；全套 890 例通过，
+check.mjs 干净。临时绕过：把 `DSH_REMOTE_TERMINAL_NODE` 指向任意真实 `node.exe`
+后重启。
+
 ## 0.8.72 — 2026-11-03
 ### 远程文件面板自动打开可永久关闭（issue #78）+ 连接报错现在一定带机器名 + zod 安全修复
 

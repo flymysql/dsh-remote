@@ -14,6 +14,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { buildLaunchCommand, buildStopCommand } from '../lib/web-attach.js'
+import { launcherSource } from '../lib/remote-shell.js'
 
 /** A `sh` we can ask to syntax-check, or null when the host has none. */
 function findSh() {
@@ -66,6 +67,21 @@ test('buildStopCommand emits POSIX-valid shell', (t) => {
   for (const cmd of [buildStopCommand(1234), buildStopCommand(1234, '.dsh-remote-web-x.log'), buildStopCommand(0)]) {
     const err = syntaxError(sh, cmd)
     assert.equal(err, null, `invalid shell: ${cmd}\n${err}`)
+  }
+})
+
+// The generated `remote ssh` launcher is also a shell script handed to a real
+// terminal; quote-hostile paths must survive `sh -n`, not just regexes.
+test('the POSIX remote-ssh launcher is POSIX-valid shell', (t) => {
+  if (!sh) return t.skip('no POSIX sh on this host; cannot syntax-check the launcher')
+  const cases = [
+    { childPath: '/pkg/child.cjs', machinesFile: '/root/m.json', nodePath: '/usr/bin/node' },
+    { childPath: "/pkg/it's/child.cjs", machinesFile: '/tmp/my machines.json', nodePath: '' },
+    { childPath: '/pkg/child.cjs', machinesFile: '/root/m.json', nodePath: '/opt/my node/bin/node' },
+  ]
+  for (const spec of cases) {
+    const err = syntaxError(sh, launcherSource({ platform: 'linux', ...spec }))
+    assert.equal(err, null, `invalid launcher shell for ${JSON.stringify(spec)}:\n${err}`)
   }
 })
 
