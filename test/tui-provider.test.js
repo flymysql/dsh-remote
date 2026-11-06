@@ -169,7 +169,7 @@ test('list: api 失败时返回 [] 且绝不 throw（refresh 内部吞错）', a
   }
 })
 
-test('refresh: 每机最近工作区取前 N 条（默认 5），逐条 ensure 且 register:true', async () => {
+test('refresh: 每机最近工作区取前 N 条（默认 5），逐条 ensure 但 register:false（不污染台账）', async () => {
   const fixture = workspaceFixture()
   try {
     const recent = ['/home/root/a', '/home/root/b', '/home/root/c', '/home/root/d', '/home/root/e', '/home/root/f']
@@ -183,7 +183,9 @@ test('refresh: 每机最近工作区取前 N 条（默认 5），逐条 ensure �
     assert.deepEqual(ensures.map((call) => call.options.remotePath), recent.slice(0, 5))
     for (const call of ensures) {
       assert.equal(call.options.machineId, 'm1')
-      assert.equal(call.options.register, true)
+      // 只是打开选择器不能把最近列表登记进用户的全局工作区台账；
+      // 登记发生在 resolve()/resolvePath()——用户真正选中的时候。
+      assert.equal(call.options.register, false)
     }
     assert.equal(provider.list().length, 5)
     assert.ok(provider.list().every((target) => target.kind === 'provider'))
@@ -252,7 +254,7 @@ test('refresh: 当前机已记录 workspace 也进入列表', async () => {
     await provider.refresh()
     const ensures = ensureCalls(api)
     assert.equal(ensures.length, 1)
-    assert.deepEqual(ensures[0].options, { machineId: 'm1', remotePath: '/home/root/current-project', register: true })
+    assert.deepEqual(ensures[0].options, { machineId: 'm1', remotePath: '/home/root/current-project', register: false })
     assert.equal(provider.list()[0].uri, buildUri('m1', '/home/root/current-project'))
   } finally {
     fixture.cleanup()

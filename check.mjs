@@ -16,7 +16,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const src = readFileSync(path.join(here, 'lib', 'index.js'), 'utf8').replace(/\r\n/g, '\n')
 const file = path.relative(process.cwd(), path.join(here, 'lib', 'index.js'))
 
-/** Every `.js` under lib/, subdirectories included (lib/tui/ since 0.8.73). */
+/** Every `.js` under lib/, subdirectories included (lib/tui/ since the TUI integration). */
 function walkLib(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const abs = path.join(dir, entry.name)
