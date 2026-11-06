@@ -491,7 +491,9 @@ test('the arch-specific runtime wins over the legacy layout and other arch dirs'
       return node
     }
     const legacy = make()
-    const otherArch = make('arm64')
+    // The "other" arch must differ from this runner's arch, otherwise the two
+    // paths coincide and dedup collapses them (the macOS CI leg is arm64).
+    const otherArch = make(process.arch === 'arm64' ? 'x64' : 'arm64')
     const exactArch = make(process.arch)
     const found = runtimeNodeCandidates({ platform: 'win32', resourcesPath, execPath: '', env: {} })
     // Preference order: this arch, then the pre-2.x layout, then any other
