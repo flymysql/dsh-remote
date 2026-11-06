@@ -66,6 +66,7 @@ The rest:
 - **Async long tasks** — `rw_sync`/`rw_push` with `async: true` return a `taskId` with progress/result/cancel.
 - **Data lives under the harness home** — machines and mirrors follow `$DSH_HOME`; pre-0.6 data migrates automatically on first run.
 - **No `dsh-workspace` core changes** — everything ships as a normal plugin.
+- **Pages in the terminal UI too (dsh-tui)** — `/dsh-remote` opens a server management page (add/edit/delete, connect, browse remote directories, set as workspace), and the new-workspace picker can list remote project directories directly — again without patching dsh-tui. See "Use it from the TUI" below.
 
 ## Install
 
@@ -155,6 +156,81 @@ The classic case: dsh 0.1.0-rc.6 depends on `node-pty@1.1.0`, whose published pa
 The plugin no longer installs or health-checks dsh for you. Install it on the remote the way you
 install anything else, then point the plugin at it: Settings → Remote workspaces → the machine row →
 **Edit** → Advanced → **remote dsh command** (or the global `webAttachCommand`).
+
+## Use it from the TUI (dsh-tui)
+
+The plugin ships a TUI adaptation layer: once installed into a `dsh-tui` profile, the same machine
+registry, SSH pool and remote workspaces work in the terminal UI — **without patching dsh-tui itself**
+(everything registers through its plugin seams).
+
+### Install
+
+```bash
+# On a machine that already runs dsh-tui this is the only step; a local checkout works too
+dsh plugin --profile dsh-tui add dsh-remote
+# or: dsh plugin --profile dsh-tui add /path/to/dsh-remote
+```
+
+Restart dsh-tui afterwards. Web profiles are unaffected: without terminal seams the TUI layer stays
+completely silent and registers nothing.
+
+### `/dsh-remote` — the remote-server settings page, in your terminal
+
+Type `/dsh-remote` to open a full-screen settings page (the command also shows up in `/` completion
+and `/help`):
+
+- `↑/↓` picks a machine, `Enter` opens the action menu; `a` add, `e` edit, `d` delete, `t` test
+  connection, `c` connect, `b` browse remote directories, `m` manage workspaces, `Esc`/`q` close
+  (inside a sub-view they step back to the list first).
+- Add/edit: name, host, port, username, auth method (password / private key / SSH agent), password or
+  key path, group. Passwords are **write-only** and never echoed; leaving the field empty keeps the
+  stored value.
+- `b` browses remote directories; `w` adopts the current one as a **workspace**: it creates the local
+  mirror, registers it as a DSH workspace (title `<machine>-<directory>`) and, per configuration,
+  switches the session there.
+
+### Pick a remote directory when creating a workspace
+
+- The `/workspace` picker lists every machine's recent remote projects next to local directories
+  (badge = machine name, description = `user@host:/remote/path`). Picking one opens that remote
+  workspace in a new session.
+- URI form works too: `/workspace open dshremote://<machine-name-or-id>/<URL-encoded remote absolute path>`.
+- Launch arguments work as well: `dst dshremote://<machine>/<remote path>`.
+- How many entries each machine contributes is controlled by the configuration below.
+
+### Clean up workspaces (delete a workspace or its chats)
+
+`/dsh-remote` → pick a machine → `m` (manage workspaces) lists every local mirror of that machine:
+
+- `d`: **delete the workspace permanently** — its chats, its workspace registration, the remote
+  path in every machine's recent list, and finally the local mirror directory
+  `$DSH_HOME/remote-workspaces/<host>-<user>-<port>/<name>`. Removing the recent entry matters:
+  otherwise the provider recreates the mirror from it on the next start.
+- `x`: delete only the chats under that workspace (mirror and registration stay); chats still in
+  use are skipped and reported.
+- `r`: only forget the remote path from the recent list / current workspace (no deletion) — stops
+  the automatic recreation.
+- While a chat still uses the workspace, `d` is refused (stop background sessions with `Ctrl+X` or
+  exit the terminal that holds it). Deletion is irreversible and does **not** touch the remote
+  directory.
+
+### Configuration
+
+The TUI layer's five switches live on the same `cordis.patch.yml` row as every other
+option — see the last five rows of the [Configuration](#configuration) table
+(`tui` / `tuiProviderListRecent` / `tuiProviderRecentLimit` / `tuiAutoSwitchWorkspace` /
+`tuiLang`).
+
+### Notes
+
+- A remote project is presented in the terminal as its **local mirror directory**: that is the
+  session cwd and where the `rw_*` tools operate; the remote path only appears in titles and
+  descriptions. The remote identity comes from `.dsh-remote-meta.json` inside the mirror.
+- The workspace provider is a newer dsh-tui seam: on older dsh-tui builds (or profiles that do not
+  mount it) the `/dsh-remote` page and the workspace registry still work; only the picker entries are
+  missing.
+- Design and host-API contract: [docs/tui.md](docs/tui.md).
+
 ## CLI defaults (optional)
 
 Provide a default machine in `cordis.patch.yml`:
@@ -257,6 +333,11 @@ Deploying to a product profile is a separate, explicit action (`./sync.sh`) for 
 | `webAttachDshHome` | string | `''` | `DSH_HOME` exported on the remote when attaching; empty reuses the remote user's own harness home |
 | `webAttachWaitSeconds` | int | `45` | how long to wait for a freshly started remote `dsh web` to print its launch token |
 | `localTools` | string | `bootstrap` | which `rw_*` tools a LOCAL session (cwd outside every remote mirror) sees (issue #63): `bootstrap` keeps only the configuration loop `rw_machines`/`rw_connect`/`rw_pick_workspace` (the other 19 refuse a local session with "this session is LOCAL", so exposing them just wastes schema budget); `none` hides all `rw_*` (remote setup happens via the settings page only); `all` restores the legacy full surface. REMOTE sessions (cwd inside a mirror) always see everything; an invalid value degrades to `bootstrap` |
+| `tui` | bool | `true` | master switch for the TUI (dsh-tui) layer; `false` registers no `/dsh-remote` page, workspace provider or status field |
+| `tuiProviderListRecent` | bool | `true` | list each machine's recent remote projects in the TUI workspace picker |
+| `tuiProviderRecentLimit` | int | `5` | recent remote projects listed per machine (1–20) |
+| `tuiAutoSwitchWorkspace` | bool | `true` | switch the session right after "set as workspace" in the `/dsh-remote` page |
+| `tuiLang` | string | `''` | language of the TUI layer's own copy: `''` = auto (zh, or en when `DSH_TUI_LANG=en`), `zh` / `en` pins it |
 | `remoteSandbox` | string | `inherit` | which sandbox semantics remote operations follow (0.8.54+): `inherit` reads the mode the local `ctx.sandboxPolicy` resolved (read-only refuses remote writes/commands/forwards, workspace-write fences remote writes to the workspace root, danger-full-access allows everything); `off` disables the fence (legacy behaviour); an explicit mode name is also accepted. **This is containment, not a security boundary** — deploy hard boundaries on the remote side |
 | `credentialFallback` | string | `refuse` | what to do when the OS secure store refuses a password (0.8.54+): `refuse` saves no password (the machine is still saved, the UI reports why, and nothing is written to machines.json in plaintext); `plain` restores the legacy plaintext fallback (with a warning). Turning encryption off explicitly (`backend: plain`) is unaffected |
 

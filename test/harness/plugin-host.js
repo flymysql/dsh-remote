@@ -36,6 +36,10 @@ export const DEFAULT_CONFIG = {
   useAgent: false, keyboardInteractive: false, autoPush: false, auditLog: false,
   encoding: 'utf-8', updateMode: 'off', updateCheckIntervalMs: 0,
   credentialFallback: 'refuse',
+  // The TUI layer is additive and belongs to its own tests (test/tui-*.test.js);
+  // off here so the ~90 route/tool tests never depend on a TUI profile being
+  // absent — the host API itself is still built and exposed (see `ctx.provide`).
+  tui: false,
 }
 
 /**
@@ -66,6 +70,10 @@ export async function createHost({ machines = [], currentId = null, config = {},
   const sections = []
   const cleanups = []
   const listeners = new Map()
+  // Services the plugin PROVIDES (ctx.provide / ctx.set) or that a test seeds
+  // through `services` below. Provided values are retrievable with ctx.get, so
+  // tests can drive the in-process API exactly like another plugin would.
+  const provided = new Map()
 
   const ctx = {
     effect(fn) {
@@ -74,6 +82,14 @@ export async function createHost({ machines = [], currentId = null, config = {},
       return () => {}
     },
     inject(names, callback) { if (names.every((n) => this.get(n) !== undefined)) callback(this) },
+    provide(name, value) {
+      provided.set(name, value)
+      return () => provided.delete(name)
+    },
+    set(name, value) {
+      provided.set(name, value)
+      return true
+    },
     get(name) {
       if (name === 'webServer') {
         return {
@@ -92,6 +108,7 @@ export async function createHost({ machines = [], currentId = null, config = {},
         }
       }
       if (name === 'logger') return { info() {}, warn() {}, error() {}, debug() {} }
+      if (provided.has(name)) return provided.get(name)
       return services[name]
     },
     tools: {
@@ -135,7 +152,10 @@ export async function createHost({ machines = [], currentId = null, config = {},
     commands,
     sections,
     listeners,
+    provided,
     config: { ...DEFAULT_CONFIG, ...config },
+    /** The in-process API the plugin registered as `ctx.dshRemote`, if any. */
+    get api() { return provided.get('dshRemote') },
     readMachines,
     readRegistry,
     writeMachines,
@@ -155,6 +175,7 @@ export async function createHost({ machines = [], currentId = null, config = {},
     },
     async dispose() {
       for (const fn of cleanups.splice(0)) { try { fn() } catch { /* already disposed */ } }
+      provided.clear()
       delete process.env.DSH_HOME
       try { rmSync(home, { recursive: true, force: true }) } catch { /* windows lock */ }
     },

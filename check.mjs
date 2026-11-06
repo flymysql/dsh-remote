@@ -15,12 +15,17 @@ import path from 'node:path'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const src = readFileSync(path.join(here, 'lib', 'index.js'), 'utf8').replace(/\r\n/g, '\n')
 const file = path.relative(process.cwd(), path.join(here, 'lib', 'index.js'))
-const libSrc = readdirSync(path.join(here, 'lib'))
-  .filter((n) => n.endsWith('.js'))
-  .map((n) => ({
-    file: path.relative(process.cwd(), path.join(here, 'lib', n)),
-    src: readFileSync(path.join(here, 'lib', n), 'utf8').replace(/\r\n/g, '\n'),
-  }))
+
+/** Every `.js` under lib/, subdirectories included (lib/tui/ since the TUI integration). */
+function walkLib(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const abs = path.join(dir, entry.name)
+    if (entry.isDirectory()) return walkLib(abs)
+    if (!entry.name.endsWith('.js')) return []
+    return [{ file: path.relative(process.cwd(), abs), src: readFileSync(abs, 'utf8').replace(/\r\n/g, '\n') }]
+  })
+}
+const libSrc = walkLib(path.join(here, 'lib'))
 
 let fail = 0
 
@@ -34,6 +39,24 @@ while ((m = regRe.exec(src))) {
   if (!COMMAND_NAME.test(m[1])) {
     fail++
     console.log(`  ✗ ${file}:${lineOf(src, m.index)}: command name '${m[1]}' must match ${COMMAND_NAME} (no dots/uppercase/spaces)`)
+  }
+}
+// A registration whose name is a CONSTANT (`name: COMMAND_NAME`) is invisible to
+// the literal regex above — the TUI layer registers exactly that way, so pin the
+// exported constant itself. Scene ids share the kebab-case shape the host
+// enforces, so the same charset is required for both.
+const CONSTANT_NAME = /export const (?:COMMAND_NAME|SCENE_ID) = '([^']+)'/g
+const SCENE_NAME = /^[a-z][a-z0-9-]*$/u
+for (const { file: cf, src: cs } of libSrc) {
+  let cm
+  CONSTANT_NAME.lastIndex = 0
+  while ((cm = CONSTANT_NAME.exec(cs))) {
+    total++
+    const okName = COMMAND_NAME.test(cm[1]) && SCENE_NAME.test(cm[1])
+    if (!okName) {
+      fail++
+      console.log(`  ✗ ${cf}:${lineOf(cs, cm.index)}: '${cm[1]}' must match ${COMMAND_NAME} (no dots/uppercase/spaces; scene ids kebab-case)`)
+    }
   }
 }
 console.log(`  command-name lint: ${total} register(s) checked`)
