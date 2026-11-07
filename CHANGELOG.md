@@ -2,6 +2,27 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.74 — 2026-11-07
+### 修复：「添加工作区」弹窗在已有会话里点不动（issue #93）+ dsh-tui 适配层合入（PR #92）
+
+**#93 — 弹窗渲染正常、点击全部穿透到下方聊天文本（@Twens03 报告并定位）**
+目录选择弹窗的浮层是普通 React 节点插进 slot 子树、靠 `position:fixed` 自己盖屏；
+DSH 0.2.2 的对话区容器会困住它的指针事件——于是新会话（hero 页没有这层容器）
+一切正常、已有会话里点哪儿都没反应。宿主的 Modal/Menu 之所以没事，是因为它们
+`createPortal` 到 `document.body`。现在浮层同样 portal 到 body（react-dom 在宿主
+共享模块表里就有）；宿主较老没有 react-dom 时回退原来的内联浮层，不丢功能。
+插件里右键菜单早就是这个写法，这次补齐最后一个漏网的浮层。新增 2 例渲染级测试
+（有 react-dom 时必须 portal 到 body、没有时内联回退不崩）。
+
+**PR #92 — dsh-tui 适配层（@baiseraku）**
+终端里也能用同一份机器清单与工作区：`/dsh-remote` 全屏设置页（增删改/连接/探测/
+浏览远端目录/设为工作区）、`/workspace` 选择器里的 `dshremote://` 远程项目
+provider、机器菜单 `m` 进工作区清理页（彻底删除/只删对话/移出最近列表三级；
+有会话占用时拒绝删除）。全部通过 dsh-tui 的官方插件接缝注册，dsh-tui 本体零修改；
+Web/Desktop profile 下静默降级、不注册任何东西。详见 docs/tui.md。
+维护者在评审中收窄了一处副作用：打开 `/workspace` 选择器（list）不再把每台机器
+的最近工作区登记进全局工作区台账，真正选中打开时才登记。
+
 ## 0.8.73 — 2026-11-06
 ### 修复：DSH NEXT 2.x 上「remote ssh」终端连得上却打不了字（issue #91）
 
