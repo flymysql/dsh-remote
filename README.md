@@ -308,6 +308,7 @@ scripts/dev-run.sh --status    # 是否在运行
 | `webAttachDshHome` | string | `''` | 远端启动时导出的 `DSH_HOME`；留空则复用远端用户自己的 harness home |
 | `webAttachWaitSeconds` | int | `45` | 等待远端 `dsh web` 打印启动令牌的秒数 |
 | `localTools` | string | `bootstrap` | 本地 session（cwd 不在远程镜像里）暴露哪些 `rw_*` 工具（issue #63）：`bootstrap`=只暴露配置闭环 `rw_machines`/`rw_connect`/`rw_pick_workspace`（其余 19 个在本地 session 必然报 "this session is LOCAL"，暴露只是白占 schema）；`none`=完全不暴露 `rw_*`（远程配置只能走设置页）；`all`=旧的 full 暴露。远程 session（cwd 在镜像里）不受影响，始终全量；非法值按 `bootstrap` 处理 |
+| `remoteTerminalDefault` | bool | `true` | 让 shell 菜单里的「remote ssh」启动器成为终端**默认 shell**（宿主未配置、用户未手动选择时）：远程会话开终端即落到远端工作目录，本地会话自动回落本地 shell（issue #55）；`false` 则只保留菜单项 |
 | `tui` | bool | `true` | TUI 适配层（dsh-tui）总开关；`false` 时不注册 `/dsh-remote` 页面、工作区 provider 与状态行字段 |
 | `tuiProviderListRecent` | bool | `true` | TUI 工作区选择器里是否列出每台机器最近的远程项目 |
 | `tuiProviderRecentLimit` | int | `5` | 每台机器列出的最近远程项目数（1–20） |
@@ -422,11 +423,14 @@ system prompt，提示模型编辑前用 `rw_read_file` 阅读嵌套层的指令
 `jobs` 服务；没有该服务的组合（最小嵌入、测试替身）自动退化为只有前台执行——即 0.8.52 的行为，
 不会因此加载失败。
 
-**远程会话里的终端还是本机的**（issue #55）—— 这是**设计如此，插件改不了**，但有等效方案。
-DSH 的侧栏终端是核心功能：它的 PTY 来自**全局唯一**的 `subprocess` 服务，cwd 取会话自己的
-工作区目录（远程会话就是本地镜像），插件既不能替换那个服务、也不能把核心终端重定向到 SSH。
-想要「真正的远程终端」，用**「远程 DSH 界面」**（见上文）：它在本机浏览器里打开**远端机器自己**的
-DSH，那个界面里的终端就跑在远端主机上，零额外配置。只想偶尔跑一条远程命令则用 `rw_exec`
+**远程会话里的终端还是本机的**（issue #55）—— 已解决（0.8.75+），什么都不用点。
+侧栏终端的 shell 菜单里一直有插件贡献的 **remote ssh**：那是一个按 cwd 智能路由的启动器——
+会话落在远程镜像里就 `ssh` 进远端工作目录，否则自动回落成本地 shell。0.8.75 起它进一步成为
+**默认 shell**：只要宿主没另外配置默认终端、你也没在 shell 菜单里手动选过别的，点「打开终端」
+在远程会话里就直接落进远端（本地会话照旧开本地终端，启动器会替你分流）。两个保险：菜单里手动
+选过其他 shell 的话你的选择永远优先；想回到纯手动就在配置里设 `remoteTerminalDefault: false`
+（remote ssh 仍会留在菜单里）。想要更重度的方案还有**「远程 DSH 界面」**（见上文）：本机浏览器里
+打开**远端机器自己**的 DSH，那里的终端原生跑在远端。只想偶尔跑一条远程命令用 `rw_exec`
 （要交互式 PTY 就加 `pty: true`）。
 
 **主机指纹变了** —— `/remote forget-key`（或设置页 → 机器 → 重新信任）。

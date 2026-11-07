@@ -769,6 +769,78 @@ test('unloading the plugin withdraws the entry again', () => {
   }
 })
 
+// ── the default-shell claim (remote session → remote terminal by default) ────
+//
+// `config.shell` is what discovery puts first and what a shellPath-less spawn
+// resolves to. Pointing it at the cwd-aware launcher makes "open terminal" do
+// the right thing for both remote and local sessions. The claim is polite:
+// never overrides a configured shell, never clobbers a later claimant.
+
+test('an unclaimed default shell slot is claimed with the absolute launcher path', () => {
+  const { dir, spec, cleanup } = launcherDir()
+  try {
+    const controller = { config: { shellCandidates: ['cmd'] } }
+    const { ctx, effects } = fakeContext()
+    installTerminalShell(ctx, controller, spec)
+    assert.deepEqual(controller.config.shell, {
+      path: path.join(dir, process.platform === 'win32' ? 'remote ssh.cmd' : 'remote ssh'),
+      name: 'remote ssh',
+      args: [],
+    })
+    for (const dispose of effects) dispose()
+    assert.equal(controller.config.shell, undefined, 'unload restores the empty slot')
+  } finally {
+    cleanup()
+  }
+})
+
+test('a configured default shell is never overridden', () => {
+  const { dir, spec, cleanup } = launcherDir()
+  try {
+    const mine = { path: '/bin/zsh', name: 'zsh', args: ['-i'] }
+    const controller = { config: { shellCandidates: ['cmd'], shell: mine } }
+    const { ctx, effects } = fakeContext()
+    installTerminalShell(ctx, controller, spec)
+    assert.equal(controller.config.shell, mine, 'the user/admin default wins over our launcher')
+    // …but the menu candidate is still contributed.
+    assert.equal(controller.config.shellCandidates.length, 2)
+    for (const dispose of effects) dispose()
+    assert.equal(controller.config.shell, mine)
+  } finally {
+    cleanup()
+  }
+})
+
+test('claimDefault: false keeps the launcher menu-only', () => {
+  const { dir, spec, cleanup } = launcherDir()
+  try {
+    const controller = { config: { shellCandidates: ['cmd'] } }
+    const { ctx } = fakeContext()
+    installTerminalShell(ctx, controller, { ...spec, claimDefault: false })
+    assert.equal(controller.config.shell, undefined)
+    assert.equal(controller.config.shellCandidates.length, 2)
+  } finally {
+    cleanup()
+  }
+})
+
+test('dispose does not clobber a default someone else set after us', () => {
+  const { dir, spec, cleanup } = launcherDir()
+  try {
+    const controller = { config: { shellCandidates: ['cmd'] } }
+    const { ctx, effects } = fakeContext()
+    installTerminalShell(ctx, controller, spec)
+    assert.ok(controller.config.shell, 'claimed')
+    // The host admin (or another plugin) configures a default while we hold it.
+    const theirs = { path: '/bin/fish', name: 'fish', args: ['-i'] }
+    controller.config.shell = theirs
+    for (const dispose of effects) dispose()
+    assert.equal(controller.config.shell, theirs, 'their claim survives our unload')
+  } finally {
+    cleanup()
+  }
+})
+
 // ── environment helpers ────────────────────────────────────────────────────
 
 test('the native Windows OpenSSH wins over a PATH ssh from git-bash', () => {
