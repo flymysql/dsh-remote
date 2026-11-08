@@ -262,8 +262,19 @@ WORKSPACE_BUSY | INTERNAL`（`VALIDATION` = 调用方输入不可用，如缺 ho
      `.dsh-remote-meta.json`，无网络、无 SSH）；用 `lib/binding.js#resolveMirror` 得到
      `{ host, port, username, remotePath }`，再补机器名。**不创建任何目录**。
    - `rename` 不提供（宿主回落台账重命名）。
-4. **状态行**（可选）：`ctx.tuiStatus.setField('dsh-remote', …)` 显示当前远程机；
-   缺 `tuiStatus` 时跳过。
+4. **状态行**（可选）：`ctx.tuiStatus.setField('dsh-remote', …)` 显示当前远程机，
+   **只在当前会话的 cwd 落在远程镜像里时显示**：仅仅被保存成 current 的机器属于
+   待机状态，本地会话里不占底栏。TUI 进程可同时挂载多个会话，判定顺序：
+   ① 宿主切换会话后传给 `provider.describe()` 的 cwd（只采信确实属于某个 live
+   会话的那个，见 §4 的 provider）；② 最近进入 store / 最近发过 `user/message`
+   的会话（`origin: 'subagent'` 的子代理会话一律排除）；③ store 里最后进入的
+   会话。`session/created` / `session/disposed` / `user/message` / 终端 resize
+   触发 500ms 合并刷新；宿主没有 `sessions` 服务时退回旧行为，有服务但读失败时
+   **隐藏**（不猜），缺 `tuiStatus` 时跳过。
+   鼠标悬停显示详情（与其它底栏字段同一效果）：完整机器名 · `user@host:port`
+   · 远端路径。宿主先按 160 cells 截断 detail、再按可用宽度 wrap（不 truncate），
+   所以插件自己裁到 `process.stdout.columns - 18`（状态行内宽 `columns-2`，再给
+   右侧 MiniWake/activity 预留），CJK / emoji 记 2 格，超宽以 `…` 结尾。
 5. 所有 dispose 用 `ctx.effect(() => () => dispose())` 绑定生命周期。
 
 ### 工作区 cwd 语义（关键）
@@ -347,7 +358,7 @@ dsh --profile tuidev --dump-config | grep -A2 'id: dsh-remote'
 
 - 单测：`npm test` —— 覆盖宿主 API 合同（含工作区清理）、provider / URI /
   表单纯函数、`installTui` 注册矩阵（含 fake-React 的场景渲染测试）；
-  当前 996 例（987 通过 / 9 skip）。
+  当前 1052 例（1043 通过 / 9 skip）。
 - 静态闸门：`node check.mjs`（命令名 / 场景 id / 工具名 / 路由前缀约束）。
 - 组合：`dsh --profile <sandbox> --dump-config` 中能看到 `id: dsh-remote` 行，
   且 `@deepseek-harness-tui/dsh-tui` 的补丁层正常应用。
@@ -386,5 +397,5 @@ dsh --profile tuidev --dump-config | grep -A2 'id: dsh-remote'
   另外实现 `resolvePath`，所以**当前会话 cwd 已在某个镜像里**时可以相对它输入目录，
   此外的远程目录请用 `dshremote://` 完整 URI 或 `/dsh-remote` 页面浏览。
 - `connect()` 失败时**可能已经把该机写成当前机**（与 `rw_connect` 的持久化语义一致）：
-  选择器/状态行会显示它，重试即可。
+  选择器会显示它；底栏只在当前会话确实是远程镜像时出现，重试即可。
 
