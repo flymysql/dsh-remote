@@ -14,7 +14,9 @@ import {
   URI_SCHEME,
   basenameRemote,
   buildUri,
+  clipCells,
   dbadge,
+  displayWidth,
   emptyMachineForm,
   formFromMachine,
   joinRemote,
@@ -346,6 +348,25 @@ test('AUTH_MODES: 与认证方式文案键一一对应', () => {
     assert.ok(TRANSLATIONS.zh[`auth.${mode}`], `缺少 auth.${mode} 文案`)
   }
   assert.deepEqual([...AUTH_MODES], ['password', 'key', 'agent'])
+})
+
+// ── 悬停详情宽度 ──────────────────────────────────────────────────────────
+
+test('displayWidth / clipCells: CJK 记 2 格，超宽用省略号且不超限', () => {
+  assert.equal(displayWidth('abc'), 3)
+  assert.equal(displayWidth('远端'), 4)
+  assert.equal(displayWidth('远端 /x'), 7)
+  assert.equal(clipCells('abc', 10), 'abc')
+  assert.equal(clipCells('abcdef', 4), 'abc…')
+  assert.equal(displayWidth(clipCells('abcdef', 4)), 4)
+  // CJK 不能被截成半个字符占位：3 格只能放一个汉字 + 省略号
+  assert.equal(clipCells('远端路径', 3), '远…')
+  assert.equal(displayWidth(clipCells('远端路径', 3)), 3)
+  assert.equal(clipCells('远端路径', 5), '远端…')
+  assert.equal(displayWidth(clipCells('远端路径', 5)), 5)
+  // 边界：空串 / 非法上限
+  assert.equal(clipCells('', 5), '')
+  assert.equal(clipCells('ab', 0), '…')
 })
 
 // ── 状态行 ────────────────────────────────────────────────────────────────

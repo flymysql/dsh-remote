@@ -8,6 +8,9 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
 import { installTui, whenService, COMMAND_NAME, SCENE_ID } from '../lib/tui/index.js'
 import { createSceneComponent } from '../lib/tui/scene.js'
@@ -109,6 +112,8 @@ function createServices(options = {}) {
     }
   }
   if (options.dialogs) services.tuiDialogs = options.dialogs
+  if (options.sessions) services.sessions = options.sessions
+  if (options.dshHomePath) services.dshHomePath = options.dshHomePath
   return { state, services }
 }
 
@@ -158,6 +163,51 @@ function fireService(ctx, name, value) {
 async function flush() {
   await new Promise((resolve) => setImmediate(resolve))
   await new Promise((resolve) => setImmediate(resolve))
+}
+
+/** 只读会话服务的测试替身：list() 按挂载顺序，get() 按 id。 */
+function fakeSessions(initial) {
+  const sessions = [...initial]
+  const shape = (one) => ({
+    id: one.id,
+    header: { cwd: one.cwd, ...(one.origin ? { origin: one.origin } : {}) },
+  })
+  return {
+    list: () => sessions.map(shape),
+    get: (id) => {
+      const found = sessions.find((one) => one.id === id)
+      return found ? shape(found) : undefined
+    },
+    /** 模拟 session/disposed 后 store 里真的没有它了。 */
+    remove: (id) => {
+      const index = sessions.findIndex((one) => one.id === id)
+      if (index >= 0) sessions.splice(index, 1)
+    },
+  }
+}
+
+/** 触发一次会话事件（listen 注册在 fake ctx 的 listeners 里）。 */
+function emitSession(ctx, event, ...args) {
+  for (const listener of ctx.listeners.get(event) || []) listener(...args)
+}
+
+/** 等过合并窗口。 */
+function waitFor(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** 在临时 DSH_HOME 里造一个合法远程镜像目录。 */
+function seedMirror(home, { host = '10.0.0.2', username = 'root', port = 22, remotePath = '/srv/proj', name = 'proj', alias = '' } = {}) {
+  const dir = path.join(home, 'remote-workspaces', `${host}-${username}-${port}`, name)
+  mkdirSync(dir, { recursive: true })
+  const meta = { host, port, username, remotePath, ...(alias ? { alias } : {}) }
+  writeFileSync(path.join(dir, '.dsh-remote-meta.json'), JSON.stringify(meta))
+  return dir
+}
+
+/** 宿主 `dshHomePath` 的真实形状：(...segments) => path。 */
+function functionHome(home) {
+  return (...segments) => path.join(home, ...segments)
 }
 
 /** 运行 ctx.effect 收集到的全部 disposer。 */
@@ -410,13 +460,13 @@ test('installTui: api.subscribe 触发 provider 刷新与状态行更新', async
   api.counters.listener({ type: 'machines' })
   await flush()
   assert.ok(api.counters.listMachines > before, 'subscribe 事件应触发 provider.refresh')
-  assert.ok(state.statusFields.length >= 2)
+  assert.ok(state.statusFields.length >= 1)
 
   disposeAll(ctx)
   assert.equal(api.counters.unsubscribed, true, 'dispose 时必须退订')
 })
 
-test('installTui: 状态行跟随 currentId；无当前机时清空字段', async () => {
+test('installTui: 无 sessions 服务（旧组合）时退回旧行为；无当前机则清空字段', async () => {
   const { state, services } = createServices()
   const noCurrent = createFakeApi({
     machines: { machines: [{ id: 'm1', name: 'dev-box', host: '10.0.0.2', port: 22, username: 'root' }], currentId: null },
@@ -424,7 +474,165 @@ test('installTui: 状态行跟随 currentId；无当前机时清空字段', asyn
   const ctx = createFakeCtx(services)
   installTui(ctx, noCurrent, {})
   await flush()
-  assert.equal(state.statusFields.at(-1).text, undefined)
+  assert.equal(state.statusFields.at(-1)?.text, undefined)
+})
+
+test('installTui: 本地会话（cwd 不在远程镜像）不写机器名', async () => {
+  const { state, services } = createServices({ sessions: fakeSessions([{ id: 's1', cwd: '/tmp' }]) })
+  const api = createFakeApi()
+  const ctx = createFakeCtx(services)
+  installTui(ctx, api, {})
+  await flush()
+  assert.equal(state.statusFields.at(-1)?.text, undefined, '本地会话不该占底栏')
+})
+
+test('installTui: 远程镜像会话显示该镜像所属机器名', async () => {
+  const home = mkdtempSync(path.join(tmpdir(), 'dsh-remote-status-'))
+  try {
+    const mirror = seedMirror(home, { host: '10.0.0.2', username: 'root', port: 22, remotePath: '/srv/proj' })
+    const { state, services } = createServices({
+      sessions: fakeSessions([{ id: 's1', cwd: mirror }]),
+      dshHomePath: functionHome(home),
+    })
+    const ctx = createFakeCtx(services)
+    installTui(ctx, createFakeApi(), {})
+    await flush()
+    const field = state.statusFields.at(-1)
+    assert.equal(field.text, 'dev-box')
+    // hover 详情：完整机器名 + user@host:port + 远端路径，与其它底栏字段同一效果
+    assert.equal(field.options.detail, '远程机 dev-box · root@10.0.0.2:22 · 远端 /srv/proj')
+    assert.equal(field.options.slot, 'right-head')
+  } finally { rmSync(home, { recursive: true, force: true }) }
+})
+
+test('installTui: 会话切换跟随 user/message；会话结束后回到本地隐藏', async () => {
+  const home = mkdtempSync(path.join(tmpdir(), 'dsh-remote-status-'))
+  try {
+    const mirror = seedMirror(home, { host: '10.0.0.2', username: 'root', port: 22, remotePath: '/srv/proj' })
+    const sessions = fakeSessions([{ id: 's-local', cwd: '/tmp' }, { id: 's-remote', cwd: mirror }])
+    const { state, services } = createServices({ sessions, dshHomePath: functionHome(home) })
+    const ctx = createFakeCtx(services)
+    installTui(ctx, createFakeApi(), {})
+    await flush()
+    // 刚启动时取 store 最后进入的会话（远程）→ 显示
+    assert.equal(state.statusFields.at(-1).text, 'dev-box')
+
+    // 用户回到本地会话说话 → 隐藏
+    emitSession(ctx, 'session/event', sessions.get('s-local'), { type: 'user/message' })
+    await waitFor(700)
+    assert.equal(state.statusFields.at(-1)?.text, undefined)
+
+    // 再回远程会话说话 → 重新显示
+    emitSession(ctx, 'session/event', sessions.get('s-remote'), { type: 'user/message' })
+    await waitFor(700)
+    assert.equal(state.statusFields.at(-1).text, 'dev-box')
+
+    // 远程会话结束 → 回退到本地会话 → 隐藏
+    const ended = sessions.get('s-remote')
+    sessions.remove('s-remote')
+    emitSession(ctx, 'session/disposed', ended)
+    await waitFor(700)
+    assert.equal(state.statusFields.at(-1)?.text, undefined)
+  } finally { rmSync(home, { recursive: true, force: true }) }
+})
+
+test('installTui: 子代理会话（origin=subagent）不抢“当前会话”', async () => {
+  const home = mkdtempSync(path.join(tmpdir(), 'dsh-remote-status-'))
+  try {
+    const mirror = seedMirror(home, { host: '10.0.0.2', username: 'root', port: 22, remotePath: '/srv/proj' })
+    // store 末尾是本地会话 → 隐藏；随后子代理在镜像 cwd 里创建/说话，都不能把它翻出来
+    const sessions = fakeSessions([{ id: 's-remote', cwd: mirror }, { id: 's-local', cwd: '/tmp' }])
+    const { state, services } = createServices({ sessions, dshHomePath: functionHome(home) })
+    const ctx = createFakeCtx(services)
+    installTui(ctx, createFakeApi(), {})
+    await flush()
+    assert.equal(state.statusFields.at(-1)?.text, undefined)
+
+    emitSession(ctx, 'session/created', { id: 's-agent', header: { cwd: mirror, origin: 'subagent' } })
+    emitSession(ctx, 'session/event', { id: 's-agent', header: { cwd: mirror, origin: 'subagent' } }, { type: 'user/message' })
+    await waitFor(700)
+    assert.equal(state.statusFields.at(-1)?.text, undefined, '子代理不能把底栏翻成远程')
+
+    // 反向：正在看远程会话时，本地子代理出现/说话也不能把它藏掉
+    emitSession(ctx, 'session/event', sessions.get('s-remote'), { type: 'user/message' })
+    await waitFor(700)
+    assert.equal(state.statusFields.at(-1).text, 'dev-box')
+    emitSession(ctx, 'session/created', { id: 's-agent2', header: { cwd: '/tmp', origin: 'subagent' } })
+    await waitFor(700)
+    assert.equal(state.statusFields.at(-1).text, 'dev-box')
+  } finally { rmSync(home, { recursive: true, force: true }) }
+})
+
+test('installTui: 切到已挂载会话（无 session 事件）时用宿主 describe(cwd) 提示纠正', async () => {
+  const home = mkdtempSync(path.join(tmpdir(), 'dsh-remote-status-'))
+  try {
+    const mirror = seedMirror(home, { host: '10.0.0.2', username: 'root', port: 22, remotePath: '/srv/proj' })
+    const sessions = fakeSessions([{ id: 's-remote', cwd: mirror }, { id: 's-local', cwd: '/tmp' }])
+    const { state, services } = createServices({ sessions, dshHomePath: functionHome(home) })
+    const ctx = createFakeCtx(services)
+    installTui(ctx, createFakeApi(), {})
+    await flush()
+    // store 末尾是本地会话 → 隐藏
+    assert.equal(state.statusFields.at(-1)?.text, undefined)
+
+    // 宿主切换到一个已挂载的远程会话：只调 provider.describe(新 cwd)，不发 session 事件
+    const provider = state.workspaces[0].provider
+    assert.ok(provider.describe(mirror), 'describe 应正常返回 target')
+    await waitFor(200)
+    assert.equal(state.statusFields.at(-1).text, 'dev-box', 'describe 提示应让底栏跟上')
+  } finally { rmSync(home, { recursive: true, force: true }) }
+})
+
+test('installTui: sessions.list() 抛错时隐藏（不退回“显示 current 机器”）', async () => {
+  const { state, services } = createServices({
+    sessions: { list() { throw new Error('sessions boom') } },
+  })
+  const ctx = createFakeCtx(services)
+  installTui(ctx, createFakeApi(), {})
+  await flush()
+  assert.equal(state.statusFields.at(-1)?.text, undefined)
+})
+
+test('installTui: ssh-config 别名机按 alias 命中并显示保存的名字', async () => {
+  const home = mkdtempSync(path.join(tmpdir(), 'dsh-remote-status-'))
+  try {
+    const mirror = seedMirror(home, {
+      host: '10.0.0.2', username: 'root', port: 22, remotePath: '/srv/proj', alias: 'dev-alias',
+    })
+    const api = createFakeApi({
+      machines: {
+        machines: [{ id: 'm1', name: 'alias-box', host: 'dev-alias', port: 22, username: '', useSshConfig: true }],
+        currentId: 'm1',
+      },
+    })
+    const { state, services } = createServices({
+      sessions: fakeSessions([{ id: 's1', cwd: mirror }]),
+      dshHomePath: functionHome(home),
+    })
+    const ctx = createFakeCtx(services)
+    installTui(ctx, api, {})
+    await flush()
+    assert.equal(state.statusFields.at(-1).text, 'alias-box')
+  } finally { rmSync(home, { recursive: true, force: true }) }
+})
+
+test('installTui: 相同 text/detail 不重复 setField（宿主会无条件 emit 并记账）', async () => {
+  const home = mkdtempSync(path.join(tmpdir(), 'dsh-remote-status-'))
+  try {
+    const mirror = seedMirror(home, { host: '10.0.0.2', username: 'root', port: 22, remotePath: '/srv/proj' })
+    const { state, services } = createServices({
+      sessions: fakeSessions([{ id: 's1', cwd: mirror }]),
+      dshHomePath: functionHome(home),
+    })
+    const ctx = createFakeCtx(services)
+    const api = createFakeApi()
+    installTui(ctx, api, {})
+    await flush()
+    assert.equal(state.statusFields.length, 1)
+    api.counters.listener({ type: 'machines' })
+    await flush()
+    assert.equal(state.statusFields.length, 1, '值没变就不该再写一次')
+  } finally { rmSync(home, { recursive: true, force: true }) }
 })
 
 // ── whenService 本体 ─────────────────────────────────────────────────────
