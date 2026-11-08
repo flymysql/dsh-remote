@@ -2,6 +2,27 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.76 — 2026-11-08
+### 修复：rw_exec 转后台的任务 20 秒后被杀（issue #95）
+
+**根因（@Jaye1465 报告并定位）**：「超时转后台」设计上不给传输层期限
+（任务的寿命归 job 管），但 `startExecJob` 只是**省略**了 `timeoutMs`，而两个
+传输后端都把「缺省」解释成「用配置默认 `commandTimeoutMs`（20s）」——于是每个
+转后台的任务在 20 秒整被 SIGTERM，kill 文案还把没设置的期限插值成
+`timed out after undefinedms`。
+
+**修复**：期限语义显式化——`timeoutMs: 0` = **无期限**（仅 job 路径使用），
+缺省仍强制执行配置默认。`pool.js`（含 Git Bash 包装路径）与 `openssh.js` 三处
+默认值回退全部保留显式 0；定时器只在期限 >0 时才武装（传 0 给 setTimeout 会
+**立即**超时）。无期限任务的调用方取消（abort）依然致命（SIGTERM 照达远端）。
+kill 文案改为打印实际生效期限；无期限任务万一仍收到 TIMEOUT 会说人话而不是
+`undefinedms`。
+
+验证：新增 `test/issue95-exec-no-deadline.test.js` 三例（0=穿越配置默认存活 /
+缺省仍按时杀死（对照）/ 无期限下 abort 依然 SIGTERM），红绿核对过（旧代码跑挂
+生存例）；issue #70 既有晋升测试的钉桩从 `undefined` 改为显式 `0`。全套 1035 例、
+check.mjs、覆盖率门全绿。
+
 ## 0.8.75 — 2026-11-08
 ### 远程会话里点「打开终端」直接落到远端工作目录（issue #55 的终端一半）
 

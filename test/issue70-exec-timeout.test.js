@@ -141,7 +141,9 @@ test('startExecJob reports exit codes and honours an explicit job deadline', asy
   // would be SIGTERM'd at the very moment the caller hands it to the background.
   const job = startExecJob(registry, { pool, command: 'true' })
   await new Promise((r) => setTimeout(r, 20))
-  assert.equal(pool.calls[0].opts.timeoutMs, undefined, 'a job without its own deadline must not inherit the call timeout')
+  // Explicit 0 = "no deadline": merely OMITTING timeoutMs lets the transport
+  // substitute its config default and SIGTERM the promoted command (issue #95).
+  assert.equal(pool.calls[0].opts.timeoutMs, 0, 'a job without its own deadline opts the transport OUT of deadlines')
   assert.equal(registry._rec(job.id).settled.status, 'completed')
 
   // With an explicit deadline the transport enforces it (run_in_background).
@@ -167,8 +169,8 @@ test('promotion does NOT hand the call timeout to the transport (regression)', a
     registry, pool, command: 'long build', timeoutMs: 30, formatResult: formatExecResult,
   })
   assert.equal(r.promoted, true)
-  assert.equal(pool.calls[0].opts.timeoutMs, undefined,
-    'a promoted job owns its own lifetime - the call timeout must not reach the transport')
+  assert.equal(pool.calls[0].opts.timeoutMs, 0,
+    'a promoted job owns its own lifetime - the call timeout must not reach the transport, not even via the transport default')
   await new Promise((res) => setTimeout(res, 400))
   assert.equal(registry._rec(r.jobId).settled.status, 'completed', 'the promoted job ran to completion')
 })
