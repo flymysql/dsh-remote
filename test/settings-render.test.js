@@ -54,7 +54,7 @@ function mountClient(opts = {}) {
   }
   const requireStub = (id) => {
     if (id === 'react') return React
-    if (id === '@deepseek-ai/dsh-client-ui-primitives') return { relativeTime: () => ({ unit: 'now', n: 0 }) }
+    if (id === '@deepseek-ai/dsh-client-ui-primitives') return { relativeTime: () => ({ unit: 'now', n: 0 }), ...(opts.primitives || {}) }
     throw new Error('unexpected require: ' + id)
   }
   const run = new Function(
@@ -216,6 +216,46 @@ test('issue #78: auto-open checkbox defaults on, persists off, reads back on rem
   const tree2 = remount.Page({})
   const box2 = findAll(tree2, (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')
   assert.equal(box2[0].props.checked, false, 'a restart reads the persisted opt-out')
+})
+
+test('with a host Switch the toggles ride it: ids on wrappers, bare-boolean onChange persists', () => {
+  const store = new Map()
+  const localStorage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+  }
+  // Faithful to the shipped bundle: onChange delivers a bare boolean, and the
+  // component ignores unknown props (so a data-testid handed to it would die).
+  const SwitchStub = (props) => React.createElement('button', {
+    type: 'button', role: 'switch', 'aria-checked': props.checked, disabled: props.disabled,
+    onClick: () => props.onChange(!props.checked),
+  })
+  const { Page } = mountClient({ localStorage, primitives: { Switch: SwitchStub } })
+  const reset = installHookRig()
+  const render = () => { reset(); return Page({}) }
+
+  let tree = render()
+  const wrap = findAll(tree, (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')
+  assert.equal(wrap.length, 1, 'exactly one explorer-auto-open element on the Switch path')
+  const hosted = findAll(wrap[0], (el) => el.type === SwitchStub)
+  assert.equal(hosted.length, 1, 'the wrapper carries the host Switch')
+  assert.equal(hosted[0].props.checked, true, 'default ON flows onto the Switch')
+  assert.equal(findAll(tree, (el) => el.type === 'input' && el.props && el.props['data-testid']).length, 0,
+    'the native checkbox is gone when the host Switch renders')
+
+  hosted[0].props.onChange(false) // bare boolean, per the bundle contract
+  assert.equal(store.get('dsh-remote:explorerAutoOpen'), '0', 'flipping off persists immediately')
+  tree = render()
+  const again = findAll(findAll(tree, (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')[0], (el) => el.type === SwitchStub)
+  assert.equal(again[0].props.checked, false, 're-render reflects the stored choice')
+
+  // Telemetry: value unknown until the host answers → the Switch renders disabled.
+  const telWrap = findAll(tree, (el) => el.props && el.props['data-testid'] === 'telemetry-toggle')
+  assert.equal(telWrap.length, 1, 'exactly one telemetry-toggle element on the Switch path')
+  const telSw = findAll(telWrap[0], (el) => el.type === SwitchStub)
+  assert.equal(telSw.length, 1)
+  assert.equal(telSw[0].props.disabled, true, 'unknown telemetry state disables the control')
+  assert.equal(typeof telSw[0].props.title, 'string', 'the hint tooltip survives the swap')
 })
 
 test('no backup i18n key survives the capability removal', () => {

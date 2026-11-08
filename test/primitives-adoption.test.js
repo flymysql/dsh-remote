@@ -279,3 +279,35 @@ test('the clipboard goes through the host writeClipboard when present', () => {
 test('no native confirm remains anywhere in the client bundle', () => {
   assert.ok(!/window\.confirm\s*\(/.test(src), 'window.confirm must be gone (ConfirmDialog replaced it)')
 })
+
+// ── long-tail visual adoptions (Switch / SegmentedTabs / FileTypeIcon) ─────
+// Contracts verified against the SHIPPED host bundle (the npm type package
+// trails it): Switch takes {checked, disabled, title, label} and an onChange
+// delivering a bare BOOLEAN; SegmentedTabs takes {items:[{value,label}], value,
+// onChange(value)}; FileTypeIcon takes {kind}|{path} + size.
+
+test('settings toggles adopt the host Switch; each test id exists on BOTH paths', () => {
+  assert.match(src, /HostSwitch = \(Primitives && typeof Primitives\.Switch === 'function'\)/)
+  // The host Switch swallows unknown props (no data-testid forwarding), so
+  // each stable id appears twice: on the fallback <input>, and on the wrapper
+  // span that carries it whenever the Switch renders.
+  const ids = src.match(/'data-testid': '(explorer-auto-open|telemetry-toggle)'/g) || []
+  assert.equal(ids.length, 4, `want 4 id sites (2 toggles x fallback/adopted), got ${ids.length}`)
+})
+
+test('the dir picker adopts host SegmentedTabs for its 本机/远程 switch', () => {
+  assert.match(src, /HostSegmentedTabs = \(Primitives && typeof Primitives\.SegmentedTabs === 'function'\)/)
+  assert.match(src, /React\.createElement\(HostSegmentedTabs, \{/)
+  // onChange delivers the item value — exactly what switchTab consumes.
+  assert.match(src, /onChange: switchTab/)
+})
+
+test('explorer and picker rows adopt the host FileTypeIcon', () => {
+  assert.match(src, /HostFileTypeIcon = \(Primitives && typeof Primitives\.FileTypeIcon === 'function'\)/)
+  assert.match(src, /kind: 'folder'/, 'directories take the folder kind')
+  // Files derive their glyph from the entry name; unknown extensions degrade
+  // to the host's generic 'other' file icon.
+  assert.match(src, /React\.createElement\(HostFileTypeIcon, \{ path: String\(name \|\| ''\), size: 14 \}\)/)
+  // The hand-drawn SVGs stay as the no-primitive fallback.
+  assert.match(src, /viewBox: '0 0 16 16'/)
+})
