@@ -2,6 +2,29 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.77 — 2026-11-08
+### 浮层与原生件对齐宿主 primitives（架构评审 P0）
+
+宿主共享模块里的 `@deepseek-ai/dsh-client-ui-primitives` 有约 290 个导出，插件此前
+只用了 1 个（MarkdownText），其余全部手搓——#52（手势误关）、#93（指针穿透）都是
+这一类的病。本次开始系统性采用（一律软探测 + 优雅回退，老宿主行为不变）：
+
+- **`window.confirm` 全部退役**：更新确认、删除机器、删除远程文件三处改用统一的
+  `ConfirmDialog`——宿主有 Modal 就走 Modal（恒 portal + 焦点圈禁 + 自动聚焦 +
+  焦点还原 + IME 保护），没有就用我们自己的按压守卫浮层。嵌入方屏蔽原生对话框的
+  环境下确认框不再凭空消失。
+- **mkdir/重命名输入框（PromptDialog）改用宿主 Modal**；回退路径维持原实现。
+- **远程文件树的右键菜单改用宿主 `Menu`**（锚定指针、portal 到 body、键盘可达）；
+  无 Menu 的宿主保留原命令式 DOM 菜单。
+- **复制到剪贴板优先走宿主 `writeClipboard`**。
+- 目录选择大弹窗（DirPicker）**刻意不迁 Modal**：实测宿主 Modal 的遮罩是裸 onClick
+  关闭，直接套用会让 #52 的「内起外落手势误关」回归（选择器有自动补全列表，手势
+  中途重排是常态）。它维持 #93 的 portal + 自研按压守卫，功能上等价且更安全。
+
+验证：新增 `test/primitives-adoption.test.js` 6 例——删除机器全流程在有/无 Modal
+两种宿主下各跑一遍（含「取消不产生任何写」「native confirm 被调用即炸」的反向钉）
++ 菜单/剪贴板接线形状钉。全套 1041 例、check.mjs、覆盖率门全绿。
+
 ## 0.8.76 — 2026-11-08
 ### 修复：rw_exec 转后台的任务 20 秒后被杀（issue #95）
 
