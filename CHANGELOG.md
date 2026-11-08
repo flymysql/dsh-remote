@@ -2,6 +2,27 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.79 — 2026-11-08
+### 视觉长尾对齐宿主原件（架构评审 P1）+ god-file 拆分试点（issue #82）
+
+**primitives 长尾（全部软采用、老宿主行为不变）**：
+- 设置页两个复选框 → 宿主 **Switch**（role=switch、纯布尔回调；testid 挪到外层
+  span，测试两臂都找得到）；
+- 目录选择器的「本机/远程」切换 → 宿主 **SegmentedTabs**（自带滑动指示与方向键
+  导航）；
+- 文件树/目录列表的手绘 SVG 图标 → 宿主 **FileTypeIcon**（目录 kind:'folder'、文件按
+  扩展名出图标、未知落 other；本机目录弹窗的 📁 emoji 一并换成同款文件夹图标）。
+
+**issue #82 拆分试点**：自更新域 4 条路由原体迁出为 `lib/routes-update.js`
+（机制留在 update.js，entry 只留一行工厂调用）；新文件落地 82.5% 行/100% 函数覆盖，
+index.js 减百行。后续按域推进（机器注册表/镜像同步/转发/审计/…）。
+
+**上行沟通**：四份立场文档已作为 Discussion 发到 deepseek-ai/deepseek-harness
+（Ideas #12613 路由浏览器围栏 / #12614 插件 upgrade 通道扶正 / #12615 Loader Entry
+公开 dispose / #12616 allowBuilds 双写腐坏），文稿存档于 docs/upstream/。
+
+测试 1047 例全绿（新增 Switch 采用臂挂载测试 + 三条接线 pin），check.mjs 与覆盖率门通过。
+
 ## 0.8.78 — 2026-11-08
 ### 匿名心跳有了开关（管理员配置 + 设置页复选框）
 
