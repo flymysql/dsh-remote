@@ -50,6 +50,7 @@ const ROUTES = [
   { path: '/dsh-remote/update-apply', allow: ['POST'], body: true },
   { path: '/dsh-remote/update-reload', allow: ['POST'] },
   { path: '/dsh-remote/update-mode', allow: ['POST'], body: true },
+  { path: '/dsh-remote/telemetry', allow: ['GET', 'POST'], body: true },
   // fs surface (lib/routes-fs.js)
   { path: '/dsh-remote/ls', allow: ['GET', 'POST'], noMethodGuard: true },
   { path: '/dsh-remote/read', allow: ['GET', 'POST'], body: true },

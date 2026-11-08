@@ -19,8 +19,11 @@ import {
   heartbeatUrl,
   installId,
   installIdPath,
+  persistTelemetryOpt,
   pseudonym,
+  readTelemetryOpt,
   sendHeartbeat,
+  telemetryAllowed,
 } from '../lib/telemetry.js'
 
 // ★ 测试绝不允许打到生产统计端点——但这件事由 `test/setup-telemetry-off.mjs`
@@ -234,6 +237,35 @@ test('the test guard recognises a test process and blanks the send', async () =>
     assert.equal(called, false, 'no request may leave the machine from a test run')
   } finally {
     globalThis.fetch = realFetch
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+// ── the user-facing off switch (0.8.78) ─────────────────────────────────────
+
+test('telemetryAllowed: default true, config false honored, user override wins both ways', () => {
+  const home = tempHome()
+  try {
+    assert.equal(telemetryAllowed(home, true), true, 'default on when nothing says otherwise')
+    assert.equal(telemetryAllowed(home, false), false, 'admin config off')
+    assert.equal(persistTelemetryOpt(home, true), true)
+    assert.equal(readTelemetryOpt(home), '1')
+    assert.equal(telemetryAllowed(home, false), true, 'user override beats admin config')
+    persistTelemetryOpt(home, false)
+    assert.equal(telemetryAllowed(home, true), false, 'user opt-out beats default on')
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('a corrupt opt file falls back to the config value instead of crashing', () => {
+  const home = tempHome()
+  try {
+    writeFileSync(path.join(home, '.dsh-remote-telemetry'), 'garbage')
+    assert.equal(readTelemetryOpt(home), null)
+    assert.equal(telemetryAllowed(home, true), true)
+    assert.equal(telemetryAllowed(home, false), false)
+  } finally {
     rmSync(home, { recursive: true, force: true })
   }
 })
