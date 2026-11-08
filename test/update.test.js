@@ -272,7 +272,9 @@ test('fetchLatestVersion rejects a malformed payload rather than returning junk'
 test('the update check still reports local state when the registry fails', () => {
   // 回归：registry 失败时若整条响应 ok:false，客户端就不会 setUpd，面板会永远停在
   // 「版本信息加载中…」——看起来像卡死，而本地版本/更新模式其实都已知。
-  const src = readFileSync(path.join(root, 'lib', 'index.js'), 'utf8')
+  // The route lives in lib/routes-update.js since the issue #82 extraction;
+  // the shape contract it pins is unchanged.
+  const src = readFileSync(path.join(root, 'lib', 'routes-update.js'), 'utf8')
   const route = src.slice(src.indexOf("path: '/dsh-remote/update-check'"))
   const body = route.slice(0, route.indexOf('kind: \'exact\'', 10))
   assert.match(body, /if \(probe\.error\)/, 'the route must branch on a probe error')
