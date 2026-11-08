@@ -1,6 +1,6 @@
 # A · 插件裸路由缺少浏览器围栏｜webServer plugin routes lack a built-in browser fence (Origin/Host/Sec-Fetch-Site)
 
-- 状态 Status：DRAFT，2026-11-08，待终审后投递
+- 状态 Status：POSTED 2026-11-08 → https://github.com/deepseek-ai/deepseek-harness/discussions/12613
 - **投递渠道＝Discussions/Ideas（主仓 issues 关闭）**：`deepseek-ai/deepseek-harness` 为公开仓但 `has_issues=false`（`.github/ISSUE_TEMPLATE/config.yml` 亦 `blank_issues_enabled: false`，bug/feature/task 模板为残留物）；Discussions 开启；无 `.github/SECURITY.md`
 - Target：`deepseek-ai/deepseek-harness` → npm `@deepseek-ai/dsh-host-webserver`
 - Reporter project：[`flymysql/dsh-remote`](https://github.com/flymysql/dsh-remote)（背景：[issue #46](https://github.com/flymysql/dsh-remote/issues/46)）

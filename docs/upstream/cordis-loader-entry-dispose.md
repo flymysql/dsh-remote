@@ -1,6 +1,6 @@
 # B · Loader Entry 无公开 dispose/reload 契约｜Cordis Loader `Entry` has no public dispose/reload contract
 
-- 状态 Status：DRAFT，2026-11-08，待终审后投递
+- 状态 Status：POSTED 2026-11-08 → https://github.com/deepseek-ai/deepseek-harness/discussions/12615
 - **投递渠道＝Discussions/Ideas（主仓 issues 关闭）**：`deepseek-ai/deepseek-harness` `has_issues=false`；Discussions 开启
 - Target：`deepseek-ai/deepseek-harness` → npm **`@deepseek-ai/cordis-plugin-loader`**（Entry 所在；非 cordis 本体）
 - Reporter project：[`flymysql/dsh-remote`](https://github.com/flymysql/dsh-remote)

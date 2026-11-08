@@ -1,6 +1,6 @@
 # D · allowBuilds 双写入器腐坏（pnpm-workspace.yaml）｜Competing writers corrupt `allowBuilds` with duplicate keys
 
-- 状态 Status：DRAFT，2026-11-08，待终审后投递
+- 状态 Status：POSTED 2026-11-08 → https://github.com/deepseek-ai/deepseek-harness/discussions/12616
 - **投递渠道＝Discussions/Ideas（主仓 issues 关闭）**：`deepseek-ai/deepseek-harness` `has_issues=false`；Discussions 开启
 - Target：`deepseek-ai/deepseek-harness` → npm `@deepseek-ai/dsh-plugin-manager@0.2.2-rc.1`
 - Reporter project：[`flymysql/dsh-remote`](https://github.com/flymysql/dsh-remote)（现场：[issue #94](https://github.com/flymysql/dsh-remote/issues/94)，OPEN）

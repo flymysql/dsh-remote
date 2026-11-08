@@ -1,6 +1,6 @@
 # C · 插件路由的长连接升级通道需要扶正｜A sanctioned WebSocket/upgrade channel for plugin routes
 
-- 状态 Status：DRAFT，2026-11-08，待终审后投递
+- 状态 Status：POSTED 2026-11-08 → https://github.com/deepseek-ai/deepseek-harness/discussions/12614
 - **投递渠道＝Discussions/Ideas（主仓 issues 关闭）**：`deepseek-ai/deepseek-harness` `has_issues=false`；Discussions 开启
 - Target：`deepseek-ai/deepseek-harness` → npm `@deepseek-ai/dsh-host-webserver`（兼涉 `@deepseek-ai/dsh-client-connection`）
 - Reporter project：[`flymysql/dsh-remote`](https://github.com/flymysql/dsh-remote)
