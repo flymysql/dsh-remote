@@ -842,6 +842,10 @@ function createSceneApi(options = {}) {
       calls.push({ method: 'pickRemoteWorkspace', input })
       return { machineId: 'm1', remotePath: input.remotePath, localMirror: '/tmp/mirror', title: 'dev-box-proj' }
     },
+    async revealMirrorFolder() {
+      calls.push({ method: 'revealMirrorFolder' })
+      return { path: '/tmp/mirrors' }
+    },
     async connect(input) {
       calls.push({ method: 'connect', input })
       return { connected: true, machineId: 'm1', host: '10.0.0.2', username: 'root', port: 22, workspace: '', activeSource: 'manual', forwards: [] }
@@ -940,14 +944,56 @@ test('scene: 列表 → 动作菜单 → 返回列表 → q 关闭', async () =>
   await scene.press('', { return: true })
   const menu = scene.text()
   assert.match(menu, /动作 · dev-box/)
-  for (const label of ['连接', '设为工作区', '编辑', '删除', '探测连接', '浏览远程目录']) {
+  for (const label of ['连接', '工作区管理', '编辑', '删除', '探测连接', '浏览远程目录']) {
     assert.match(menu, new RegExp(label))
   }
+  // “设为工作区”入口已移除：只保留浏览目录里的 w
+  assert.doesNotMatch(menu, /设为工作区/)
+  assert.equal((menu.match(/\d+\. /g) || []).length, 6, '动作菜单应恰好 6 项')
 
   await scene.press('', { escape: true })
   assert.doesNotMatch(scene.text(), /动作 · dev-box/)
   await scene.press('q')
   assert.equal(scene.closeState.count, 1, '列表根视图 q 应关闭场景')
+})
+
+test('scene: 子视图里按 o 不触发打开镜像目录', async () => {
+  const scene = await mountScene()
+  await scene.press('', { return: true })   // 动作菜单
+  await scene.press('o')
+  assert.equal(scene.api.calls.filter((entry) => entry.method === 'revealMirrorFolder').length, 0)
+})
+
+test('scene: 旧宿主没有 revealMirrorFolder 时按 o 安全降级', async () => {
+  const api = createSceneApi()
+  delete api.revealMirrorFolder
+  const scene = await mountScene({ api })
+  await scene.press('o')
+  await flush()
+  assert.equal(scene.api.calls.some((entry) => entry.method === 'revealMirrorFolder'), false)
+  assert.match(scene.text(), /dsh-remote · 远程服务器/, '仍停留在列表，不崩')
+})
+
+test('scene: 打开镜像目录失败时错误进页脚', async () => {
+  const api = createSceneApi()
+  api.revealMirrorFolder = async () => {
+    const error = new Error('还没有任何远程工作区镜像目录')
+    error.code = 'VALIDATION'
+    throw error
+  }
+  const scene = await mountScene({ api })
+  await scene.press('o')
+  await flush()
+  assert.match(scene.text(), /还没有任何远程工作区镜像目录/)
+})
+
+test('scene: 主列表按 o 在系统文件管理器中打开镜像根目录', async () => {
+  const scene = await mountScene()
+  await scene.press('o')
+  const call = scene.api.calls.find((entry) => entry.method === 'revealMirrorFolder')
+  assert.ok(call, '应按 o 调用 api.revealMirrorFolder')
+  assert.ok(scene.notifications.some((entry) => String(entry.text).includes('/tmp/mirrors')),
+    `应提示打开的路径，实际：${JSON.stringify(scene.notifications)}`)
 })
 
 test('scene: 新增表单校验失败留在表单页；修正后 Enter 保存', async () => {

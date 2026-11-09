@@ -8,7 +8,7 @@
 
 | 能力 | 用户入口 |
 | --- | --- |
-| 远程服务器管理页（增 / 改 / 删 / 连接 / 探测 / 浏览目录 / 设为工作区） | `/dsh-remote`（全屏场景） |
+| 远程服务器管理页（增 / 改 / 删 / 连接 / 探测 / 浏览目录） | `/dsh-remote`（全屏场景） |
 | 新建工作区时直接选远程项目目录 | `/workspace open dshremote://<机器>/<远程路径>`、`/workspace` 选择器、`dst dshremote://…` 启动参数 |
 | 远程项目进入工作区台账 | 选中即写 `ctx.workspaceRegistry`，标题形如 `机器名-目录名` |
 
@@ -78,6 +78,10 @@ interface DshRemoteHostApi {
 
   /** 已存在的远程项目镜像（只读本地文件系统，不连网）。 */
   listRemoteProjects(): Promise<RemoteProject[]>
+
+  /** 在系统文件管理器里打开本机镜像根目录 `$DSH_HOME/remote-workspaces`。
+   *  目录不存在时抛 `VALIDATION`；不创建任何东西。 */
+  revealMirrorFolder(): Promise<{ path: string }>
 
   /**
    * 采用一个远程目录：建/复用本地镜像（mkdir + .dsh-remote-meta.json），
@@ -249,8 +253,10 @@ WORKSPACE_BUSY | INTERNAL`（`VALIDATION` = 调用方输入不可用，如缺 ho
 2. **场景** `dsh-remote`：`ctx.tuiScenes.register({ id, title, component }, ctx)`。
    - 组件只用 props 注入的 `React` 与 `ui`；元素一律 `React.createElement`，不用 JSX。
    - 键盘：`↑/↓` 移动、`Enter` 确认、`a` 新增、`e` 编辑、`d` 删除、`t` 探测、
-     `c` 连接、`b` 浏览远程目录、`w` 设为工作区、`m` 工作区管理（删除/清理）、
-     `Esc`/`q` 关闭。
+     `c` 连接、`b` 浏览远程目录（浏览里按 `w` 设为工作区）、`o` 用系统文件管理器
+     打开本机镜像根目录、动作菜单里 `m` 工作区管理（删除/清理）、`Esc`/`q` 关闭。
+     该根目录同时存放 `machines.json` / `audit.log` 等插件数据；`credentialFallback:
+     plain` 时 `machines.json` 可能含明文密码——打开前请知悉（只在本机文件管理器里可见）。
    - 渲染期不做同步 I/O；异步全部进 `useEffect`，组件卸载后丢弃结果。
 3. **工作区 provider**：`ctx.tuiWorkspaces.register(provider)`（scheme `dshremote`）。
    - `list(signal)`：**只读缓存**（启动后台预热 + 变更后刷新），保证 2s 预算内返回。
@@ -321,7 +327,7 @@ WORKSPACE_BUSY | INTERNAL`（`VALIDATION` = 调用方输入不可用，如缺 ho
 | `tui` | `true` | 总开关；false 时 `installTui` 直接返回 |
 | `tuiProviderListRecent` | `true` | 工作区选择器里是否列出各机最近工作区 |
 | `tuiProviderRecentLimit` | `5` | 每机列出的最近工作区上限（1–20） |
-| `tuiAutoSwitchWorkspace` | `true` | 场景里「设为工作区」后是否立即切会话 |
+| `tuiAutoSwitchWorkspace` | `true` | 浏览目录里按 `w` 设为工作区后是否立即切会话 |
 | `tuiLang` | `''` | TUI 层文案语言：`''`=自动（中文；`DSH_TUI_LANG=en` 时英文），`zh`/`en` 固定 |
 
 ## 6. 安装
@@ -358,7 +364,7 @@ dsh --profile tuidev --dump-config | grep -A2 'id: dsh-remote'
 
 - 单测：`npm test` —— 覆盖宿主 API 合同（含工作区清理）、provider / URI /
   表单纯函数、`installTui` 注册矩阵（含 fake-React 的场景渲染测试）；
-  当前 1052 例（1043 通过 / 9 skip）。
+  当前 1067 例（1058 通过 / 9 skip）。
 - 静态闸门：`node check.mjs`（命令名 / 场景 id / 工具名 / 路由前缀约束）。
 - 组合：`dsh --profile <sandbox> --dump-config` 中能看到 `id: dsh-remote` 行，
   且 `@deepseek-harness-tui/dsh-tui` 的补丁层正常应用。
