@@ -56,7 +56,7 @@ DSH 的 Web 界面刻意只监听 `127.0.0.1`（CLI 为安全拒绝 `--host 0.0.
 - **数据跟随 Harness 根目录** —— 机器清单与镜像在 `$DSH_HOME/remote-workspaces`；0.6 之前的数据首次启动自动迁移。
 - **`~/.ssh/config` 是连接四字段的唯一来源**（`0.8.50+`，issue #50）—— 保存机器时把 主机/用户/端口/私钥 写入 `~/.ssh/config` 的受管块（`# dsh-remote: managed` 标记，只动自己的块；你手写的同名 Host 块绝不覆盖，会提示冲突）。之后**改这个文件立即生效**：任何 Host 块点名的主机（含字面 IP），连接都按文件解析（裸 `Host *` 是通用默认，不算点名）；机器记录里的副本只做兜底，插件自己的状态（最近工作区/延迟等）仍存注册表。
 - **不改动 `dsh-workspace` 官方代码** —— 全部作为普通插件实现。
-- **终端界面（dsh-tui）里也有页面** —— `/dsh-remote` 打开服务器管理页（增删改/连接/浏览远端目录/设为工作区），新建工作区时可直接挑远程项目目录；同样不改 dsh-tui 本体。见下文「在 TUI 里使用」。
+- **终端界面（dsh-tui）里也有页面** —— `/dsh-remote` 打开服务器管理页（增删改/连接/浏览远端目录），浏览时按 `w` 把当前目录设为工作区；同样不改 dsh-tui 本体。见下文「在 TUI 里使用」。
 
 ## 安装
 
@@ -164,11 +164,15 @@ dsh plugin --profile dsh-tui add dsh-remote
 输入 `/dsh-remote` 打开全屏设置页（命令同时出现在 `/` 补全与 `/help` 里）：
 
 - `↑/↓` 选机器，`Enter` 打开动作菜单；`a` 新增、`e` 编辑、`d` 删除、`t` 测试连接、
-  `c` 连接、`b` 浏览远端目录、`m` 工作区管理、`Esc`/`q` 关闭（子视图里先返回列表）。
+  `c` 连接、`b` 浏览远端目录、`o` 打开本机镜像目录、`Esc`/`q` 关闭
+  （子视图里先返回列表；动作菜单里按 `m` 管理工作区）。
 - 新增/编辑：名称、主机、端口、用户名、认证方式（密码 / 私钥 / SSH agent）、密码或私钥路径、
   分组。密码**只写不回显**，编辑时留空表示不修改。
 - `b` 浏览远端目录，按 `w` 把当前目录**设为工作区**：自动建本地镜像、注册成 DSH 工作区
   （标题形如 `机器名-目录名`），并按配置切换过去。
+- `o` 用系统默认文件管理器打开本机镜像根目录 `$DSH_HOME/remote-workspaces`
+  （每台机器的镜像按 `<host>-<user>-<port>` 分目录存放；该目录也含 `machines.json`
+  等插件数据，`credentialFallback: plain` 时可能含明文密码，仅在本机可见）。
 
 ### 新建工作区时直接选远程目录
 
@@ -313,7 +317,7 @@ scripts/dev-run.sh --status    # 是否在运行
 | `tui` | bool | `true` | TUI 适配层（dsh-tui）总开关；`false` 时不注册 `/dsh-remote` 页面、工作区 provider 与状态行字段 |
 | `tuiProviderListRecent` | bool | `true` | TUI 工作区选择器里是否列出每台机器最近的远程项目 |
 | `tuiProviderRecentLimit` | int | `5` | 每台机器列出的最近远程项目数（1–20） |
-| `tuiAutoSwitchWorkspace` | bool | `true` | 在 `/dsh-remote` 页面「设为工作区」后立即把会话切过去 |
+| `tuiAutoSwitchWorkspace` | bool | `true` | 在浏览目录里按 `w`「设为工作区」后立即把会话切过去 |
 | `tuiLang` | string | `''` | TUI 层文案语言：`''`=自动（中文；`DSH_TUI_LANG=en` 时英文），`zh` / `en` 固定 |
 | `remoteSandbox` | string | `inherit` | 远程操作套用哪套 sandbox 语义（0.8.54+）：`inherit`=读取本机 `ctx.sandboxPolicy` 已解析的模式（read-only 拒远端写入/命令/转发，workspace-write 把远端写入围在 workspace 根内，danger-full-access 全放行）；`off`=不设围栏（旧行为）；也可显式写某一模式。**这是遏制不是安全边界**，硬边界请在远端一侧做 |
 | `credentialFallback` | string | `refuse` | 系统密钥库写密码失败时怎么办（0.8.54+）：`refuse`=不保存该密码（机器照常保存，界面报出失败原因，绝不把明文写进 machines.json）；`plain`=旧的明文回退（会警告）。主动关掉加密（`backend: plain`）不受影响 |

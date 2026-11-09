@@ -64,6 +64,7 @@ function fakeDeps({ dirOk = true, upsertExtra = {}, listDirPool = null } = {}) {
     registered: [],
     connectCalls: [],
     currentCalls: [],
+    revealCalls: [],
   }
   const deps = {
     listMachinesView: () => ({ machines: state.machines, currentId: state.currentId }),
@@ -107,6 +108,10 @@ function fakeDeps({ dirOk = true, upsertExtra = {}, listDirPool = null } = {}) {
       dir: '/mirrors/10.0.0.9-proj', host: '10.0.0.9', port: 22, username: 'root',
       remotePath: '/srv/proj', alias: 'boxalias', name: 'box', machineId: 'm-1',
     }],
+    revealMirrorFolderRecord: () => {
+      state.revealCalls.push('')
+      return { path: '/mirrors' }
+    },
     resolveMachine: (id) => {
       const rec = id
         ? state.machines.find((m) => m.id === id)
@@ -171,6 +176,7 @@ test('apiVersion is 1 and every contract method is present and async', () => {
     'probeMachine', 'status', 'listDir', 'listRemoteProjects',
     'ensureRemoteWorkspace', 'pickRemoteWorkspace',
     'listWorkspaceMirrors', 'deleteWorkspaceSessions', 'deleteRemoteWorkspace', 'forgetWorkspaceRecent',
+    'revealMirrorFolder',
   ]) {
     assert.equal(typeof api[name], 'function', `${name} must be a function`)
     assert.equal(api[name].constructor.name, 'AsyncFunction', `${name} must be async`)
@@ -365,6 +371,18 @@ test('the plugin exposes ctx.dshRemote (apiVersion 1) through the harness ctx', 
     assert.ok(viaCtx, 'ctx.get("dshRemote") must return the API object')
     assert.equal(viaCtx.apiVersion, 1)
     assert.equal(host.api, viaCtx, 'harness exposes the same object as host.api')
+  } finally { await host.dispose() }
+})
+
+test('revealMirrorFolder is wired to the real plugin and refuses a missing mirror root', async () => {
+  const host = await createHost({})
+  try {
+    assert.equal(typeof host.api.revealMirrorFolder, 'function')
+    // 镜像根不存在时只报 VALIDATION，绝不 spawn 系统文件管理器
+    const root = path.join(process.env.DSH_HOME, 'remote-workspaces')
+    rmSync(root, { recursive: true, force: true })
+    await assert.rejects(host.api.revealMirrorFolder(), (err) => err.code === 'VALIDATION')
+    assert.equal(existsSync(root), false, '失败时不得创建镜像根目录')
   } finally { await host.dispose() }
 })
 
@@ -748,6 +766,25 @@ test('deleteWorkspaceSessions removes dead chats, skips live ones and keeps the 
     assert.equal(existsSync(area.state.mirror), true)
     assert.equal(area.registry.records.length, 1)
   } finally { rmSync(area.state.home, { recursive: true, force: true }) }
+})
+
+test('revealMirrorFolder asks the host to open remote-workspaces and returns its path', async () => {
+  const { api, state } = fakeDeps()
+  const result = await api.revealMirrorFolder()
+  assert.deepEqual(result, { path: '/mirrors' })
+  assert.equal(state.revealCalls.length, 1)
+})
+
+test('revealMirrorFolder maps host failures / missing dependency to API codes', async () => {
+  const { deps } = fakeDeps()
+  deps.revealMirrorFolderRecord = async () => {
+    const error = new Error('还没有任何远程工作区镜像目录')
+    error.code = 'VALIDATION'
+    throw error
+  }
+  const api = createHostApi(deps)
+  await assert.rejects(api.revealMirrorFolder({}), (err) => err.code === 'VALIDATION')
+  await assert.rejects(createHostApi({}).revealMirrorFolder(), (err) => err.code === 'INTERNAL')
 })
 
 test('forgetWorkspaceRecent only drops the recent entry', async () => {

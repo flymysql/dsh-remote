@@ -66,7 +66,7 @@ The rest:
 - **Async long tasks** — `rw_sync`/`rw_push` with `async: true` return a `taskId` with progress/result/cancel.
 - **Data lives under the harness home** — machines and mirrors follow `$DSH_HOME`; pre-0.6 data migrates automatically on first run.
 - **No `dsh-workspace` core changes** — everything ships as a normal plugin.
-- **Pages in the terminal UI too (dsh-tui)** — `/dsh-remote` opens a server management page (add/edit/delete, connect, browse remote directories, set as workspace), and the new-workspace picker can list remote project directories directly — again without patching dsh-tui. See "Use it from the TUI" below.
+- **Pages in the terminal UI too (dsh-tui)** — `/dsh-remote` opens a server management page (add/edit/delete, connect, browse remote directories; press `w` there to set the current directory as a workspace), and the new-workspace picker can list remote project directories directly — again without patching dsh-tui. See "Use it from the TUI" below.
 
 ## Install
 
@@ -180,14 +180,19 @@ Type `/dsh-remote` to open a full-screen settings page (the command also shows u
 and `/help`):
 
 - `↑/↓` picks a machine, `Enter` opens the action menu; `a` add, `e` edit, `d` delete, `t` test
-  connection, `c` connect, `b` browse remote directories, `m` manage workspaces, `Esc`/`q` close
-  (inside a sub-view they step back to the list first).
+  connection, `c` connect, `b` browse remote directories, `o` open the local mirror folder,
+  `Esc`/`q` close (inside a sub-view they step back to the list first; `m` in the action menu
+  manages workspaces).
 - Add/edit: name, host, port, username, auth method (password / private key / SSH agent), password or
   key path, group. Passwords are **write-only** and never echoed; leaving the field empty keeps the
   stored value.
 - `b` browses remote directories; `w` adopts the current one as a **workspace**: it creates the local
   mirror, registers it as a DSH workspace (title `<machine>-<directory>`) and, per configuration,
   switches the session there.
+- `o` opens the local mirror root `$DSH_HOME/remote-workspaces` in the system file manager (each
+  machine's mirrors live under a `<host>-<user>-<port>` subdirectory). That directory also holds
+  `machines.json` and other plugin data — with `credentialFallback: plain` it can contain plaintext
+  passwords; it is only exposed locally.
 
 ### Pick a remote directory when creating a workspace
 
@@ -338,7 +343,7 @@ Deploying to a product profile is a separate, explicit action (`./sync.sh`) for 
 | `tui` | bool | `true` | master switch for the TUI (dsh-tui) layer; `false` registers no `/dsh-remote` page, workspace provider or status field |
 | `tuiProviderListRecent` | bool | `true` | list each machine's recent remote projects in the TUI workspace picker |
 | `tuiProviderRecentLimit` | int | `5` | recent remote projects listed per machine (1–20) |
-| `tuiAutoSwitchWorkspace` | bool | `true` | switch the session right after "set as workspace" in the `/dsh-remote` page |
+| `tuiAutoSwitchWorkspace` | bool | `true` | switch the session right after pressing `w` (set as workspace) in the directory browser |
 | `tuiLang` | string | `''` | language of the TUI layer's own copy: `''` = auto (zh, or en when `DSH_TUI_LANG=en`), `zh` / `en` pins it |
 | `remoteSandbox` | string | `inherit` | which sandbox semantics remote operations follow (0.8.54+): `inherit` reads the mode the local `ctx.sandboxPolicy` resolved (read-only refuses remote writes/commands/forwards, workspace-write fences remote writes to the workspace root, danger-full-access allows everything); `off` disables the fence (legacy behaviour); an explicit mode name is also accepted. **This is containment, not a security boundary** — deploy hard boundaries on the remote side |
 | `credentialFallback` | string | `refuse` | what to do when the OS secure store refuses a password (0.8.54+): `refuse` saves no password (the machine is still saved, the UI reports why, and nothing is written to machines.json in plaintext); `plain` restores the legacy plaintext fallback (with a warning). Turning encryption off explicitly (`backend: plain`) is unaffected |
