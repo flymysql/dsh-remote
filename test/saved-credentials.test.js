@@ -58,11 +58,11 @@ const CONFIG = {
   encoding: 'utf-8', updateMode: 'off', updateCheckIntervalMs: 0,
 }
 
-async function loadPlugin(home) {
+async function loadPlugin(home, config = {}) {
   process.env.DSH_HOME = home
   const mod = await import(`../lib/index.js?cred=${Math.random()}`)
   const { ctx, routes } = makeCtx()
-  await mod.apply(ctx, { ...CONFIG })
+  await mod.apply(ctx, { ...CONFIG, ...config })
   return { routes, mod }
 }
 
@@ -219,22 +219,29 @@ test('test-connect: an edited machine reuses its SAVED password instead of faili
   }
 })
 
-test('test-connect: a machine with NO credential still reports the missing-credential error (negative control)', async () => {
+test('test-connect: a machine with NO credential is handed to the local ssh, not refused as missing credentials', async () => {
   const home = makeHome()
   try {
-    const { routes } = await loadPlugin(home)
+    // SUPERSEDED contract: this used to pin "a credential-less machine reports
+    // 缺少凭据". Native cannot authenticate a credential-less machine at all, so
+    // it now dials the user's own ssh instead; the 缺少凭据 classification stays
+    // covered at the pure level (errors.test.js). `process.execPath` rejects ssh's
+    // argv, so the probe fails at the delegated transport without touching a real
+    // machine.
+    const { routes } = await loadPlugin(home, { sshBinary: process.execPath })
     const saved = await call(routes, '/dsh-remote/machines', {
       body: { action: 'add', name: 'bare', host: '127.0.0.1', port: 1, username: 'u' },
     })
     const id = saved.json.machine.id
     assert.equal(saved.json.machine.passwordSet, false)
+    assert.equal(saved.json.machine.backend, 'openssh', 'no credential native can use → the user\'s own ssh')
 
     const probe = await call(routes, '/dsh-remote/test-connect', {
       body: { id, host: '127.0.0.1', port: 1, username: 'u', password: '' },
     })
     assert.equal(probe.json.ok, false)
-    assert.match(String(probe.json.error), /缺少凭据|no credentials/,
-      'without any credential the actionable error must still be shown')
+    assert.doesNotMatch(String(probe.json.error), /缺少凭据|no credentials/,
+      `a credential-less machine must not be refused as missing credentials — got: ${probe.json.error}`)
   } finally {
     delete process.env.DSH_HOME
     rmSync(home, { recursive: true, force: true })
