@@ -2,6 +2,29 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.81 — 2026-11-09
+### 「remote ssh」终端不再索要已保存的密码（凭据桥）+ 遥测开关移出设置页
+
+**凭据桥**：远程终端此前直接调系统 `ssh`——它只懂私钥和 agent，插件存的密码
+（明文注册表也好、操作系统钥匙串也好）都递不过去，于是每次开终端都被问一遍
+`root@x's password:`。现在：启动器目录里多了一个 askpass 助手脚本，宿主在 Web
+组合下把一个**每次开机随机重生**的 bearer token 写进 `remote-terminal/term-secret.json`
+（0600）；只对「明确需要密码认证」的机器（无 key/agent/别名/OTP）才给 ssh 挂上
+`SSH_ASKPASS` + `SSH_ASKPASS_REQUIRE=force`，ssh 的密码提示改由新路由
+`POST /dsh-remote/term-secret` 回答——走的是和真实连接**同一条**凭据链（含钥匙串）。
+安全面：token 计时安全比对、路由仍过回环/同源围栏（自带 bearer 豁免只挡浏览器不挡
+本机进程，跨站网页读不到 0600 文件）、payload 在每次开机先清后写（Desktop 无 HTTP
+监听器 → 桥自动关闭、退回交互询问）、机器身份不匹配一律 404。OTP（keyboard-
+interactive）机器刻意不桥：动态码是一次性的，静态密码替答必错。
+
+**遥测开关下沉**：设置页的「匿名使用统计」复选框已按要求移除——默认就是上报；
+管理员仍可用 profile 配置 `telemetry: false` 关闭；0.8.78 期间存在过的用户关闭
+选择（`$DSH_HOME/.dsh-remote-telemetry`）继续被尊重。
+
+验证：新路由全套行为测试（错误 token 403/未知机器 404/明文密码命中/GET 405），
+子进程 `needsAskpass`/`askpassEnv` 判定矩阵，写盘三件套的跨平台断言，POSIX
+askpass 包装过真实 `sh -n` 闸门。全套 1062 例、check.mjs、覆盖率门全绿。
+
 ## 0.8.80 — 2026-11-08
 ### 修复：TUI 底栏机器名只在远程工作区会话显示（PR #98，@baiseraku）
 

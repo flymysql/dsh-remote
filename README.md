@@ -308,7 +308,7 @@ scripts/dev-run.sh --status    # 是否在运行
 | `webAttachDshHome` | string | `''` | 远端启动时导出的 `DSH_HOME`；留空则复用远端用户自己的 harness home |
 | `webAttachWaitSeconds` | int | `45` | 等待远端 `dsh web` 打印启动令牌的秒数 |
 | `localTools` | string | `bootstrap` | 本地 session（cwd 不在远程镜像里）暴露哪些 `rw_*` 工具（issue #63）：`bootstrap`=只暴露配置闭环 `rw_machines`/`rw_connect`/`rw_pick_workspace`（其余 19 个在本地 session 必然报 "this session is LOCAL"，暴露只是白占 schema）；`none`=完全不暴露 `rw_*`（远程配置只能走设置页）；`all`=旧的 full 暴露。远程 session（cwd 在镜像里）不受影响，始终全量；非法值按 `bootstrap` 处理 |
-| `telemetry` | bool | `true` | 匿名安装心跳（日活统计，每天至多一次；内容为插件专属 HMAC 伪名+版本号，不含机器信息）。`false` 关闭；用户也可在设置页用复选框关闭（持久化在 `$DSH_HOME`，优先于此配置） |
+| `telemetry` | bool | `true` | 匿名安装心跳（日活统计，每天至多一次；内容为插件专属 HMAC 伪名+版本号，不含机器信息）。`false` 关闭（管理员路径）；0.8.78 曾有的设置页复选框已于 0.8.81 移除——已存在的用户关闭选择仍被尊重 |
 | `remoteTerminalDefault` | bool | `true` | 让 shell 菜单里的「remote ssh」启动器成为终端**默认 shell**（宿主未配置、用户未手动选择时）：远程会话开终端即落到远端工作目录，本地会话自动回落本地 shell（issue #55）；`false` 则只保留菜单项 |
 | `tui` | bool | `true` | TUI 适配层（dsh-tui）总开关；`false` 时不注册 `/dsh-remote` 页面、工作区 provider 与状态行字段 |
 | `tuiProviderListRecent` | bool | `true` | TUI 工作区选择器里是否列出每台机器最近的远程项目 |

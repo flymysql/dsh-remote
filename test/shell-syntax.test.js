@@ -14,7 +14,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { buildLaunchCommand, buildStopCommand } from '../lib/web-attach.js'
-import { launcherSource } from '../lib/remote-shell.js'
+import { launcherSource, writeTermSecretHelpers } from '../lib/remote-shell.js'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 
 /** A `sh` we can ask to syntax-check, or null when the host has none. */
 function findSh() {
@@ -82,6 +85,22 @@ test('the POSIX remote-ssh launcher is POSIX-valid shell', (t) => {
   for (const spec of cases) {
     const err = syntaxError(sh, launcherSource({ platform: 'linux', ...spec }))
     assert.equal(err, null, `invalid launcher shell for ${JSON.stringify(spec)}:\n${err}`)
+  }
+})
+
+// The askpass wrapper the credential bridge installs is likewise generated shell.
+test('the POSIX askpass wrapper is POSIX-valid shell', (t) => {
+  if (!sh) return t.skip('no POSIX sh on this host; cannot syntax-check the askpass wrapper')
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'dsh-remote-askpass-'))
+  try {
+    for (const nodePath of ['/usr/bin/node', "/opt/it's here/bin/node"]) {
+      writeTermSecretHelpers({ dir, platform: 'linux', nodePath })
+      const wrapper = readFileSync(path.join(dir, 'term-askpass'), 'utf8')
+      const err = syntaxError(sh, wrapper)
+      assert.equal(err, null, `invalid askpass wrapper for nodePath=${nodePath}:\n${err}`)
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
   }
 })
 

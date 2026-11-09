@@ -290,9 +290,10 @@ test('settings toggles adopt the host Switch; each test id exists on BOTH paths'
   assert.match(src, /HostSwitch = \(Primitives && typeof Primitives\.Switch === 'function'\)/)
   // The host Switch swallows unknown props (no data-testid forwarding), so
   // each stable id appears twice: on the fallback <input>, and on the wrapper
-  // span that carries it whenever the Switch renders.
-  const ids = src.match(/'data-testid': '(explorer-auto-open|telemetry-toggle)'/g) || []
-  assert.equal(ids.length, 4, `want 4 id sites (2 toggles x fallback/adopted), got ${ids.length}`)
+  // span that carries it whenever the Switch renders. (The telemetry toggle was
+  // removed per the owner's call — the heartbeat is simply always on.)
+  const ids = src.match(/'data-testid': 'explorer-auto-open'/g) || []
+  assert.equal(ids.length, 2, `want 2 id sites (fallback + adopted), got ${ids.length}`)
 })
 
 test('the dir picker adopts host SegmentedTabs for its 本机/远程 switch', () => {

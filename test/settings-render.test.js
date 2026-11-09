@@ -248,14 +248,6 @@ test('with a host Switch the toggles ride it: ids on wrappers, bare-boolean onCh
   tree = render()
   const again = findAll(findAll(tree, (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')[0], (el) => el.type === SwitchStub)
   assert.equal(again[0].props.checked, false, 're-render reflects the stored choice')
-
-  // Telemetry: value unknown until the host answers → the Switch renders disabled.
-  const telWrap = findAll(tree, (el) => el.props && el.props['data-testid'] === 'telemetry-toggle')
-  assert.equal(telWrap.length, 1, 'exactly one telemetry-toggle element on the Switch path')
-  const telSw = findAll(telWrap[0], (el) => el.type === SwitchStub)
-  assert.equal(telSw.length, 1)
-  assert.equal(telSw[0].props.disabled, true, 'unknown telemetry state disables the control')
-  assert.equal(typeof telSw[0].props.title, 'string', 'the hint tooltip survives the swap')
 })
 
 test('no backup i18n key survives the capability removal', () => {

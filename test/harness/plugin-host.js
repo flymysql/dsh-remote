@@ -97,6 +97,9 @@ export async function createHost({ machines = [], currentId = null, config = {},
             routes.set(route.path, route)
             return () => routes.delete(route.path)
           },
+          // The real webserver knows its loopback origin once bound; the fake
+          // binds instantly. The credential-bridge payload publish depends on it.
+          getOrigin() { return 'http://127.0.0.1:3080' },
         }
       }
       if (name === 'commands') {
