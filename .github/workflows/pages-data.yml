@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: pages-data
@@ -36,6 +37,29 @@ jobs:
           DSH_HB_STATS_KEY: ${{ secrets.DSH_HB_STATS_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/snapshot-stats.mjs
+
+      # Watchdog: a heartbeat-null snapshot means the data SOURCE is down (the
+      # CloudBase env's functions suspend on insufficient balance — twice so
+      # far). The page already degrades honestly; this lane makes the outage
+      # land as a GitHub issue the same day instead of being spotted by a user.
+      - name: Watchdog for heartbeat data outages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          HB_STATE=$(node -e "const s=require('./docs/data/stats.json'); process.stdout.write(s.heartbeat ? 'ok' : 'down')")
+          HB_ERR=$(node -e "const s=require('./docs/data/stats.json'); process.stdout.write(s.heartbeatError || '')" || true)
+          TITLE="📉 心跳统计数据源中断（看板无 DAU 数据）"
+          OPEN=$(gh issue list --state open --search "in:title 心跳统计数据源中断" --json number --jq '.[0].number' || true)
+          if [ "$HB_STATE" = "ok" ]; then
+            if [ -n "$OPEN" ]; then gh issue close "$OPEN" --comment "数据源已恢复（$(date -u +%FT%TZ) 的快照又有心跳数据），自动关闭。" ; fi
+            exit 0
+          fi
+          if [ -n "$OPEN" ]; then
+            gh issue comment "$OPEN" --body "仍未恢复：$(date -u +%FT%TZ) 快照心跳为空（$HB_ERR）。" || true
+          else
+            gh issue create --title "$TITLE" --body "快照流水线（pages-data，每 6h）发现心跳端点读不出数据：\n\n- 错误：\`${HB_ERR}\`\n- 影响：<https://flymysql.github.io/dsh-remote/stats/> 的 DAU/WAU/MAU/装机量显示「—」（npm 下载量不受影响）\n- 历史教训：两次都是 CloudBase 环境欠费停服（InsufficientBalance）\n\n恢复后本 issue 会被自动关闭。"
+          fi
 
       - name: Commit when the data actually changed
         run: |
