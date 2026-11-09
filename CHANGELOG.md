@@ -2,6 +2,46 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.83 — 2026-11-09
+### 修复：远程 .md 恢复渲染成排版文档（PR #102，@hjwsm1989；issue #101）
+
+宿主把 `MarkdownText` 导出为 `React.memo` 包装（`typeof === 'object'`），而 #74
+引入的守卫只认函数，于是每个远程 .md 都退化成一堵源码墙（字面 `#`、`**`、
+反引号）。现在按「组件类型」检测宿主 primitive（函数，或带 symbol `$$typeof`
+的对象均可），测试桩一并改成与宿主一致的 memo 形状并钉住 `$$typeof` 断言——
+这类退化从此有了真正的看守。
+
+### 修复：无凭据机器改走本机 ssh 拨号（PR #100，@davidlin2k；issue #99）
+
+`~/.ssh/config` 里只写 HostName/User 的别名靠 OpenSSH 自己的默认私钥发现
+（id_rsa/id_ed25519/agent/UseKeychain）认证，ssh2 后端一概不懂，连接与
+「测试连接」一律误报「缺少凭据」。现在按机器实际持有的凭据选后端：密码 /
+私钥 / agent / OTP / 钥匙串仍在 native，无凭据机器交给系统 `ssh`——行为与
+`ssh <alias>` 完全一致；`from-ssh-config` 领养的修复前记录会在下次领养点击时
+原地升级，「缺少凭据」提示也为这类机器指认了 openssh 选项。
+
+### 修复：rw_sync 抗 SFTP 中途超时 + 镜像路径直投 rw_*（PR #105，@shis23）
+
+- 同步改为「先文件后子目录」：深层子树撞上 maxFiles/超时时，根目录浅层文件
+  不再被饿死；本地目录只在远端 readdir 成功后创建（dryRun 不建），通道死亡
+  不再留下一片空壳目录还谎报 `Downloaded N file(s)`。
+- SFTP 通道超时/关闭后透明换用新面（上限 2 次），仍失败则如实中止并在摘要
+  里给出 `ABORTED early`，重跑即为增量续传。
+- 远程会话里把 harness 运行上下文报告的本地镜像 cwd
+  （`~/.dsh/remote-workspaces/...`）传给 rw_* 工具时，现在映射回远程工作区，
+  不再发往 SFTP 变成 `/C:/...`；远程工作区的系统提示也点明了镜像目录的身份
+  与 `rw_download` 的存在。
+
+### TUI：删除失灵的「设为工作区」入口，新增 `o` 打开镜像根目录（PR #103，@baiseraku）
+
+动作菜单里那个只会复用已记录路径、点了没反应的「设为工作区」已移除，建工作区
+统一走 `b` 浏览远程目录 → `w`（菜单恰剩 6 项）。主列表新增 `o`：用系统文件
+管理器打开 `$DSH_HOME/remote-workspaces`（macOS `open` / Windows `explorer` /
+其他 `xdg-open`；目录不存在则报错且不创建，spawn 失败进页脚而不谎报成功，
+旧宿主缺少对应方法时静默降级）。
+
+验证：四个 PR 各自全套件绿，合流后 main 全量 1088 例 / 0 失败、check.mjs 干净。
+
 ## 0.8.82 — 2026-11-09
 ### 原生右栏也学会了「进远程会话自动展开远程文件」（#78 的原生平权）
 
