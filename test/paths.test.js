@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  shq, normalizeRemotePath, joinRemotePath, remoteDirname, mkdirRemoteDirs,
+  shq, normalizeRemotePath, joinRemotePath, joinRemoteRel, resolveRemoteWorkspacePath, remoteDirname, mkdirRemoteDirs,
   toSftpPath, toShellPath, toDisplayPath, remotePathBase, remoteWorkspaceTitle, truncate, shortHash, relPathUnder,
 } from '../lib/paths.js'
 
@@ -101,6 +101,28 @@ test('relPathUnder', () => {
   assert.equal(relPathUnder('/a', '/a'), '')
   assert.equal(relPathUnder('/a', '/b'), null)
   assert.equal(relPathUnder('D:\\a', 'D:\\a\\b'), 'b')
+  assert.equal(relPathUnder('C:\\Users\\dev\\mirror', '/C:/Users/dev/mirror/docs/a.md'), 'docs/a.md')
+})
+
+test('joinRemoteRel + resolveRemoteWorkspacePath maps mirrorDir paths and relative paths onto ws', () => {
+  assert.equal(joinRemoteRel('/home/u/proj', 'src/a/b.c'), '/home/u/proj/src/a/b.c')
+  assert.equal(joinRemoteRel('D:\\work\\proj', 'src/a/b.c'), 'D:\\work\\proj\\src\\a\\b.c')
+
+  const mirror = 'C:\\Users\\dev\\.dsh\\remote-workspaces\\box-22\\proj'
+  const ws = '/home/opc/workspaces/proj'
+  // Exact mirror root → remote workspace root
+  assert.equal(resolveRemoteWorkspacePath(ws, mirror, mirror), '/home/opc/workspaces/proj')
+  // Child inside the local mirror (Windows backslashes, forward slashes, or SFTP /C:/ form)
+  assert.equal(resolveRemoteWorkspacePath(ws, `${mirror}\\docs\\outline.md`, mirror), '/home/opc/workspaces/proj/docs/outline.md')
+  assert.equal(resolveRemoteWorkspacePath(ws, 'C:/Users/dev/.dsh/remote-workspaces/box-22/proj/docs', mirror), '/home/opc/workspaces/proj/docs')
+  assert.equal(resolveRemoteWorkspacePath(ws, '/C:/Users/dev/.dsh/remote-workspaces/box-22/proj/docs', mirror), '/home/opc/workspaces/proj/docs')
+  // Relative paths resolve under ws
+  assert.equal(resolveRemoteWorkspacePath(ws, 'src/main.py', mirror), '/home/opc/workspaces/proj/src/main.py')
+  assert.equal(resolveRemoteWorkspacePath(ws, './docs/a.md', mirror), '/home/opc/workspaces/proj/docs/a.md')
+  assert.equal(resolveRemoteWorkspacePath(ws, '', mirror), '/home/opc/workspaces/proj')
+  // Unrelated remote absolute paths pass through unchanged
+  assert.equal(resolveRemoteWorkspacePath(ws, '/etc/hosts', mirror), '/etc/hosts')
+  assert.equal(resolveRemoteWorkspacePath('D:\\work\\proj', 'D:\\other\\file.txt', mirror), 'D:\\other\\file.txt')
 })
 
 test('truncate + shortHash', () => {
