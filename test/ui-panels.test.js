@@ -90,11 +90,15 @@ test('a remote .md link renders through the host MarkdownText, not a raw source 
       sessionId: 's-1',
       useTabInfo: () => ({ tab: { navigation: { address: 'dsh-resource://dsh-remote/file/' + encodeURIComponent('/srv/app/README.md') } } }),
     })
-    // Nested function components are NOT executed by the tree walker, so the
-    // MarkdownText stub appears as an element whose TYPE is the stub and whose
-    // props carry the markdown text.
+    // Nested components are NOT executed by the tree walker, so the MarkdownText
+    // stub appears as an element whose TYPE is the stub and whose props carry the
+    // markdown text. The stub is a memo wrapper (the host's real shape), so this
+    // test also pins the component-type detection: a bare `typeof === 'function'`
+    // guard drops the memo object and the viewer falls back to the raw-source wall
+    // (issue #101).
     const mdEls = ui.elements(tree).filter((el) => el.props && el.props.text === md)
     assert.ok(mdEls.length > 0, `expected the MarkdownText branch to render, got: ${ui.text(tree).slice(0, 200)}`)
+    assert.equal(mdEls[0].type && mdEls[0].type.$$typeof, Symbol.for('react.memo'), 'the memo-wrapped host MarkdownText must be rendered as-is')
     assert.match(ui.text(tree), /README\.md/)
   } finally { ui.dispose() }
 })

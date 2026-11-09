@@ -94,9 +94,15 @@ export function mountClient(opts = {}) {
       // The real package ships MarkdownText (used for remote .md rendering, issue
       // #74); the stub renders text inside a marker element so tests can tell a
       // rendered doc from a raw source wall.
+      //
+      // The stub is a `React.memo` wrapper ON PURPOSE: that is exactly what the
+      // host exports (typeof 'object', $$typeof Symbol(react.memo)). A plain
+      // function stub made the suite blind to a `typeof === 'function'` guard that
+      // dropped the memo object and degraded every remote .md to its raw source
+      // (issue #101) — keep the shape faithful, or the regression goes unnoticed.
       return {
         relativeTime: () => ({ unit: 'now', n: 0 }),
-        MarkdownText: (props) => React.createElement('div', { className: 'md-stub' }, props.text),
+        MarkdownText: React.memo((props) => React.createElement('div', { className: 'md-stub' }, props.text)),
       }
     }
     throw new Error('unexpected require: ' + id)
