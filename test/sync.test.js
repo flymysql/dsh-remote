@@ -159,3 +159,94 @@ test('syncTree sets truncated when maxFiles is hit', async () => {
   assert.equal(r.stats.truncated, true)
   rmSync(local, { recursive: true, force: true })
 })
+
+test('syncTree syncs shallow/root files before recursing into deep subdirectories and honors depth option', async () => {
+  const fs = new MemFs()
+  seed(fs, {
+    'proj/a-sub/deep1.txt': 'd1',
+    'proj/a-sub/deep2.txt': 'd2',
+    'proj/a-sub/nested/deep3.txt': 'd3',
+    'proj/root.docx': 'root-doc',
+  })
+  const sftp = makeSftp(fs)
+  const local = tmpDir()
+  // With maxFiles: 1, root.docx at the workspace root must be synced before a-sub/*
+  const r1 = await syncTree(sftp, '/proj', local, { maxFiles: 1, maxFileBytes: 0, isIgnored: noIgnore, state: {} })
+  assert.equal(existsSync(path.join(local, 'root.docx')), true, 'root-level file must not be starved by earlier directory entries')
+  assert.equal(r1.stats.truncated, true)
+
+  // depth: 1 (alias for maxDepth) allows a-sub/deep*.txt but skips a-sub/nested/deep3.txt
+  const local2 = tmpDir()
+  const r2 = await syncTree(sftp, '/proj', local2, { depth: 1, maxFiles: 100, maxFileBytes: 0, isIgnored: noIgnore, state: {} })
+  assert.equal(existsSync(path.join(local2, 'root.docx')), true)
+  assert.equal(existsSync(path.join(local2, 'a-sub', 'deep1.txt')), true)
+  assert.equal(existsSync(path.join(local2, 'a-sub', 'nested', 'deep3.txt')), false)
+  assert.equal(r2.stats.truncated, true)
+  rmSync(local, { recursive: true, force: true })
+  rmSync(local2, { recursive: true, force: true })
+})
+
+test('syncTree recovers via getSftp on channel timeout, or aborts cleanly without empty ghost dirs', async () => {
+  const fs = new MemFs()
+  seed(fs, {
+    'proj/root.txt': 'root',
+    'proj/sub1/f1.txt': 'one',
+    'proj/sub2/f2.txt': 'two',
+  })
+
+  // Case 1: SFTP channel dies on sub1/f1.txt and no getSftp is provided →
+  // aborts early, records abortedError, and does NOT create empty sub2 directory.
+  const sftpDead = makeSftp(fs)
+  const origRead = sftpDead.readFile
+  let dead = false
+  sftpDead.readFile = async (p) => {
+    if (p === '/proj/sub1/f1.txt') {
+      dead = true
+      throw new Error('sftp operation timed out after 20000ms')
+    }
+    if (dead) throw new Error('sftp channel closed')
+    return origRead(p)
+  }
+  const origReaddir = sftpDead.readdir
+  sftpDead.readdir = async (p) => {
+    if (dead) throw new Error('sftp channel closed')
+    return origReaddir(p)
+  }
+  const local1 = tmpDir()
+  const rDead = await syncTree(sftpDead, '/proj', local1, { maxFiles: 100, isIgnored: noIgnore, state: {} })
+  assert.equal(existsSync(path.join(local1, 'root.docx') ? path.join(local1, 'root.txt') : ''), true)
+  assert.match(rDead.stats.abortedError, /timed out/)
+  assert.equal(existsSync(path.join(local1, 'sub2')), false, 'must not create empty ghost directory after SFTP channel dies')
+
+  // Case 2: getSftp supplies a fresh SFTP surface after a timeout → sync completes all files.
+  let timedOutOnce = false
+  const makeDropOnceSftp = () => {
+    const s = makeSftp(fs)
+    const r = s.readFile
+    let closed = false
+    s.readFile = async (p) => {
+      if (!timedOutOnce && p === '/proj/sub1/f1.txt') {
+        timedOutOnce = true
+        closed = true
+        throw new Error('sftp operation timed out after 20000ms')
+      }
+      if (closed) throw new Error('sftp channel closed')
+      return r(p)
+    }
+    return s
+  }
+  const local2 = tmpDir()
+  const rRecovered = await syncTree(makeDropOnceSftp(), '/proj', local2, {
+    maxFiles: 100,
+    isIgnored: noIgnore,
+    state: {},
+    getSftp: async () => makeSftp(fs),
+  })
+  assert.equal(rRecovered.stats.abortedError, '')
+  assert.equal(rRecovered.stats.files, 3)
+  assert.equal(readFileSync(path.join(local2, 'sub1', 'f1.txt'), 'utf8'), 'one')
+  assert.equal(readFileSync(path.join(local2, 'sub2', 'f2.txt'), 'utf8'), 'two')
+
+  rmSync(local1, { recursive: true, force: true })
+  rmSync(local2, { recursive: true, force: true })
+})

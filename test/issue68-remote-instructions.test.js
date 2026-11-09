@@ -268,6 +268,8 @@ test('the prompt section survives an offline machine and simply omits the index'
     assert.ok(Date.now() - t0 < 500, 'assembly must not block on the SSH probe')
     assert.match(text1, /## Remote workspace/)
     assert.match(text1, /lucas@127\.0\.0\.11/)
+    assert.ok(text1.includes(mirrorDir), 'prompt section should name the local mirror directory so the model recognizes its cwd')
+    assert.match(text1, /rw_download/, 'prompt section should mention rw_download for fetching individual remote files')
     assert.doesNotMatch(text1, /Remote instruction files/, 'no index while the scan has not completed')
     // Give the (failing) background scan a moment, then re-assemble: still no
     // index, and the negative cache keeps it fast and quiet.

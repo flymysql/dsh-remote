@@ -93,6 +93,15 @@ test('a session opened on a fresh mirror can sync it (the picker → sync chain)
   await withRemote({}, async ({ host, srv, rec }) => {
     const m = await host.call('/dsh-remote/mirror', { body: { path: '/home/user/proj', machineId: rec.id } })
     const local = m.json.localMirror
+    const execCtx = { agent: { session: { header: { cwd: local } } } }
+    // Before rw_sync runs, passing the local mirror path (reported as the
+    // session cwd in runtime-context) to rw_list_dir / rw_read_file must
+    // transparently resolve to the remote workspace path `/home/user/proj`.
+    const listed = await host.tool('rw_list_dir').execute({ path: local }, execCtx)
+    assert.match(listed.text, /a\.txt/)
+    const read = await host.tool('rw_read_file').execute({ path: path.join(local, 'a.txt') }, execCtx)
+    assert.match(read.text, /a/)
+
     // rw_sync in a session whose cwd IS the mirror: the same chain a user walks
     // after picking a directory in the picker.
     const synced = await host.run('rw_sync', { __sessionId: 'sess-mirror' })
