@@ -212,7 +212,7 @@ test('native right-sidebar attaches late, opens a session-scoped remote file, an
   // Issue #55: the third type claims the CORE's own address (not this plugin's),
   // and declares no `priority` so it registers in the `extension` band that
   // outranks the built-in local text preview.
-  assert.deepEqual([...types.get('dsh-remote/remote-link').patterns], ['dsh-resource://file/**'])
+  assert.deepEqual([...types.get('dsh-remote/remote-link').patterns], ['dsh-resource://file/session/**'])
   assert.equal(types.get('dsh-remote/remote-link').priority, undefined)
   const explorer = host.registrations.get('sidebar.right.pane.tab:dsh-remote/explorer')
   const file = host.registrations.get('sidebar.right.pane.tab:dsh-remote/file')
