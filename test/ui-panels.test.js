@@ -103,6 +103,40 @@ test('a remote .md link renders through the host MarkdownText, not a raw source 
   } finally { ui.dispose() }
 })
 
+test('a remote .md with a code fence satisfies the host MarkdownText label contract', async () => {
+  // The host MarkdownText reads its code-block / footnote chrome straight off
+  // `labels` (`labels.code.copyLabel`, `labels.footnotes`, …) and does NOT guard
+  // those reads. A pane that passes only `text` therefore throws inside the host
+  // renderer while drawing the first fenced block, and the error boundary around
+  // the pane swallows it: the file opens and the body stays EMPTY ("read failed"
+  // is gone, nothing renders). `strictMarkdownText` makes the harness stub do the
+  // same dereferences, so this test fails if the labels ever go missing again.
+  const md = '# Title\n\n```yaml\nkey: value\n```\n'
+  const ui = mountClient({
+    strictMarkdownText: true,
+    fetch: stubFetch({
+      overrides: {
+        '/dsh-remote/read': () => ({ content: md, mtime: 1, size: md.length }),
+      },
+    }).fetch,
+  })
+  try {
+    const body = ui.body('dsh-remote/file')
+    const tree = await ui.settleComponent(body, {
+      sessionId: 's-1',
+      useTabInfo: () => ({ tab: { navigation: { address: 'dsh-resource://dsh-remote/file/' + encodeURIComponent('/srv/app/README.md') } } }),
+    })
+    const mdEls = ui.elements(tree).filter((el) => el.props && el.props.text === md)
+    assert.ok(mdEls.length > 0, `expected the rendered markdown branch, got: ${ui.text(tree).slice(0, 200)}`)
+    const labels = mdEls[0].props.labels
+    assert.ok(labels, 'the host renderer requires a labels bundle')
+    assert.ok(labels.code.copyLabel && labels.code.copiedLabel, 'code-block labels must be resolved')
+    assert.ok(labels.code.toolbarLabels.codeLabel, 'the code-block toolbar label must be present')
+    assert.ok(labels.footnotes, 'the footnote label must be present')
+    assert.doesNotMatch(labels.code.copyLabel, /^file\./, 'labels must be translated, not raw i18n keys')
+  } finally { ui.dispose() }
+})
+
 test('the machine list shows the badges a user needs to tell machines apart', async () => {
   const machines = [
     { ...MACHINE, id: 'm-1', name: 'with-password' },

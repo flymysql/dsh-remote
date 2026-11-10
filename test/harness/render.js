@@ -100,9 +100,23 @@ export function mountClient(opts = {}) {
       // function stub made the suite blind to a `typeof === 'function'` guard that
       // dropped the memo object and degraded every remote .md to its raw source
       // (issue #101) — keep the shape faithful, or the regression goes unnoticed.
+      // `strictMarkdownText` makes the stub behave like the REAL host renderer,
+      // which dereferences `labels.code.*` / `labels.footnotes` without a guard
+      // while rendering a fenced code block or a footnote. A pane that forgets
+      // `labels` therefore throws here exactly as it does in the browser.
+      const MarkdownText = React.memo(opts.strictMarkdownText
+        ? (props) => {
+            const code = props.labels.code
+            void code.copyLabel
+            void code.copiedLabel
+            void code.toolbarLabels.codeLabel
+            void props.labels.footnotes
+            return React.createElement('div', { className: 'md-stub' }, props.text)
+          }
+        : (props) => React.createElement('div', { className: 'md-stub' }, props.text))
       return {
         relativeTime: () => ({ unit: 'now', n: 0 }),
-        MarkdownText: React.memo((props) => React.createElement('div', { className: 'md-stub' }, props.text)),
+        MarkdownText,
       }
     }
     throw new Error('unexpected require: ' + id)
