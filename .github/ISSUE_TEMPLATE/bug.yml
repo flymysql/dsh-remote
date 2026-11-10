@@ -1,0 +1,39 @@
+name: Bug 报告 / Bug report
+description: 可复现的缺陷（一个问题一张单子）/ A reproducible defect (one issue per report)
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: textarea
+    attributes:
+      label: 现象 / What happened
+      description: 看到了什么 + 你本来以为会看到什么 / What you saw vs. what you expected
+      placeholder: |
+        例如：远程会话里打开终端还是本地 cmd，期望落到远端工作目录。
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 复现步骤 / Steps to reproduce
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 环境 / Environment
+      placeholder: |
+        - DSH 版本（设置 → 关于）:
+        - dsh-remote 版本:
+        - 本机系统（win/mac/linux + 桌面版还是 CLI）:
+        - 远端系统:
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 日志 / 截图 / Logs & screenshots
+      description: 报错原文、相关日志片段、截图都可以贴；密码/主机/IP 记得打码
+      render: text
+    validations:
+      required: false

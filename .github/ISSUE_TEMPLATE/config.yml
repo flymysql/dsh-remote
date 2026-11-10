@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 讨论区 / Discussions
+    url: https://github.com/flymysql/dsh-remote/discussions
+    about: 使用问题、环境配置、「支持 XX 吗」请走讨论区 / Usage questions and open-ended topics go here
+  - name: 📊 用量看板 / Usage stats
+    url: https://flymysql.github.io/dsh-remote/stats/
+    about: 项目的公开使用量统计 / Public usage dashboard
