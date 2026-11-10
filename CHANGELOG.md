@@ -2,6 +2,26 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.90 — 2026-11-10
+### 架构债清偿：lib/index.js 按域拆完（issue #82）
+
+252KB 的 god-file 拆完了。六个路由域各自成册，handler 原体搬移并附逐字符相等证明：
+
+| 新文件 | 域 | 行覆盖 |
+|---|---|---|
+| `lib/routes-audit.js` | 审计日志 | 93.8% |
+| `lib/routes-forwards.js` | 端口转发 | 96.2% |
+| `lib/routes-web-attach.js` | 远程 DSH 界面 | 100% |
+| `lib/routes-misc.js` | 遥测 / 终端凭据桥 / 工作区清理 | 88.0% |
+| `lib/routes-machines.js` | 机器注册表 + ssh-config | 95.4% |
+| `lib/routes-workspace.js` | 连接 / 镜像 / 目录选择辅助 | 77.1% |
+
+（连同此前的 routes-fs / routes-term / routes-update 三个先例，九个工厂在 index.js
+里各占一行。）index.js 从 5065 降到 4241 行：剩下的只有工具定义、apply 装配、
+启动恢复与各域共享闭包。逐文件覆盖率下限全部 ≥60%，加权 83.1%；index.js 自己
+从 59.7%（issue 立案时）爬到 78.9%——当年为它特批的 59% 例外早已不存在。
+零行为变化：routes-matrix 清单一字未动且全绿。
+
 ## 0.8.89 — 2026-11-10
 ### 修复潜伏哑弹：GET /dsh-remote/telemetry 必抛 ReferenceError
 
