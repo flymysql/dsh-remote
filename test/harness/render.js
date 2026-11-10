@@ -114,10 +114,21 @@ export function mountClient(opts = {}) {
             return React.createElement('div', { className: 'md-stub' }, props.text)
           }
         : (props) => React.createElement('div', { className: 'md-stub' }, props.text))
-      return {
+      const stub = {
         relativeTime: () => ({ unit: 'now', n: 0 }),
         MarkdownText,
       }
+      // Optional host code-highlighter face (issue #104): faithful to the
+      // bundle contract — useCodeHighlighter(lang) returns highlight(text) →
+      // per-line [{text, style:{color}}], or a fn yielding null for unknown
+      // grammars. Every token gets one recognizable color for assertions.
+      if (opts.withCodeHighlighter) {
+        stub.languageForPath = (p) => (/\.(c|js|py)$/i.test(String(p || '')) ? 'mocklang' : undefined)
+        stub.useCodeHighlighter = (lang) => (code) => (lang
+          ? String(code).split('\n').map((line) => [{ text: line, style: { color: 'rgb(9,9,9)' } }])
+          : null)
+      }
+      return stub
     }
     throw new Error('unexpected require: ' + id)
   }
@@ -156,7 +167,7 @@ export function mountClient(opts = {}) {
           get: (kind) => tabTypes.get(kind),
         }
       }
-      if (name === 'sessions') return { list: { getSnapshot: () => ({ byId: {} }) } }
+      if (name === 'sessions') return (opts.services || {}).sessions || { list: { getSnapshot: () => ({ byId: {} }) } }
       return (opts.services || {})[name]
     },
     effect(fn) { const d = fn(); return typeof d === 'function' ? d : () => {} },
