@@ -85,8 +85,7 @@ test('each section is paired by position, not merely equal in count', () => {
     ['常见问题 / 排查', 'FAQ / troubleshooting'],
     ['安全提醒', 'Safety'],
     ['License', 'License'],
-    ['贡献者', 'Contributors'],
-    ['参与贡献', 'Contributing'],
+    ['参与贡献与致谢', 'Contributing & credits'],
     ['变更记录', 'Changelog'],
   ]
   const a = h2(zh).map((s) => s.replace(/^##\s+/, ''))
