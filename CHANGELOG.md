@@ -2,6 +2,23 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.84 — 2026-11-10
+### 心跳统计后端迁至 Cloudflare Workers + D1（CloudBase 三次停服的根治）
+
+CloudBase 体验版的「套餐资源点」一周内两次把我们烧到 `InsufficientBalance` 停服
+（最近一次 11-04 起，看板 DAU 断流一周）。新后端是自己的 Cloudflare Worker + D1
+（免费层 10 万请求/天、D1 10 万写 500 万读/天——我们只用约 1%）。
+
+- 端点：`https://dsh-remote-heartbeat.flymysql.workers.dev/dsh-hb/*`，路由路径与
+  CloudBase 时代一致（/heartbeat /stats /health），客户端只换域名；
+- 存储 `(day, idHash)` 主键去重（INSERT OR IGNORE），客户端重试不虚增；
+- 统计读接口的输出形状与看板既有消费完全一致（日柱缺口补零、WAU/MAU/累计装机、
+  版本/平台分布各取前 12）；
+- 服务端强制隐私不变量：字段白名单 + idHash 必须是 32 位小写 hex 伪名
+  （原始 UUID 直接 400），不存 IP/UA/时刻；
+- 后端源码与部署手册入库 `infra/heartbeat/`（wrangler.toml / schema.sql / 8 例
+  单测 / CI 新增 test-infra 腿）。
+
 ## 0.8.83 — 2026-11-09
 ### 修复：远程 .md 恢复渲染成排版文档（PR #102，@hjwsm1989；issue #101）
 
