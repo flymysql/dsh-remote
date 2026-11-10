@@ -2,6 +2,15 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.89 — 2026-11-10
+### 修复潜伏哑弹：GET /dsh-remote/telemetry 必抛 ReferenceError
+
+#82 拆分工程中抓到：0.8.78 引入的遥测路由 GET 处理器调用了 `heartbeatEnabled()`，
+但这个名字从没被 import——每次 GET 都抛 ReferenceError，宿主把被拒的处理器变成
+一个空 400。整套测试之所以一路绿灯：矩阵只探它的 405 和畸形 POST 分支，从没真正
+GET 过。补上 import，并新增一例真正 GET 它的路由测试（这类「名字解析失败藏在
+没人走的路径上」的哑弹今后由它守着）。
+
 ## 0.8.88 — 2026-11-10
 ### 目录选择弹窗吃上宿主焦点层（issue #97）
 
