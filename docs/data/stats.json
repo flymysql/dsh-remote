@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-10T04:25:12.489Z",
+  "generatedAt": "2026-11-10T07:14:09.765Z",
   "heartbeat": {
     "ok": true,
-    "generatedAt": "2026-11-10T04:25:12.177Z",
+    "generatedAt": "2026-11-10T07:14:09.407Z",
     "tz": "Asia/Shanghai",
     "daily": [
       {
@@ -123,33 +123,41 @@
       },
       {
         "day": "2026-11-10",
-        "dau": 54
+        "dau": 450
       }
     ],
-    "wau": 55,
-    "mau": 55,
-    "installs": 55,
+    "wau": 450,
+    "mau": 450,
+    "installs": 450,
     "byVersion": [
       {
+        "version": "0.8.85",
+        "n": 366
+      },
+      {
         "version": "0.8.84",
-        "n": 55
+        "n": 84
       }
     ],
     "byPlatform": [
       {
         "platform": "win32",
-        "n": 27
+        "n": 238
       },
       {
         "platform": "darwin",
-        "n": 19
+        "n": 116
       },
       {
         "platform": "linux",
-        "n": 8
+        "n": 94
       },
       {
         "platform": "android",
+        "n": 1
+      },
+      {
+        "platform": "ios",
         "n": 1
       }
     ]
@@ -157,8 +165,8 @@
   "heartbeatError": null,
   "npm": {
     "package": "dsh-remote",
-    "checkedAt": "2026-11-10T04:25:12.197Z",
-    "latest": "0.8.84",
+    "checkedAt": "2026-11-10T07:14:09.425Z",
+    "latest": "0.8.85",
     "lastWeek": 44965,
     "lastMonth": 93212,
     "daily": [
@@ -294,7 +302,7 @@
   "repo": {
     "stars": 272,
     "forks": 46,
-    "openIssues": 6,
-    "pushedAt": "2026-11-10T04:08:31Z"
+    "openIssues": 4,
+    "pushedAt": "2026-11-10T06:41:31Z"
   }
 }
