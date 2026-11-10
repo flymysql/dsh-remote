@@ -197,7 +197,10 @@ test('the plugin claims the CORE file address, not just its own', () => {
   const { types } = bootWithSidebar()
   const link = types.get('dsh-remote/remote-link')
   assert.ok(link, 'the remote-link type must be registered')
-  assert.deepEqual([...link.patterns], ['dsh-resource://file/**'])
+  // Issue #108: session-scoped glob — longest-match beats bundle order, so a
+  // co-installed editor extension can no longer win the tie and read the local
+  // mirror into ENOENT.
+  assert.deepEqual([...link.patterns], ['dsh-resource://file/session/**'])
   // Declaring no priority puts it in the `extension` band, which is the ONLY
   // band that outranks a `fallback` type — without this the built-in local
   // preview would keep winning and the fix would do nothing.

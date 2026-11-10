@@ -148,3 +148,51 @@ test('a plain link (no anchor) opens the file at its top, nothing flashing', asy
     assert.ok(!rows(cv, ui).some((r) => /dsh-rw-line-flash/.test(String(r.props.className || ''))), 'no anchor → no flash')
   } finally { ui.dispose() }
 })
+
+// ── issue #108: claim arbitration + the 0.2.x line channel + range anchors ──
+
+test('the claim glob is session-scoped (specificity beats another extension\'s registration order)', async () => {
+  const ui = mountClient({ fetch: fetchFor(CONTENT_3, []) })
+  try {
+    const type = ui.tabTypes.get('dsh-remote/remote-link')
+    assert.ok(type, 'the remote-link tab type must be registered')
+    assert.deepEqual(type.patterns, ['dsh-resource://file/session/**'],
+      'longest-glob-first ranking makes us immune to bundle order; a tie used to hand remote links to whoever registered first (local mirror → ENOENT)')
+  } finally { ui.dispose() }
+})
+
+test('the 0.2.x params channel drives the jump when the address carries no anchor', async () => {
+  const many = Array.from({ length: 50 }, (_, i) => 'line ' + (i + 1)).join('\n')
+  const calls = []
+  const ui = mountClient({ fetch: fetchFor(many, calls), services: { sessions: sessionsFor(MIRROR.dir) } })
+  try {
+    const body = ui.body('dsh-remote/remote-link')
+    const tree = await ui.settleComponent(body, {
+      sessionId: 's-1',
+      useTabInfo: () => ({ tab: { navigation: { address: 'dsh-resource://file/session/s-1/src/main.c', params: { line: 7 } } } }),
+    })
+    const cv = mountCodeView(tree, ui)
+    assert.ok(rows(cv, ui).find((r) => r.props['data-line'] === 7 && /dsh-rw-line-flash/.test(String(r.props.className || ''))),
+      'params.line flashes the row even when the address is anchor-less (the 0.2.x channel)')
+  } finally { ui.dispose() }
+})
+
+test('range anchors (#L24-L30 and :24-30) land on the START line and resolve the real path', async () => {
+  for (const [suffix, want] of [['#L24-L30', 24], [':24-30', 24]]) {
+    const many = Array.from({ length: 50 }, (_, i) => 'line ' + (i + 1)).join('\n')
+    const calls = []
+    const ui = mountClient({ fetch: fetchFor(many, calls), services: { sessions: sessionsFor(MIRROR.dir) } })
+    try {
+      const body = ui.body('dsh-remote/remote-link')
+      const tree = await ui.settleComponent(body, {
+        sessionId: 's-1',
+        useTabInfo: () => ({ tab: { navigation: { address: 'dsh-resource://file/session/s-1/src/main.c' + suffix } } }),
+      })
+      const read = calls.find((c) => c.url.includes('/dsh-remote/read'))
+      assert.equal(read.body.path, '/srv/app/src/main.c', `${suffix}: the range is stripped before resolving`)
+      const cv = mountCodeView(tree, ui)
+      assert.ok(rows(cv, ui).find((r) => r.props['data-line'] === want && /dsh-rw-line-flash/.test(String(r.props.className || ''))),
+        `${suffix}: starts on line ${want}, never silently opens the top`)
+    } finally { ui.dispose() }
+  }
+})
