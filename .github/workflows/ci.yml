@@ -36,6 +36,19 @@ jobs:
       - name: Boot smoke (plugin loads in an isolated profile)
         run: bash scripts/boot-smoke.sh || echo "boot-smoke skipped (needs a desktop harness install)"
 
+  test-infra:
+    # The heartbeat worker (infra/heartbeat) is a standalone sub-project with no
+    # dependency install; run its unit tests on every change.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Heartbeat worker unit tests
+        working-directory: infra/heartbeat
+        run: node --test --test-force-exit worker.test.mjs
+
   test-windows:
     # The maintainer develops on Windows — without this leg a POSIX-only
     # assertion stayed red locally by default, which erodes what "red" means.

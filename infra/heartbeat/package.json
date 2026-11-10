@@ -1,0 +1,10 @@
+{
+  "name": "dsh-remote-heartbeat-worker",
+  "private": true,
+  "version": "0.0.0",
+  "description": "dsh-remote install heartbeat backend (Cloudflare Workers + D1)",
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-force-exit worker.test.mjs"
+  }
+}

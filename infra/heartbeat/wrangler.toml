@@ -1,0 +1,14 @@
+name = "dsh-remote-heartbeat"
+main = "worker.js"
+compatibility_date = "2026-11-10"
+
+# D1 database binding — fill `database_id` with the output of:
+#   npx wrangler d1 create dsh-remote-heartbeat
+[[d1_databases]]
+binding = "DB"
+database_name = "dsh-remote-heartbeat"
+database_id = "REPLACE-AFTER-d1-create"
+
+# Secret (never in this file): STATS_KEY — set once with
+#   npx wrangler secret put STATS_KEY
+# and mirrored to the GitHub repo secret DSH_HB_STATS_KEY for the CI snapshot.
