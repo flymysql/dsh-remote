@@ -59,6 +59,7 @@ The rest:
 
 - **21 model tools** (listed so they can be copied or searched): `rw_info`, `rw_connect`, `rw_machines`, `rw_pick_workspace`, `rw_list_dir`, `rw_stat`, `rw_read_file`, `rw_write_file`, `rw_edit`, `rw_append`, `rw_mkdir`, `rw_remove`, `rw_move`, `rw_exec`, `rw_search`, `rw_download`, `rw_upload`, `rw_sync`, `rw_push`, `rw_forward`, `rw_disconnect`.
 - **Tell local and remote Sessions apart in the sidebar** (`0.8.43+`) — a remote Session row carries a **green dot** and its hover card names `user@host:port` plus the remote path; opening it also shows a host chip in the conversation header (a local Session shows neither). A Session counts as remote only when its cwd sits inside a `$DSH_HOME/remote-workspaces/…` mirror, so a machine that is merely saved never labels a local Session.
+- **A terminal in a remote Session opens on the remote host out of the box** (`0.8.75+`) — the shell menu's **remote ssh** entry routes by cwd (a mirror cwd → ssh into the remote workspace; anything else → transparent local-shell fallback), and it is the **default shell** whenever neither the host nor you picked one. Saved passwords are answered through the local credential bridge (`0.8.81+`, including OS-keychain ones) — no more `password:` prompt every time a terminal opens.
 - **Open a remote machine's DSH Web UI locally** (`0.8.36+`) — nothing has to be exposed on the remote: the plugin SSHes out, starts a `dsh web` there that binds **`127.0.0.1` only**, and tunnels its port back to a loopback port on this machine. The URL carries a one-time login token, consumed once by a redirect.
 - **The audit log opens locally** — preview recent entries in the panel, or use 「打开日志文件」/「在文件夹中显示」 to open the log with a local program (the log lives on the DSH host, so a browser cannot open it).
 - **Cross-platform remotes** — all file access is SFTP-protocol-level (no POSIX shell), so Linux/macOS/Windows remotes all work.
@@ -228,6 +229,9 @@ option — see the last five rows of the [Configuration](#configuration) table
 
 ### Notes
 
+- The status bar shows the current remote machine name **only** while the Session's cwd sits inside
+  a remote mirror (local Sessions show nothing); hovering reveals the full machine name ·
+  `user@host:port` · remote path (0.8.80+).
 - A remote project is presented in the terminal as its **local mirror directory**: that is the
   session cwd and where the `rw_*` tools operate; the remote path only appears in titles and
   descriptions. The remote identity comes from `.dsh-remote-meta.json` inside the mirror.
@@ -391,6 +395,10 @@ The transport is deliberately boring: the remote session lives on the HOST and t
 **Can `rw_exec` take a per-call timeout, be cancelled, and move to the background like the built-in shell?** (issue #70) — yes (0.8.53+). The transport (`pool.exec`) already supported `timeoutMs` and `AbortSignal`; what was missing was the wiring, and all three pieces are now in place: (1) a `timeoutMs` argument (clamped to 1000-600000, defaulting to `commandTimeoutMs`) whose timeout message prints the value ACTUALLY APPLIED rather than the config value; (2) `exec.signal` is forwarded, so pressing "stop" really SIGTERMs the remote process and returns at once instead of waiting out the timeout; (3) `run_in_background: true` returns a job id immediately (read with the existing `job_output`, stop with `job_kill`), and a command that outlives its timeout is PROMOTED to a background job instead of being killed (`promoteOnTimeout`, on by default). Background execution and promotion need the core `jobs` service; a composition without it (minimal embedding, test double) degrades to foreground-only execution — the 0.8.52 behaviour — rather than failing to load.
 
 **The terminal in a remote Session is still the local one** (issue #55) — that is **by design, and a plugin cannot change it**, but there is an equivalent: DSH's sidebar terminal is core, its PTY comes from the **context-global** `subprocess` service, and its cwd is the Session's own workspace directory (the local mirror for a remote Session). A plugin can neither replace that service nor retarget the core terminal onto SSH. For a **genuine remote terminal** use the "Remote DSH Web UI" (above): it opens the **remote machine's own** DSH in this browser, and that interface's terminal runs on the remote host, with no extra configuration. To run a single remote command instead, use `rw_exec` (add `pty: true` for an interactive PTY).
+
+**The built-in Files panel shows a LOCAL directory?** — not a bug: a remote Session's cwd IS the local mirror under `$DSH_HOME/remote-workspaces/…` (edits and the `rw_*` tools work on that copy, then sync back). For the live remote tree use the **Remote Files** tab — since 0.8.82 it opens automatically when a remote Session comes on screen, in both the better-sidebar and the stock right-column worlds (a settings toggle turns this off). If it did not appear, open "Remote Files" from the right column's guide card once.
+
+**Does the remote terminal still ask for the password?** — no (0.8.81+). A password you saved for the machine (plaintext registry or the OS keychain) is answered through the local credential bridge when ssh prompts; key/agent/`~/.ssh/config`-alias machines never prompted anyway. OTP (keyboard-interactive) machines still ask every time — one-time codes cannot be stored for you.
 
 **Host key changed** — `/remote forget-key` (or Settings → machine → trust again).
 
