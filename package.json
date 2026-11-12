@@ -71,7 +71,7 @@
     }
   },
   "dependencies": {
-    "@deepseek-ai/schemastery": "^3.18.5",
+    "@deepseek-ai/schemastery": "^3.19.0",
     "iconv-lite": "^0.7.3",
     "ssh2": "^1.16.0"
   },
