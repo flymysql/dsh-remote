@@ -27,6 +27,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { fakeTimers } from './fake-timers.js'
+import { installTestDispatcher } from './react-dispatcher.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const CLIENT_SRC = readFileSync(path.join(here, '..', '..', 'lib', 'client.js'), 'utf8')
@@ -224,7 +225,7 @@ export function mountClient(opts = {}) {
     useDeferredValue(v) { cursor++; return v },
     useImperativeHandle() {},
   }
-  React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher.current = dispatcher
+  installTestDispatcher(React, dispatcher)
 
   /** Render a component (mounting the hook-free slot wrapper first) and run its effects. */
   async function settleFor(Comp, props = {}) {
