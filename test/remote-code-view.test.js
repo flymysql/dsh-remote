@@ -135,6 +135,69 @@ test('a chat link with a :42 suffix strips it before resolving', async () => {
   } finally { ui.dispose() }
 })
 
+test('host navigation params preserve the line and same-tab navigation resolves the new file', async () => {
+  const calls = []
+  const many = Array.from({ length: 100 }, (_, i) => 'line ' + (i + 1)).join('\n')
+  const ui = mountClient({ effectDependencies: true, fetch: fetchFor(many, calls), services: { sessions: sessionsFor(MIRROR.dir) } })
+  try {
+    const body = ui.body('dsh-remote/remote-link')
+    for (const [path, line] of [['tools/queue_documents.py', 93], ['seedfactory/produce.py', 75], ['seedfactory/produce.py', 42]]) {
+      const tree = await ui.settleComponent(body, {
+        sessionId: 's-1',
+        useTabInfo: () => ({ tab: { navigation: {
+          address: 'dsh-resource://file/session/s-1//Workspace/tb4-workspace/tb4-new/' + path,
+          params: { line },
+        } } }),
+      })
+      const read = calls.filter((c) => c.url.includes('/dsh-remote/read')).at(-1)
+      assert.equal(read.body.path, '/Workspace/tb4-workspace/tb4-new/' + path)
+      assert.equal(read.body.sessionId, 's-1', 'read must retain the address session, not a global machine')
+      const cv = mountCodeView(tree, ui)
+      assert.ok(rows(cv, ui).find((r) => r.props['data-line'] === line && /dsh-rw-line-flash/.test(String(r.props.className || ''))))
+    }
+  } finally { ui.dispose() }
+})
+
+test('explicit address anchors outrank params and invalid params never mask them', async () => {
+  // Preserve the released issue #108 contract: an explicit address is the
+  // author's chosen target; params fill the gap on 0.2.x anchor-less links.
+  for (const param of [3, 0, -1, 1.5, '93', undefined]) {
+    const calls = []
+    const ui = mountClient({ fetch: fetchFor(CONTENT_3, calls), services: { sessions: sessionsFor(MIRROR.dir) } })
+    try {
+      const tree = await ui.settleComponent(ui.body('dsh-remote/remote-link'), {
+        sessionId: 's-1',
+        useTabInfo: () => ({ tab: { navigation: {
+          address: 'dsh-resource://file/session/s-1/src/main.c#L2', params: { line: param },
+        } } }),
+      })
+      const cv = mountCodeView(tree, ui)
+      const flashed = rows(cv, ui).filter((r) => /dsh-rw-line-flash/.test(String(r.props.className || '')))
+      assert.deepEqual(flashed.map((r) => r.props['data-line']), [2])
+    } finally { ui.dispose() }
+  }
+})
+
+test('the SAME path in a newly-bound session is read under the NEW session id', async () => {
+  const calls = []
+  const sessions = { list: { getSnapshot: () => ({ byId: {
+    's-1': { cwd: MIRROR.dir }, 's-2': { cwd: MIRROR.dir },
+  } }) } }
+  const ui = mountClient({ effectDependencies: true, fetch: fetchFor(CONTENT_3, calls), services: { sessions } })
+  try {
+    const body = ui.body('dsh-remote/remote-link')
+    const mkInfo = (session) => () => ({ tab: { navigation: {
+      address: `dsh-resource://file/session/${session}/src/main.c`,
+    } } })
+    await ui.settleComponent(body, { sessionId: 's-1', useTabInfo: mkInfo('s-1') })
+    await ui.settleComponent(body, { sessionId: 's-2', useTabInfo: mkInfo('s-2') })
+    const reads = calls.filter((c) => c.url.includes('/dsh-remote/read'))
+    assert.deepEqual(reads.map((c) => c.body.sessionId), ['s-1', 's-2'],
+      'fileSessionId is an effect dependency: a path-only dependency would reuse the old session bytes')
+    assert.ok(reads.every((c) => c.body.path === '/srv/app/src/main.c'))
+  } finally { ui.dispose() }
+})
+
 test('a plain link (no anchor) opens the file at its top, nothing flashing', async () => {
   const calls = []
   const ui = mountClient({ fetch: fetchFor(CONTENT_3, calls), services: { sessions: sessionsFor(MIRROR.dir) } })
