@@ -32,6 +32,7 @@ const src = readFileSync(path.join(root, 'lib', 'client.js'), 'utf8')
 /** Load the client bundle and run apply(), returning the settings component. */
 function mountClient(opts = {}) {
   let loaded = null
+  const requests = []
   const timers = fakeTimers()
   const sandbox = {
     window: {
@@ -50,7 +51,11 @@ function mountClient(opts = {}) {
     },
     navigator: { clipboard: null, userAgent: 'node', languages: ['zh-CN'] },
     setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout, console,
-    fetch: async () => ({ ok: true, json: async () => ({}) }),
+    fetch: async (url, init) => {
+      requests.push({ url: String(url), init })
+      if (opts.fetch) return opts.fetch(url, init)
+      return { ok: true, json: async () => ({}) }
+    },
   }
   const requireStub = (id) => {
     if (id === 'react') return React
@@ -92,7 +97,7 @@ function mountClient(opts = {}) {
     logger: { warn: () => {}, info: () => {}, debug: () => {} },
   }
   mod.apply(ctx)
-  return { Page, sections, slotsSeen }
+  return { Page, sections, slotsSeen, requests }
 }
 
 /** Walk an element tree, collecting rendered text, mounting function components. */
@@ -248,6 +253,25 @@ test('with a host Switch the toggles ride it: ids on wrappers, bare-boolean onCh
   tree = render()
   const again = findAll(findAll(tree, (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')[0], (el) => el.type === SwitchStub)
   assert.equal(again[0].props.checked, false, 're-render reflects the stored choice')
+})
+
+test('issue #119: storage get/set errors fall back safely and still POST the host choice', () => {
+  const localStorage = {
+    getItem() { throw new Error('storage blocked') },
+    setItem() { throw new Error('storage blocked') },
+  }
+  const { Page, requests } = mountClient({ localStorage })
+  const reset = installHookRig()
+  const render = () => { reset(); return Page({}) }
+
+  let box = findAll(render(), (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')
+  assert.equal(box[0].props.checked, true, 'an unreadable local store still defaults ON')
+  assert.doesNotThrow(() => box[0].props.onChange({ target: { checked: false } }), 'a blocked setItem cannot break the toggle')
+  box = findAll(render(), (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')
+  assert.equal(box[0].props.checked, false, 'the in-memory effective preference changes immediately')
+  const write = requests.find((r) => r.url === '/dsh-remote/explorer-auto-open' && r.init && r.init.method === 'POST')
+  assert.ok(write, 'the choice is sent to DSH_HOME even when localStorage is unavailable')
+  assert.equal(JSON.parse(write.init.body).enabled, false)
 })
 
 test('no backup i18n key survives the capability removal', () => {

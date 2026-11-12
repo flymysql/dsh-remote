@@ -245,8 +245,9 @@ for (const protocol of ['https:', 'dsh-app:']) {
     host.services.set('betterSidebar', bs)
     bs.emit('test-session')
     await new Promise((resolve) => setImmediate(resolve))
-    assert.equal(requests.length, 1)
-    assert.equal(requests[0].url, (protocol === 'dsh-app:' ? '/api' : '') + '/dsh-remote/resolve-mirror?sessionId=test-session')
+    assert.equal(requests.length, 2, 'the shared preference resolves before the remote path')
+    assert.equal(requests[0].url, (protocol === 'dsh-app:' ? '/api' : '') + '/dsh-remote/explorer-auto-open')
+    assert.equal(requests[1].url, (protocol === 'dsh-app:' ? '/api' : '') + '/dsh-remote/resolve-mirror?sessionId=test-session')
   })
 }
 
@@ -497,16 +498,20 @@ test('late sessions supply cwd and disposal restores host-side session fallback'
   const sidebar = betterSidebar()
   host.services.set('betterSidebar', sidebar)
   sidebar.emit('before')
+  await new Promise((resolve) => setImmediate(resolve))
   assert.equal(requests.at(-1).url, '/dsh-remote/resolve-mirror?sessionId=before')
   const sessionService = (cwd) => ({ list: { getSnapshot: () => ({ byId: { current: { cwd } } }) } })
   host.services.set('sessions', sessionService('mirror/first'))
   sidebar.emit('current')
+  await new Promise((resolve) => setImmediate(resolve))
   assert.equal(requests.at(-1).url, '/dsh-remote/resolve-mirror?local=mirror%2Ffirst')
   host.services.remove('sessions')
   sidebar.emit('current')
+  await new Promise((resolve) => setImmediate(resolve))
   assert.equal(requests.at(-1).url, '/dsh-remote/resolve-mirror?sessionId=current', 'must not retain disposed sessions')
   host.services.set('sessions', sessionService('mirror/second'))
   sidebar.emit('current')
+  await new Promise((resolve) => setImmediate(resolve))
   assert.equal(requests.at(-1).url, '/dsh-remote/resolve-mirror?local=mirror%2Fsecond')
   assert.equal(host.registrations.get(SETTINGS), settings, 'sessions hotplug leaves settings mounted')
   // Let the stubbed fetch/json promises settle before test cleanup.
@@ -570,12 +575,44 @@ test('issue #78: a persistent opt-out survives "restart" (fresh plugin instance)
   host.services.set('betterSidebar', sidebar)
 
   sidebar.emit('sess-remote')
-  // The opt-out guard is the FIRST statement of tryAutoOpen — synchronous,
-  // nothing to wait for: no fetch, no open, ever.
+  // Let the shared-preference fallback settle before asserting: issue #119 makes
+  // the guard asynchronous precisely so a late OFF cannot race an eager open.
+  await new Promise((resolve) => setImmediate(resolve))
   assert.equal(opened.length, 0, 'opted-out users must never get the panel popped')
-  // The guard sits BEFORE any resolve-mirror fetch — opting out costs zero
-  // network. (The negative control is the previous test: same machinery with
-  // the default setting DOES open, so this zero is the guard's doing.)
+  // The guard still sits BEFORE resolve-mirror. (The positive control is the
+  // previous test: the same machinery with the default setting DOES open.)
   const mirrorCalls = second.requests.filter((r) => String(r.url).includes('/resolve-mirror'))
   assert.equal(mirrorCalls.length, 0, 'the guard runs BEFORE any resolve-mirror fetch')
+})
+
+test('issue #119: better-sidebar also waits for the shared host OFF', async (t) => {
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  const fetch = (url, options) => {
+    if (String(url).includes('/dsh-remote/explorer-auto-open')) {
+      return gate.then(() => ({ ok: true, json: async () => ({ ok: true, enabled: false, persisted: true }) }))
+    }
+    return issue78Fetch(url, options)
+  }
+  const { plugin, requests, localStorage } = loadClient('https:', 'Linux x86_64', fetch)
+  // An old origin-local ON must not win over the explicit host OFF.
+  localStorage.setItem('dsh-remote:explorerAutoOpen', '1')
+  const host = createHost()
+  t.after(() => host.ctx.dispose())
+  plugin.apply(host.ctx)
+  const opened = []
+  const sidebar = betterSidebar()
+  sidebar.openTab = (spec) => opened.push(spec)
+  host.services.set('betterSidebar', sidebar)
+
+  sidebar.emit('sess-remote')
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(opened.length, 0, 'no openTab while the preference is deferred')
+  assert.equal(requests.filter((r) => String(r.url).includes('/resolve-mirror')).length, 0,
+    'even remote-path resolution waits for the preference')
+  release()
+  await new Promise((resolve) => setImmediate(resolve))
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(opened.length, 0, 'the late shared OFF reaches better-sidebar too')
+  assert.equal(requests.filter((r) => String(r.url).includes('/resolve-mirror')).length, 0)
 })
