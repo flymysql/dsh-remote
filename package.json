@@ -53,7 +53,7 @@
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/cordis": "^4.1.0",
     "@deepseek-ai/dsh-client-connection": ">=0.1.2-rc.1 <0.3.0",
     "@deepseek-ai/dsh-client-locale": ">=0.1.2-rc.1 <0.3.0",
     "@deepseek-ai/dsh-client-ui-renderer": ">=0.1.2-rc.1 <0.3.0",
@@ -82,7 +82,7 @@
     "tweetnacl"
   ],
   "devDependencies": {
-    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/cordis": "^4.1.0",
     "@deepseek-ai/dsh-llm": "^0.1.0-rc.8",
     "@deepseek-ai/dsh-sandbox": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-scope": "^0.2.0-rc.2",
