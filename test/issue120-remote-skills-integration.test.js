@@ -12,7 +12,7 @@ const BEFORE = `---\nname: alpha\ndescription: Before\n---\nold remote body`
 const AFTER = `---\nname: alpha\ndescription: After\n---\nnew remote body`
 const BETA = `---\nname: beta\ndescription: Agents beta\n---\nagents body`
 
-async function setup(t) {
+async function setup(t, backend = 'native') {
   const server = await startFakeSsh({
     users: { root: { password: 'pw' } },
     fs: {
@@ -25,10 +25,10 @@ async function setup(t) {
   let invalidations = 0
   const originalInvalidate = registry.invalidateCache.bind(registry)
   registry.invalidateCache = () => { invalidations++; originalInvalidate() }
-  const rec = machine({ id: 'm-test', host: '127.0.0.1', port: server.port, password: 'pw', workspace: '/srv/app' })
+  const rec = machine({ id: 'm-test', host: '127.0.0.1', port: server.port, password: 'pw', workspace: '/srv/app', backend })
   const host = await createHost({
     machines: [rec], currentId: rec.id,
-    config: { host: '127.0.0.1', port: server.port, username: 'root', password: 'pw', workspace: '/srv/app', hostKeyMode: 'off' },
+    config: { host: '127.0.0.1', port: server.port, username: 'root', password: 'pw', workspace: '/srv/app', hostKeyMode: 'off', backend },
     services: { skills: registry },
   })
   const mirror = path.join(host.root, `127.0.0.1-root-${server.port}`, 'app')
@@ -62,6 +62,15 @@ test('REAL SshPool + fake sshd discovers remote skills; HTTP write invalidates t
   const next = await registry.snapshot({ cwd: mirror })
   assert.equal(next.skills[0].description, 'After')
   assert.equal((await registry.get('alpha', { cwd: mirror })).content, 'new remote body')
+})
+
+test('system-OpenSSH backend discovers the same remote skills over the shared surface', async (t) => {
+  const { registry, mirror } = await setup(t, 'openssh')
+  const snapshot = await registry.snapshot({ cwd: mirror })
+  assert.equal(snapshot.complete, true)
+  assert.deepEqual(snapshot.skills.map((s) => s.name), ['alpha', 'beta'])
+  assert.equal((await registry.get('alpha', { cwd: mirror })).content, 'old remote body')
+  assert.equal((await registry.get('beta', { cwd: mirror })).content, 'agents body')
 })
 
 test('rw_push invalidates only after actual completion; dryRun and read-only results do not', async (t) => {
