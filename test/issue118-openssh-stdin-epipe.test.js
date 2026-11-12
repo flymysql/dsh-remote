@@ -50,7 +50,7 @@ function trapUncaught() {
 // ── 1. the guard itself ─────────────────────────────────────────────────────
 
 test('#118: guardChildStdin() installs an error listener and returns the child', () => {
-  const child = spawn('/bin/sh', ['-c', 'exit 0'], { stdio: ['pipe', 'pipe', 'pipe'] })
+  const child = spawn(process.execPath, ['-e', ''], { stdio: ['pipe', 'pipe', 'pipe'] })
   assert.equal(child.stdin.listenerCount('error'), 0, 'plain spawn starts with no stdin error listener')
 
   const calls = []
@@ -69,14 +69,16 @@ test('#118: guardChildStdin() installs an error listener and returns the child',
 test('#118: guardChildStdin() tolerates a child without a stdin stream', () => {
   // `spawn` with 'ignore' yields child.stdin === null; the guard must be a
   // no-op rather than a crash on a path that never writes.
-  const child = spawn('/bin/sh', ['-c', 'exit 0'], { stdio: ['ignore', 'ignore', 'ignore'] })
+  const child = spawn(process.execPath, ['-e', ''], { stdio: ['ignore', 'ignore', 'ignore'] })
   assert.equal(child.stdin, null)
   assert.equal(guardChildStdin(child), child)
 })
 
 // ── 2. the real failure shape ───────────────────────────────────────────────
 
-test('#118: an EPIPE from a dead stdin pipe does not become an uncaught exception', async () => {
+test('#118: an EPIPE from a dead stdin pipe does not become an uncaught exception', {
+  skip: process.platform === 'win32' ? 'the real /bin/sh EPIPE reproduction requires a POSIX host' : false,
+}, async () => {
   const uncaught = trapUncaught()
   let survivor = null
   try {
