@@ -197,6 +197,9 @@ test('the plugin claims the CORE file address, not just its own', () => {
   const { types } = bootWithSidebar()
   const link = types.get('dsh-remote/remote-link')
   assert.ok(link, 'the remote-link type must be registered')
+  // Issue #108: session-scoped glob — longest-match beats bundle order, so a
+  // co-installed editor extension can no longer win the tie and read the local
+  // mirror into ENOENT.
   assert.deepEqual([...link.patterns], ['dsh-resource://file/session/**'])
   // Declaring no priority puts it in the `extension` band, which is the ONLY
   // band that outranks a `fallback` type — without this the built-in local
@@ -220,6 +223,9 @@ test('canOpen refuses every address that is not a session-scoped core file link'
     'dsh-resource://file/absolute/%2Fhome%2Fu%2Fa.c',
     // A session scope with no path at all.
     'dsh-resource://file/session/s1',
+    // A malformed percent-encoding must read as "not ours", not throw out of
+    // the host router (it evaluates canOpen on every routing decision).
+    'dsh-resource://file/session/%E0%A4%A',
   ]) {
     assert.equal(canOpen(address), false, `must not claim ${JSON.stringify(address)}`)
   }

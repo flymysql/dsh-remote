@@ -212,6 +212,9 @@ test('native right-sidebar attaches late, opens a session-scoped remote file, an
   // Issue #55: the third type claims the CORE's own address (not this plugin's),
   // and declares no `priority` so it registers in the `extension` band that
   // outranks the built-in local text preview.
+  // Issue #108: the glob narrowed to the session scope — longest-glob-first
+  // ranking beats bundle order, so a co-installed extension can no longer steal
+  // remote links into a local-mirror read (ENOENT).
   assert.deepEqual([...types.get('dsh-remote/remote-link').patterns], ['dsh-resource://file/session/**'])
   assert.equal(types.get('dsh-remote/remote-link').priority, undefined)
   const explorer = host.registrations.get('sidebar.right.pane.tab:dsh-remote/explorer')
