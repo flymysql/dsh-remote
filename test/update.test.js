@@ -121,6 +121,30 @@ test('applyUpdate installs the tarball and marks the version', async () => {
   }
 })
 
+test('applyUpdate installs .cjs helpers and nested lib files', async () => {
+  // ★ 回归：0.8.92 给 web-attach.js 加了 `import './posix-shell.cjs'`，而更新器
+  // 只复制顶层 `lib/*.js` 且跳过子目录。自动更新落盘后，下次启动 import 就抛
+  // ERR_MODULE_NOT_FOUND，整个插件一条 entry 都激活不了（0.8.92 实测）。
+  const dir = makeInstall()
+  const files = {
+    ...NEW_FILES,
+    'lib/posix-shell.cjs': 'module.exports = { posixViaSh: (command) => command }\n',
+    'lib/tui/scene.js': 'export const scene = 1\n',
+  }
+  try {
+    const res = await applyUpdate('0.2.0', {
+      dir,
+      fetchImpl: makeFetch({ version: '0.2.0', tarball: makeTarball(files) }),
+    })
+    assert.equal(readFileSync(path.join(dir, 'lib', 'posix-shell.cjs'), 'utf8'), files['lib/posix-shell.cjs'])
+    assert.equal(readFileSync(path.join(dir, 'lib', 'tui', 'scene.js'), 'utf8'), files['lib/tui/scene.js'])
+    assert.ok(res.changed.includes('lib/posix-shell.cjs'), res.changed.join(','))
+    assert.ok(res.changed.includes('lib/tui/scene.js'), res.changed.join(','))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('applyUpdate leaves no temp files and skips byte-identical files', async () => {
   const dir = makeInstall()
   const fetchImpl = makeFetch({ version: '0.2.0', tarball: makeTarball(NEW_FILES) })
@@ -354,6 +378,26 @@ test('clearSelfModuleCache honours an explicit package dir', () => {
     const loadCache = new Map([[url, { stub: true }]])
     assert.equal(clearSelfModuleCache({ internal: { loadCache } }, dir), 1)
     assert.equal(Map.prototype.has.call(loadCache, url), false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('clearSelfModuleCache evicts .cjs helpers and nested lib modules too', () => {
+  // 同一个过滤缺陷的镜像问题：`.cjs` 通过 import() 载入时既进 ESM loadCache
+  // 也进 require.cache，只清顶层 `.js` 会让热切换继续跑旧模块。
+  const dir = mkdtempSync(path.join(tmpdir(), 'dsh-remote-clear-cjs-'))
+  try {
+    mkdirSync(path.join(dir, 'lib', 'tui'), { recursive: true })
+    writeFileSync(path.join(dir, 'lib', 'posix-shell.cjs'), 'module.exports = {}\n')
+    writeFileSync(path.join(dir, 'lib', 'tui', 'scene.js'), 'export const scene = 1\n')
+    const urls = [
+      pathToFileURL(path.join(dir, 'lib', 'posix-shell.cjs')).href,
+      pathToFileURL(path.join(dir, 'lib', 'tui', 'scene.js')).href,
+    ]
+    const loadCache = new Map(urls.map((url) => [url, { stub: true }]))
+    assert.equal(clearSelfModuleCache({ internal: { loadCache } }, dir), 2)
+    for (const url of urls) assert.equal(Map.prototype.has.call(loadCache, url), false)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
