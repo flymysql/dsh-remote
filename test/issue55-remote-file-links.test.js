@@ -223,6 +223,9 @@ test('canOpen refuses every address that is not a session-scoped core file link'
     'dsh-resource://file/absolute/%2Fhome%2Fu%2Fa.c',
     // A session scope with no path at all.
     'dsh-resource://file/session/s1',
+    // A malformed percent-encoding must read as "not ours", not throw out of
+    // the host router (it evaluates canOpen on every routing decision).
+    'dsh-resource://file/session/%E0%A4%A',
   ]) {
     assert.equal(canOpen(address), false, `must not claim ${JSON.stringify(address)}`)
   }
@@ -264,6 +267,52 @@ test('canOpen refuses a session id it does not know', () => {
   // session. Trusting the address's own id would let a forged link borrow the
   // mirror and read an arbitrary remote path.
   assert.equal(canOpen('dsh-resource://file/session/some-other/src/main.c'), false)
+})
+
+// Reproduce the host ranking: band, matching pattern length, registration order.
+// better-sidebar's editor is also an extension, NOT the built-in fallback.
+function claimFile(types, address) {
+  return types.map((type, order) => ({
+    type, order,
+    length: Math.max(-1, ...type.patterns.filter((pattern) =>
+      address.startsWith(pattern.replace(/\*\*$/, ''))).map((pattern) => pattern.length)),
+  })).filter(({ type, length }) => length >= 0 && (!type.canOpen || type.canOpen(address)))
+    .sort((a, b) => b.length - a.length || a.order - b.order)[0]?.type.kind
+}
+
+test('remote links outrank better-sidebar in either registration order without stealing local links', async () => {
+  const { types } = bootWithSidebar({
+    routes: { '/dsh-remote/bindings': { mirrors: [MIRROR] } },
+    sessions: [{ id: 'remote-1', cwd: MIRROR.dir }, { id: 'local-1', cwd: '/local/project' }],
+  })
+  const remote = types.get('dsh-remote/remote-link')
+  const editor = { kind: 'editor', priority: 'extension', patterns: ['dsh-resource://file/**'], canOpen: () => true }
+  const address = 'dsh-resource://file/session/remote-1//Workspace/tb4-workspace/tb4-new/seedfactory/produce.py'
+  assert.equal(claimFile([editor, remote], address), 'editor', 'cold registry cannot prove remote ownership')
+  await new Promise((r) => setImmediate(r))
+  for (const order of [[editor, remote], [remote, editor]]) {
+    for (const path of [address, 'dsh-resource://file/session/remote-1/tools/queue_documents.py']) {
+      assert.equal(claimFile(order, path), 'dsh-remote/remote-link')
+    }
+    for (const path of [
+      'dsh-resource://file/session/local-1/tools/queue_documents.py',
+      'dsh-resource://file/session/unknown/tools/queue_documents.py',
+      'dsh-resource://file/absolute/Workspace/produce.py',
+    ]) assert.equal(claimFile(order, path), 'editor')
+  }
+})
+
+test('malformed URL escapes do not break sidebar routing', async () => {
+  const { types } = bootWithSidebar({
+    routes: { '/dsh-remote/bindings': { mirrors: [MIRROR] } },
+    sessions: [{ id: 'remote-1', cwd: MIRROR.dir }],
+  })
+  await new Promise((r) => setImmediate(r))
+  const link = types.get('dsh-remote/remote-link')
+  for (const address of ['dsh-resource://file/session/%ZZ/a.py', 'dsh-resource://file/session/remote-1/%ZZ.py']) {
+    assert.equal(link.canOpen(address), false)
+    assert.doesNotThrow(() => link.title(address))
+  }
 })
 
 // ── the mapping ────────────────────────────────────────────────────────────

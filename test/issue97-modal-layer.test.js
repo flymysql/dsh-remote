@@ -18,6 +18,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { fakeTimers } from './harness/fake-timers.js'
+import { installTestDispatcher } from './harness/react-dispatcher.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..')
@@ -98,7 +99,7 @@ function mount(Picker, props = {}) {
   const setters = []
   const cancellations = { n: 0 }
   let hookIndex = 0
-  React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher.current = {
+  installTestDispatcher(React, {
     useState(init) {
       const i = hookIndex++
       if (hookState[i] === undefined) hookState[i] = typeof init === 'function' ? init() : init
@@ -112,7 +113,7 @@ function mount(Picker, props = {}) {
     useDebugValue() {}, useId() { return 'id' },
     useTransition() { return [false, (f) => f && f()] }, useDeferredValue(v) { return v },
     useImperativeHandle() {},
-  }
+  })
   const render = () => {
     hookIndex = 0
     return Picker({ open: true, busy: false, onPicked: () => {}, onCancel: () => { cancellations.n++ }, ...props })

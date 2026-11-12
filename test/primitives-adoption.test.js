@@ -21,6 +21,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { fakeTimers } from './harness/fake-timers.js'
+import { installTestDispatcher } from './harness/react-dispatcher.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..')
@@ -150,7 +151,7 @@ function makeDriver(Page) {
     useDeferredValue(v) { cursor++; return v },
     useImperativeHandle() {},
   }
-  React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher.current = dispatcher
+  installTestDispatcher(React, dispatcher)
   const settle = async () => {
     const renderPage = () => {
       cursor = 0

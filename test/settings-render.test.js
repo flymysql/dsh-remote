@@ -22,6 +22,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { fakeTimers } from './harness/fake-timers.js'
+import { installTestDispatcher } from './harness/react-dispatcher.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..')
@@ -121,7 +122,7 @@ test('the settings page renders, and it contains the cards the user expects', ()
   // Install the initial-render dispatcher ON the captured object (see header).
   const hookState = []
   let hookIndex = 0
-  React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher.current = {
+  installTestDispatcher(React, {
     useState(init) {
       const i = hookIndex++
       if (hookState[i] === undefined) hookState[i] = typeof init === 'function' ? init() : init
@@ -134,7 +135,7 @@ test('the settings page renders, and it contains the cards the user expects', ()
     useDebugValue() {}, useId() { return 'id' },
     useTransition() { return [false, (f) => f && f()] }, useDeferredValue(v) { return v },
     useImperativeHandle() {},
-  }
+  })
 
   // Rendering must not throw: a throw here means the user sees a broken panel.
   const tree = Page({})
@@ -174,7 +175,7 @@ function findAll(tree, pred, out = []) {
 function installHookRig() {
   const hookState = []
   let hookIndex = 0
-  React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher.current = {
+  installTestDispatcher(React, {
     useState(init) {
       const i = hookIndex++
       if (hookState[i] === undefined) hookState[i] = typeof init === 'function' ? init() : init
@@ -187,7 +188,7 @@ function installHookRig() {
     useDebugValue() {}, useId() { return 'id' },
     useTransition() { return [false, (f) => f && f()] }, useDeferredValue(v) { return v },
     useImperativeHandle() {},
-  }
+  })
   return () => { hookIndex = 0 }
 }
 
@@ -282,7 +283,7 @@ test('no backup i18n key survives the capability removal', () => {
   const hookState = []
   const setters = []
   let hookIndex = 0
-  React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher.current = {
+  installTestDispatcher(React, {
     useState(init) { const i = hookIndex++; if (hookState[i] === undefined) hookState[i] = typeof init === 'function' ? init() : init; if (!setters[i]) setters[i] = (v) => { hookState[i] = typeof v === 'function' ? v(hookState[i]) : v }; return [hookState[i], setters[i]] },
     useEffect() {}, useLayoutEffect() {}, useInsertionEffect() {},
     useMemo(fn) { return fn() }, useCallback(fn) { return fn },
@@ -291,7 +292,7 @@ test('no backup i18n key survives the capability removal', () => {
     useDebugValue() {}, useId() { return 'id' },
     useTransition() { return [false, (f) => f && f()] }, useDeferredValue(v) { return v },
     useImperativeHandle() {},
-  }
+  })
   const render = () => { hookIndex = 0; return collectText(Page({})) }
   const collapsed = render()
   // Expand every collapsed section: the removal must hold everywhere, not only

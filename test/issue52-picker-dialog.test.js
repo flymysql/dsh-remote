@@ -21,6 +21,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { fakeTimers } from './harness/fake-timers.js'
+import { installTestDispatcher } from './harness/react-dispatcher.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..')
@@ -106,7 +107,7 @@ function mount(props = {}, Comp = Picker) {
   const setters = []
   const cancellations = { n: 0 }
   let hookIndex = 0
-  React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher.current = {
+  installTestDispatcher(React, {
     useState(init) {
       const i = hookIndex++
       if (hookState[i] === undefined) hookState[i] = typeof init === 'function' ? init() : init
@@ -120,7 +121,7 @@ function mount(props = {}, Comp = Picker) {
     useDebugValue() {}, useId() { return 'id' },
     useTransition() { return [false, (f) => f && f()] }, useDeferredValue(v) { return v },
     useImperativeHandle() {},
-  }
+  })
   // DirPicker's hook order: 0 tab 1 machines 2 machineId 3 path 4 items 5 err
   // 6 loading 7 levels 8 popOpen 9 suggest 10 suggestOpen 11 recent 12 win
   // 13 localPop 14 newDirName 15 mkdirPrompt 16 mOpen

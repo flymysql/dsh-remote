@@ -27,6 +27,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { fakeTimers } from './fake-timers.js'
+import { installTestDispatcher } from './react-dispatcher.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const CLIENT_SRC = readFileSync(path.join(here, '..', '..', 'lib', 'client.js'), 'utf8')
@@ -181,6 +182,7 @@ export function mountClient(opts = {}) {
   const refs = new Map()
   const cleanups = []
   const seen = new Set()
+  const effectStates = new Map()
   let cursor = 0
   let pending = []
 
@@ -190,9 +192,23 @@ export function mountClient(opts = {}) {
       if (!(i in state)) state[i] = typeof init === 'function' ? init() : init
       return [state[i], (v) => { state[i] = typeof v === 'function' ? v(state[i]) : v }]
     },
-    useEffect(fn) {
+    useEffect(fn, deps) {
       const i = cursor++
-      if (!seen.has('e' + i)) { seen.add('e' + i); pending.push(fn) }
+      if (!opts.effectDependencies) {
+        if (!seen.has('e' + i)) { seen.add('e' + i); pending.push(fn) }
+        return
+      }
+      // Navigation regressions need React's dependency-change semantics, not
+      // the default mount-only driver used by the older interaction tests.
+      const previous = effectStates.get(i)
+      if (previous && deps && previous.deps && deps.length === previous.deps.length
+        && deps.every((dep, index) => Object.is(dep, previous.deps[index]))) return
+      pending.push(() => {
+        previous?.cleanup?.()
+        const entry = { deps, cleanup: fn() }
+        effectStates.set(i, entry)
+        return () => { entry.cleanup?.(); entry.cleanup = undefined }
+      })
     },
     useRef(v) {
       const i = cursor++
@@ -209,7 +225,7 @@ export function mountClient(opts = {}) {
     useDeferredValue(v) { cursor++; return v },
     useImperativeHandle() {},
   }
-  React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher.current = dispatcher
+  installTestDispatcher(React, dispatcher)
 
   /** Render a component (mounting the hook-free slot wrapper first) and run its effects. */
   async function settleFor(Comp, props = {}) {
@@ -263,7 +279,11 @@ export function mountClient(opts = {}) {
      * link body found the settings page's machines array where its own
      * `remotePath` should be, and rendered the file tab with a non-string path.
      */
-    resetState() { state.length = 0; refs.clear(); seen.clear() },
+    resetState() {
+      state.length = 0; refs.clear(); seen.clear()
+      for (const entry of effectStates.values()) { entry.cleanup?.(); entry.cleanup = undefined }
+      effectStates.clear()
+    },
     tick,
     elements,
     textOf,
