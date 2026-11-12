@@ -1,14 +1,10 @@
 {
-  "generatedAt": "2026-11-12T15:10:26.854Z",
+  "generatedAt": "2026-11-12T23:37:01.050Z",
   "heartbeat": {
     "ok": true,
-    "generatedAt": "2026-11-12T15:10:26.283Z",
+    "generatedAt": "2026-11-12T23:37:00.619Z",
     "tz": "Asia/Shanghai",
     "daily": [
-      {
-        "day": "2026-10-14",
-        "dau": 0
-      },
       {
         "day": "2026-10-15",
         "dau": 0
@@ -123,28 +119,36 @@
       },
       {
         "day": "2026-11-12",
-        "dau": 1088
+        "dau": 1118
+      },
+      {
+        "day": "2026-11-13",
+        "dau": 206
       }
     ],
-    "wau": 2218,
-    "mau": 2218,
-    "installs": 2218,
+    "wau": 2313,
+    "mau": 2313,
+    "installs": 2313,
     "byVersion": [
       {
         "version": "0.8.91",
-        "n": 1619
+        "n": 1646
       },
       {
         "version": "0.8.85",
-        "n": 632
+        "n": 633
       },
       {
         "version": "0.8.90",
         "n": 344
       },
       {
+        "version": "0.8.94",
+        "n": 189
+      },
+      {
         "version": "0.8.88",
-        "n": 157
+        "n": 158
       },
       {
         "version": "0.8.86",
@@ -159,20 +163,16 @@
         "n": 47
       },
       {
-        "version": "0.8.94",
-        "n": 39
-      },
-      {
         "version": "0.8.93",
-        "n": 35
+        "n": 41
       },
       {
         "version": "0.8.89",
-        "n": 30
+        "n": 31
       },
       {
         "version": "0.8.92",
-        "n": 27
+        "n": 30
       },
       {
         "version": "0.8.80",
@@ -182,19 +182,19 @@
     "byPlatform": [
       {
         "platform": "win32",
-        "n": 1302
+        "n": 1357
       },
       {
         "platform": "darwin",
-        "n": 518
+        "n": 530
       },
       {
         "platform": "linux",
-        "n": 389
+        "n": 416
       },
       {
         "platform": "android",
-        "n": 5
+        "n": 6
       },
       {
         "platform": "ios",
@@ -209,7 +209,7 @@
   "heartbeatError": null,
   "npm": {
     "package": "dsh-remote",
-    "checkedAt": "2026-11-12T15:10:26.307Z",
+    "checkedAt": "2026-11-12T23:37:00.648Z",
     "latest": "0.8.94",
     "lastWeek": 62757,
     "lastMonth": 123234,
@@ -347,6 +347,6 @@
     "stars": 278,
     "forks": 48,
     "openIssues": 1,
-    "pushedAt": "2026-11-12T13:01:30Z"
+    "pushedAt": "2026-11-12T15:10:29Z"
   }
 }
