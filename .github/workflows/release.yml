@@ -35,11 +35,17 @@ jobs:
       # run against exactly the tree that gets packed — a feature, not a risk.
       - run: npm ci --legacy-peer-deps --no-audit --no-fund --ignore-scripts
 
-      - name: Gates (same three as PUBLISH.md)
+      - name: Gates (same four as PUBLISH.md)
         run: |
           for f in lib/*.js; do node --check "$f"; done
           node check.mjs
           npm test
+          # Prove the PREVIOUS release's updater can lay this candidate down
+          # completely (the #126 half-updated-tree class). Needs network: it
+          # installs the npm `latest` release into a scratch dir and drives
+          # ITS updater. Runs before publish, while latest still names the
+          # version users would update FROM.
+          node scripts/verify-self-update.mjs
 
       - name: Tag must match package.json version
         run: |

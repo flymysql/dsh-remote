@@ -29,6 +29,11 @@ stub kept only for old external links — do not put content in it.
 for f in lib/*.js; do node --check "$f"; done
 node check.mjs
 npm test
+# Proves the PREVIOUS release's updater can install this candidate completely
+# (the #126 half-updated-tree class). Installs npm `latest` into a scratch dir
+# and drives ITS updater against the packed candidate — run it BEFORE publish,
+# while latest still names the version users would update FROM.
+node scripts/verify-self-update.mjs
 ```
 
 Optional: `scripts/boot-smoke.sh` if a desktop harness is installed.
