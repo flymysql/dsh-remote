@@ -1,14 +1,10 @@
 {
-  "generatedAt": "2026-11-10T19:42:08.865Z",
+  "generatedAt": "2026-11-12T00:40:03.325Z",
   "heartbeat": {
     "ok": true,
-    "generatedAt": "2026-11-10T19:42:08.411Z",
+    "generatedAt": "2026-11-12T00:40:02.884Z",
     "tz": "Asia/Shanghai",
     "daily": [
-      {
-        "day": "2026-10-13",
-        "dau": 0
-      },
       {
         "day": "2026-10-14",
         "dau": 0
@@ -123,97 +119,97 @@
       },
       {
         "day": "2026-11-11",
-        "dau": 402
-      }
-    ],
-    "wau": 1276,
-    "mau": 1276,
-    "installs": 1276,
-    "byVersion": [
-      {
-        "version": "0.8.85",
-        "n": 601
+        "dau": 1477
       },
       {
+        "day": "2026-11-12",
+        "dau": 251
+      }
+    ],
+    "wau": 1883,
+    "mau": 1883,
+    "installs": 1883,
+    "byVersion": [
+      {
         "version": "0.8.91",
-        "n": 355
+        "n": 1237
+      },
+      {
+        "version": "0.8.85",
+        "n": 629
       },
       {
         "version": "0.8.90",
-        "n": 219
+        "n": 329
       },
       {
         "version": "0.8.88",
-        "n": 126
+        "n": 154
       },
       {
         "version": "0.8.86",
-        "n": 125
+        "n": 137
       },
       {
         "version": "0.8.84",
-        "n": 85
+        "n": 93
       },
       {
         "version": "0.8.87",
-        "n": 42
+        "n": 46
       },
       {
         "version": "0.8.89",
-        "n": 24
+        "n": 30
       },
       {
         "version": "0.8.80",
-        "n": 3
-      },
-      {
-        "version": "0.8.75",
-        "n": 1
-      },
-      {
-        "version": "0.8.81",
-        "n": 1
+        "n": 4
       },
       {
         "version": "0.8.83",
+        "n": 2
+      },
+      {
+        "version": "0.8.46",
+        "n": 1
+      },
+      {
+        "version": "0.8.73",
         "n": 1
       }
     ],
     "byPlatform": [
       {
         "platform": "win32",
-        "n": 749
+        "n": 1110
       },
       {
         "platform": "darwin",
-        "n": 290
+        "n": 423
       },
       {
         "platform": "linux",
-        "n": 233
+        "n": 343
       },
       {
         "platform": "android",
-        "n": 3
+        "n": 5
       },
       {
         "platform": "ios",
-        "n": 1
+        "n": 2
       }
     ]
   },
   "heartbeatError": null,
   "npm": {
     "package": "dsh-remote",
-    "checkedAt": "2026-11-10T19:42:08.452Z",
+    "checkedAt": "2026-11-12T00:40:02.916Z",
     "latest": "0.8.91",
-    "lastWeek": 53628,
-    "lastMonth": 103257,
+    "lastWeek": 59991,
+    "lastMonth": 118544,
     "daily": [
-      {
-        "day": "2026-10-11",
-        "downloads": 352
-      },
       {
         "day": "2026-10-12",
         "downloads": 1563
@@ -329,6 +325,10 @@
       {
         "day": "2026-11-09",
         "downloads": 10714
+      },
+      {
+        "day": "2026-11-10",
+        "downloads": 15639
       }
     ],
     "zeroDays": [
@@ -340,9 +340,9 @@
     "note": "npm daily counts have reporting gaps; zero-value days are flagged and are not real zero usage."
   },
   "repo": {
-    "stars": 275,
+    "stars": 278,
     "forks": 48,
-    "openIssues": 3,
-    "pushedAt": "2026-11-10T15:55:17Z"
+    "openIssues": 12,
+    "pushedAt": "2026-11-11T14:19:35Z"
   }
 }
