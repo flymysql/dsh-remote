@@ -2,6 +2,20 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.92 — 2026-11-12
+### 新增：远程项目技能 + 稳定性与远程体验集中修复
+
+- **远程技能目录（#120）**：`.dsh/skills` 与 `.agents/skills` 直接进入 DSH 技能目录，目录 bundle 与顶层 Markdown 均可发现，完整正文按需经 SFTP 加载，无需先同步镜像；同名时远端权威内容优先于本地副本。写入/推送/autoPush 即时失效，后台或外部修改由每 5 分钟一次、只失效不联网的刷新兜底。
+- **远程文件链接（#110）**：远程链接优先进入远程查看器，支持同 tab 换文件、换会话和行号导航，同时保留地址 anchor 优先与范围行号；畸形 URI 不再抛出宿主路由异常。
+- **非 POSIX 登录 shell（#111）**：Remote SSH 与 WebAttach 内部生成的命令统一经安全 `sh -c` 边界执行，fish/csh 等登录 shell 不再被 POSIX 语法绊倒；用户的 `rw_exec` 语义不变。
+- **PTC 工具可见性（#117）**：`localTools` 同时作用于 native、PTC SDK、`run_code` bindings 与 dispatch，覆盖新建/现存 agent、disposed 与热重载。
+- **SSH 传输可靠性（#118/#121/#122）**：所有 OpenSSH 子进程 stdin 的异步 EPIPE 都有监听，不再导致 host 进程退出；native 每个 live client/epoch 复用一条 SFTP channel，避免 MaxSessions 打满后连坐断开其它通道；OpenSSH 与 native 的 known_hosts 存储分离。
+- **跨入口侧栏偏好（#119）**：自动打开远程文件面板的开关持久化到 `$DSH_HOME`，tether/不同 origin 共享；首次打开前等待偏好，存储不可用时不再 fail-open。
+- **服务器辨识度（#109）**：机器与会话标记使用按 endpoint 持久化的徽章颜色，首 8 个 endpoint 不撞色。
+- **依赖与测试基架**：更新 schemastery、Cordis、React、dsh-llm、dsh-session；集中适配 React 18/19 dispatcher，fake-SSH host key 先验证再使用，消除偶发 malformed key CI 失败。
+
+验证：1201 项测试 1193 pass / 0 fail / 8 skip，整体覆盖率 83.8%；真实 SkillRegistry 与 fake sshd 双后端（native / system-OpenSSH）验证远程技能，main CI 四 job 全绿。
+
 ## 0.8.91 — 2026-11-10
 ### 修复：远程文件链接被同装扩展抢走（本地镜像 ENOENT）+ 行号跳转接通 0.2.x 通道（issue #108）
 
