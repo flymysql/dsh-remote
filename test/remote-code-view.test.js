@@ -158,8 +158,10 @@ test('host navigation params preserve the line and same-tab navigation resolves 
   } finally { ui.dispose() }
 })
 
-test('valid navigation lines override legacy anchors and invalid params fall back safely', async () => {
-  for (const [param, expected] of [[3, 3], [0, 2], [-1, 2], [1.5, 2], ['93', 2], [undefined, 2]]) {
+test('explicit address anchors outrank params and invalid params never mask them', async () => {
+  // Preserve the released issue #108 contract: an explicit address is the
+  // author's chosen target; params fill the gap on 0.2.x anchor-less links.
+  for (const param of [3, 0, -1, 1.5, '93', undefined]) {
     const calls = []
     const ui = mountClient({ fetch: fetchFor(CONTENT_3, calls), services: { sessions: sessionsFor(MIRROR.dir) } })
     try {
@@ -171,9 +173,29 @@ test('valid navigation lines override legacy anchors and invalid params fall bac
       })
       const cv = mountCodeView(tree, ui)
       const flashed = rows(cv, ui).filter((r) => /dsh-rw-line-flash/.test(String(r.props.className || '')))
-      assert.deepEqual(flashed.map((r) => r.props['data-line']), [expected])
+      assert.deepEqual(flashed.map((r) => r.props['data-line']), [2])
     } finally { ui.dispose() }
   }
+})
+
+test('the SAME path in a newly-bound session is read under the NEW session id', async () => {
+  const calls = []
+  const sessions = { list: { getSnapshot: () => ({ byId: {
+    's-1': { cwd: MIRROR.dir }, 's-2': { cwd: MIRROR.dir },
+  } }) } }
+  const ui = mountClient({ effectDependencies: true, fetch: fetchFor(CONTENT_3, calls), services: { sessions } })
+  try {
+    const body = ui.body('dsh-remote/remote-link')
+    const mkInfo = (session) => () => ({ tab: { navigation: {
+      address: `dsh-resource://file/session/${session}/src/main.c`,
+    } } })
+    await ui.settleComponent(body, { sessionId: 's-1', useTabInfo: mkInfo('s-1') })
+    await ui.settleComponent(body, { sessionId: 's-2', useTabInfo: mkInfo('s-2') })
+    const reads = calls.filter((c) => c.url.includes('/dsh-remote/read'))
+    assert.deepEqual(reads.map((c) => c.body.sessionId), ['s-1', 's-2'],
+      'fileSessionId is an effect dependency: a path-only dependency would reuse the old session bytes')
+    assert.ok(reads.every((c) => c.body.path === '/srv/app/src/main.c'))
+  } finally { ui.dispose() }
 })
 
 test('a plain link (no anchor) opens the file at its top, nothing flashing', async () => {
