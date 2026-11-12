@@ -22,6 +22,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { fakeTimers } from './harness/fake-timers.js'
+import { installTestDispatcher } from './harness/react-dispatcher.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..')
@@ -32,6 +33,7 @@ const src = readFileSync(path.join(root, 'lib', 'client.js'), 'utf8')
 /** Load the client bundle and run apply(), returning the settings component. */
 function mountClient(opts = {}) {
   let loaded = null
+  const requests = []
   const timers = fakeTimers()
   const sandbox = {
     window: {
@@ -50,7 +52,11 @@ function mountClient(opts = {}) {
     },
     navigator: { clipboard: null, userAgent: 'node', languages: ['zh-CN'] },
     setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout, console,
-    fetch: async () => ({ ok: true, json: async () => ({}) }),
+    fetch: async (url, init) => {
+      requests.push({ url: String(url), init })
+      if (opts.fetch) return opts.fetch(url, init)
+      return { ok: true, json: async () => ({}) }
+    },
   }
   const requireStub = (id) => {
     if (id === 'react') return React
@@ -92,7 +98,7 @@ function mountClient(opts = {}) {
     logger: { warn: () => {}, info: () => {}, debug: () => {} },
   }
   mod.apply(ctx)
-  return { Page, sections, slotsSeen }
+  return { Page, sections, slotsSeen, requests }
 }
 
 /** Walk an element tree, collecting rendered text, mounting function components. */
@@ -116,7 +122,7 @@ test('the settings page renders, and it contains the cards the user expects', ()
   // Install the initial-render dispatcher ON the captured object (see header).
   const hookState = []
   let hookIndex = 0
-  React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher.current = {
+  installTestDispatcher(React, {
     useState(init) {
       const i = hookIndex++
       if (hookState[i] === undefined) hookState[i] = typeof init === 'function' ? init() : init
@@ -129,7 +135,7 @@ test('the settings page renders, and it contains the cards the user expects', ()
     useDebugValue() {}, useId() { return 'id' },
     useTransition() { return [false, (f) => f && f()] }, useDeferredValue(v) { return v },
     useImperativeHandle() {},
-  }
+  })
 
   // Rendering must not throw: a throw here means the user sees a broken panel.
   const tree = Page({})
@@ -169,7 +175,7 @@ function findAll(tree, pred, out = []) {
 function installHookRig() {
   const hookState = []
   let hookIndex = 0
-  React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher.current = {
+  installTestDispatcher(React, {
     useState(init) {
       const i = hookIndex++
       if (hookState[i] === undefined) hookState[i] = typeof init === 'function' ? init() : init
@@ -182,7 +188,7 @@ function installHookRig() {
     useDebugValue() {}, useId() { return 'id' },
     useTransition() { return [false, (f) => f && f()] }, useDeferredValue(v) { return v },
     useImperativeHandle() {},
-  }
+  })
   return () => { hookIndex = 0 }
 }
 
@@ -250,6 +256,25 @@ test('with a host Switch the toggles ride it: ids on wrappers, bare-boolean onCh
   assert.equal(again[0].props.checked, false, 're-render reflects the stored choice')
 })
 
+test('issue #119: storage get/set errors fall back safely and still POST the host choice', () => {
+  const localStorage = {
+    getItem() { throw new Error('storage blocked') },
+    setItem() { throw new Error('storage blocked') },
+  }
+  const { Page, requests } = mountClient({ localStorage })
+  const reset = installHookRig()
+  const render = () => { reset(); return Page({}) }
+
+  let box = findAll(render(), (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')
+  assert.equal(box[0].props.checked, true, 'an unreadable local store still defaults ON')
+  assert.doesNotThrow(() => box[0].props.onChange({ target: { checked: false } }), 'a blocked setItem cannot break the toggle')
+  box = findAll(render(), (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')
+  assert.equal(box[0].props.checked, false, 'the in-memory effective preference changes immediately')
+  const write = requests.find((r) => r.url === '/dsh-remote/explorer-auto-open' && r.init && r.init.method === 'POST')
+  assert.ok(write, 'the choice is sent to DSH_HOME even when localStorage is unavailable')
+  assert.equal(JSON.parse(write.init.body).enabled, false)
+})
+
 test('no backup i18n key survives the capability removal', () => {
   // The card is gone; nothing backup-shaped may render in ANY section state.
   // This test owns its hook state: the first test's arrays belong to ITS render
@@ -258,7 +283,7 @@ test('no backup i18n key survives the capability removal', () => {
   const hookState = []
   const setters = []
   let hookIndex = 0
-  React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher.current = {
+  installTestDispatcher(React, {
     useState(init) { const i = hookIndex++; if (hookState[i] === undefined) hookState[i] = typeof init === 'function' ? init() : init; if (!setters[i]) setters[i] = (v) => { hookState[i] = typeof v === 'function' ? v(hookState[i]) : v }; return [hookState[i], setters[i]] },
     useEffect() {}, useLayoutEffect() {}, useInsertionEffect() {},
     useMemo(fn) { return fn() }, useCallback(fn) { return fn },
@@ -267,7 +292,7 @@ test('no backup i18n key survives the capability removal', () => {
     useDebugValue() {}, useId() { return 'id' },
     useTransition() { return [false, (f) => f && f()] }, useDeferredValue(v) { return v },
     useImperativeHandle() {},
-  }
+  })
   const render = () => { hookIndex = 0; return collectText(Page({})) }
   const collapsed = render()
   // Expand every collapsed section: the removal must hold everywhere, not only
