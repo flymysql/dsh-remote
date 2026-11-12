@@ -20,6 +20,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { fakeTimers } from './harness/fake-timers.js'
+import { installTestDispatcher } from './harness/react-dispatcher.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..')
@@ -100,7 +101,7 @@ function loadDirPicker({ reactDom } = {}) {
 
 /** Render the picker once with the fake hook dispatcher. */
 function renderOnce(Picker) {
-  React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher.current = {
+  installTestDispatcher(React, {
     useState(init) { return [typeof init === 'function' ? init() : init, () => {}] },
     useEffect() {}, useLayoutEffect() {}, useInsertionEffect() {},
     useMemo(fn) { return fn() }, useCallback(fn) { return fn },
@@ -109,7 +110,7 @@ function renderOnce(Picker) {
     useDebugValue() {}, useId() { return 'id' },
     useTransition() { return [false, (f) => f && f()] }, useDeferredValue(v) { return v },
     useImperativeHandle() {},
-  }
+  })
   return Picker({ open: true, busy: false, onPicked: () => {}, onCancel: () => {} })
 }
 
