@@ -26,9 +26,9 @@
     "plugin"
   ],
   "type": "module",
-  "main": "lib/index.js",
+  "main": "lib/boot.js",
   "exports": {
-    ".": "./lib/index.js",
+    ".": "./lib/boot.js",
     "./client": "./lib/client.js",
     "./package.json": "./package.json",
     "./cordis.patch.yml": "./cordis.patch.yml"
