@@ -73,7 +73,8 @@
   "dependencies": {
     "@deepseek-ai/schemastery": "^3.19.0",
     "iconv-lite": "^0.7.3",
-    "ssh2": "^1.16.0"
+    "ssh2": "^1.16.0",
+    "yaml": "^2.9.1"
   },
   "bundleDependencies": [
     "ssh2",
@@ -86,6 +87,7 @@
     "@deepseek-ai/dsh-llm": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-sandbox": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-scope": "^0.2.0-rc.2",
+    "@deepseek-ai/dsh-skill": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-session": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-system-prompt": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-timeout": "^0.2.0-rc.2",
