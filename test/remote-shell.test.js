@@ -259,9 +259,13 @@ test('the remote command keeps ~ for the remote shell to expand', () => {
   assert.equal(child.remoteCd("/srv/it's"), `cd '/srv/it'\\''s'`)
 })
 
-test('the remote command always execs a login shell so the pty keeps one process', () => {
-  const expected = 'cd ' + "'/srv/proj'" + ' 2>/dev/null || cd "$HOME"; exec "${SHELL:-/bin/bash}" -l'
-  assert.equal(child.remoteCommand('/srv/proj'), expected)
+test('the remote command crosses the login shell through sh -c, then execs the user shell', () => {
+  const inner = 'cd ' + "'/srv/proj'" + ' 2>/dev/null || cd "$HOME"; exec "${SHELL:-/bin/bash}" -l'
+  const expected = `sh -c '${inner.replace(/'/g, "'\\''")}'`
+  const command = child.remoteCommand('/srv/proj')
+  assert.equal(command, expected)
+  assert.match(command, /^sh -c '/, 'sshd only has to parse one explicit sh invocation')
+  assert.match(command, /exec "\$\{SHELL:-\/bin\/bash\}" -l'$/, 'the interactive shell remains the user\'s own')
 })
 
 test('a key-authenticated connection passes the key and the port', () => {

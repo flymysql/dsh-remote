@@ -30,11 +30,28 @@ const { OPEN_MODE, STATUS_CODE, flagsToString } = utils.sftp
 
 /** One host key for the whole suite: generating ed25519 is fast but not free. */
 let HOST_KEY = null
-function hostKey() {
-  if (!HOST_KEY) {
-    const pair = utils.generateKeyPairSync('ed25519')
-    HOST_KEY = pair.private
+
+/**
+ * ssh2 1.17 can occasionally generate an OpenSSH ed25519 private key that its
+ * own parser rejects (reproduced locally: iteration 335 of 2000). Validate
+ * BEFORE caching/constructing Server so a random key cannot red an entire CI leg.
+ * The generator is injectable for a deterministic bad-then-good regression test.
+ */
+export function createValidHostKey(generate = () => utils.generateKeyPairSync('ed25519').private) {
+  let lastError = null
+  for (let attempt = 0; attempt < 32; attempt++) {
+    const key = generate()
+    try {
+      const parsed = utils.parseKey(key)
+      if (!(parsed instanceof Error)) return key
+      lastError = parsed
+    } catch (err) { lastError = err }
   }
+  throw new Error(`could not generate a parseable fake SSH host key after 32 attempts: ${(lastError && lastError.message) || 'unknown error'}`)
+}
+
+function hostKey() {
+  if (!HOST_KEY) HOST_KEY = createValidHostKey()
   return HOST_KEY
 }
 
