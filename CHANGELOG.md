@@ -2,6 +2,16 @@
 
 All notable changes to **dsh-remote**.
 
+## 0.8.93 — 2026-11-12
+### 修复：自更新只装顶层 `lib/*.js`，0.8.92 更新后插件 import 直接失败（#126/#127）
+
+- **`applyUpdate()` 递归安装 tarball 内的每一个文件**：此前只复制顶层 `lib/*.js`，一旦新版本新增 `.cjs` 助手（0.8.92 的 `lib/posix-shell.cjs`）或 `lib/` 子目录（`lib/tui/`），更新后就留下一棵"半新半旧"的安装树，下次启动 `web-attach.js` import 不到 `posix-shell.cjs` → `ERR_MODULE_NOT_FOUND`，整个插件条目加载失败，`rw_*` 工具、终端、Web attach、端口转发全部消失；且 `.dsh-remote-updated` 已被写成新版本号，auto 模式不会重试，无法自愈。
+- **`clearSelfModuleCache()` 同步递归**，并清理 `.cjs`/`.mjs`：`.cjs` 经 `import()` 载入时同时落在 ESM `loadCache` 与 `require.cache`，只清顶层 `.js` 会让热切换继续用旧的 `posix-shell.cjs`。
+
+提醒：已经在 0.8.92 自更新中被写坏的副本，其 `apply()` 本身就无法加载，**不能靠再升级一次自愈**，请在升级到 ≥0.8.93 后重装一次插件；本版本保证之后的自更新不会再犯。
+
+验证：`node --test test/update.test.js` 32/32 通过；全量 `npm test` 1203 项 1194 pass / 0 fail / 9 skip。
+
 ## 0.8.92 — 2026-11-12
 ### 新增：远程项目技能 + 稳定性与远程体验集中修复
 
