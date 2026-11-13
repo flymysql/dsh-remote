@@ -53,7 +53,7 @@ function dependencies(initial = []) {
   }
 }
 
-function loadClient(protocol = 'https:', platform = 'Linux x86_64', fetchImpl = null) {
+function loadClient(protocol = 'https:', platform = 'Linux x86_64', fetchImpl = null, documentImpl = undefined) {
   let plugin
   const requests = []
   // Effects are recorded (and run on demand by `runEffects`) so a component
@@ -94,6 +94,7 @@ function loadClient(protocol = 'https:', platform = 'Linux x86_64', fetchImpl = 
         },
       },
     },
+    document: documentImpl,
     navigator: { languages: ['en'], platform },
     URL,
     console,
@@ -615,4 +616,84 @@ test('issue #119: better-sidebar also waits for the shared host OFF', async (t) 
   await new Promise((resolve) => setImmediate(resolve))
   assert.equal(opened.length, 0, 'the late shared OFF reaches better-sidebar too')
   assert.equal(requests.filter((r) => String(r.url).includes('/resolve-mirror')).length, 0)
+})
+
+
+test('upgrading the client replaces legacy CSS in the existing style node without duplicate nodes or unchanged rewrites', t => {
+  const nodes = new Map()
+  let appends = 0, writes = 0
+  const styleNode = () => {
+    let content = ''
+    return { id: '', get textContent() { return content }, set textContent(value) { writes++; content = value } }
+  }
+  const legacy = styleNode()
+  legacy.id = 'dsh-remote-chrome'
+  legacy.textContent = '.dsh-rw-btn:hover{opacity:.8}'
+  nodes.set(legacy.id, legacy)
+  writes = 0
+  const document = { head: { appendChild(node) { appends++; nodes.set(node.id, node) } }, getElementById: id => nodes.get(id), createElement: styleNode }
+  const { plugin } = loadClient('https:', 'Linux x86_64', null, document)
+  const first = createHost()
+  t.after(() => first.ctx.dispose())
+  plugin.apply(first.ctx)
+  assert.equal(nodes.get(legacy.id), legacy, 'hot upgrade must reuse the existing style element')
+  assert.match(legacy.textContent, /\.dsh-rw-settings-host-row\{display:grid/)
+  assert.match(legacy.textContent, /\.dsh-rw-settings-tabs/)
+  assert.equal(appends, 0)
+  assert.equal(writes, 1)
+  const second = createHost()
+  t.after(() => second.ctx.dispose())
+  plugin.apply(second.ctx)
+  assert.equal(writes, 1, 'mounting another contribution must not rewrite an unchanged stylesheet')
+  assert.equal(nodes.size, 1)
+})
+
+test('workspace-files entry routes remote sessions to remote explorer and retains the native local entry',async t=>{
+  const {plugin}=loadClient('https:','Linux x86_64',async()=>({ok:true,json:async()=>({mirrors:[{dir:'/mirrors/a',remotePath:'/srv/a',machineId:'a'},{dir:'/mirrors/b',remotePath:'/srv/b',machineId:'b'}]})}))
+  const host=createHost()
+  let current='remote-a'
+  const calls=[]
+  const nativeOpen=function(kind,options){calls.push({method:'main',session:current,kind,options})}
+  const nativeSessionOpen=function(session,kind,options){calls.push({method:'session',session,kind,options})}
+  const sidebar={mounted:{getSnapshot:()=>current},openTab:nativeOpen,openTabIn:nativeSessionOpen}
+  host.services.set('sessions',{list:{getSnapshot:()=>({byId:{'remote-a':{cwd:'/mirrors/a/src'},'remote-b':{cwd:'/mirrors/b'},local:{cwd:'/local/project'}}})}})
+  host.services.set('sidebarRight',sidebar)
+  plugin.apply(host.ctx)
+  t.after(()=>host.ctx.dispose())
+  sidebar.openTab('files',{paneId:'one'})
+  await new Promise(resolve=>setTimeout(resolve,0))
+  assert.equal(calls[0].kind,'dsh-remote/explorer')
+  assert.equal(calls[0].session,'remote-a')
+  assert.equal(calls[0].options.paneId,'one')
+  current='local';sidebar.openTab('files')
+  assert.equal(calls[1].kind,'files')
+  sidebar.openTabIn('remote-b','files',{replaceTab:'old'})
+  assert.equal(calls[2].kind,'dsh-remote/explorer')
+  assert.equal(calls[2].session,'remote-b','bound pane actions must retain their own session')
+  assert.equal(calls[2].options.replaceTab,'old')
+  sidebar.openTab('terminal')
+  assert.equal(calls[3].kind,'terminal')
+  host.ctx.dispose()
+  assert.equal(sidebar.openTab,nativeOpen)
+  assert.equal(sidebar.openTabIn,nativeSessionOpen)
+})
+
+test('a late workspace-files binding read cannot open into a different session or override a newer tab intent',async t=>{
+  let deliver
+  const pending=new Promise(resolve=>{deliver=resolve})
+  const {plugin}=loadClient('https:','Linux x86_64',()=>pending)
+  const host=createHost();t.after(()=>host.ctx.dispose())
+  let current='remote'
+  const calls=[]
+  const sidebar={mounted:{getSnapshot:()=>current},openTab(kind){calls.push(kind)}}
+  host.services.set('sessions',{list:{getSnapshot:()=>({byId:{remote:{cwd:'/mirrors/a'},local:{cwd:'/local'}}})}})
+  host.services.set('sidebarRight',sidebar);plugin.apply(host.ctx)
+  sidebar.openTab('files');sidebar.openTab('terminal');current='local'
+  deliver({ok:true,json:async()=>({mirrors:[{dir:'/mirrors/a',remotePath:'/srv/a'}]})})
+  await new Promise(resolve=>setTimeout(resolve,0))
+  assert.deepEqual(calls,['terminal'])
+})
+
+test('client runtime version stays aligned with the release manifest',()=>{
+  assert.equal(/const CLIENT_VERSION = '([^']+)'/.exec(source)?.[1],manifest.version)
 })

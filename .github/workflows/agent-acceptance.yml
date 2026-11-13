@@ -22,6 +22,12 @@ jobs:
           - dsh: 0.2.0-rc.2
             node: 22
             mode: ptc
+          - dsh: 0.2.1-rc.5
+            node: 24
+            mode: native
+          - dsh: 0.2.1-rc.5
+            node: 24
+            mode: ptc
           - dsh: 0.2.2-rc.1
             node: 24
             mode: native
@@ -67,7 +73,12 @@ jobs:
           export CHROMIUM_PATH="$(node -e 'console.log(require(process.env.IT_BROWSER_MODULES + "/playwright").chromium.executablePath())')"
           if [ "$TOOL_MODE" = ptc ]; then export IT_AGENT_PTC=1; fi
           node scripts/manual/agent-web-e2e.mjs
-          if [ "$TOOL_MODE" = native ] && [ "${{ matrix.dsh }}" = 0.2.2-rc.1 ]; then
+          if [ "$TOOL_MODE" = native ]; then
+            export IT_UPDATE_TARBALL="$RUNNER_TEMP/candidate/dsh-remote-$(node -p 'require("./package.json").version').tgz"
+            node scripts/manual/auto-update-web-e2e.mjs
+          fi
+          if [ "$TOOL_MODE" = native ] && [ "${{ matrix.dsh }}" != 0.2.0-rc.2 ]; then
+            export IT_SETTINGS_LEGACY_CSS=1
             node scripts/manual/settings-web-e2e.mjs
           fi
       - uses: actions/upload-artifact@v6

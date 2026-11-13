@@ -94,6 +94,18 @@ try {
  assert.ok(await file.locator('[data-line=\"3\"]').evaluate(el=>el.classList.contains('dsh-rw-line-flash')),'diagnostic must select the correct line')
  assert.match(await file.innerText(),/puts\(\"REMOTE_BUILD_OK\"\);/,'the sidebar must show the file the agent actually changed')
  await page.screenshot({path:path.join(artifactDir,'agent-file-result.png')})
+ // Exercise the shipped workspace-files entry, with a remote-only file that
+ // has never appeared in the local mirror.
+ fs.writeFileSync(project+'/remote-only-entry.txt','REMOTE_ONLY_WORKSPACE_FILES\n')
+ assert.equal(fs.existsSync(mirror.localMirror+'/remote-only-entry.txt'),false)
+ await page.getByRole('button',{name:'新标签页',exact:true}).last().click()
+ await page.getByRole('button',{name:/^工作区文件/}).first().click()
+ const remoteOnly=page.locator('[data-rw-tree-row]').filter({hasText:'remote-only-entry.txt'}).first()
+ await remoteOnly.waitFor()
+ await remoteOnly.click()
+ await page.locator('[data-rw-file]').filter({hasText:'REMOTE_ONLY_WORKSPACE_FILES'}).waitFor()
+ await page.screenshot({path:path.join(artifactDir,'workspace-files-remote.png')})
+ console.log('PASS: built-in workspace-files entry lists and opens remote-only files without a local mirror copy.')
  assert.deepEqual(errors,[])
  console.log('Artifacts:',artifactDir)
  console.log('Model mode:',live?'LIVE DEEPSEEK':'SCRIPTED')

@@ -306,14 +306,6 @@ test('the update check still reports local state when the registry fails', () =>
   assert.match(body, /registryError:/, 'the failure reason must be surfaced separately')
 })
 
-test('auto mode backs off after a failed probe', () => {
-  // 被限流时反复重试只会把配额烧得更久；退避是必需的。
-  const src = readFileSync(path.join(root, 'lib', 'index.js'), 'utf8')
-  const gate = src.slice(src.indexOf('if (effectiveUpdateMode === \'auto\')'))
-  assert.match(gate, /backoffRounds/, 'the auto gate must track backoff rounds')
-  assert.match(gate, /backoffRounds = 0/, 'a successful probe must reset the backoff')
-})
-
 // ── refusing to overwrite a source checkout ──────────────────────────────
 
 test('isInstalledCopy distinguishes a node_modules install from a checkout', () => {
@@ -423,6 +415,22 @@ test('reloadSelf clears the disabled flag DSH 0.2 writes when a fiber is dispose
   assert.equal(res.ok, true, JSON.stringify(res))
   assert.equal(entry.options.disabled, undefined)
   assert.deepEqual(calls, ['fiber.dispose', 'write', 'init'])
+})
+
+test('reloadSelf restores the enabled flag through the new loader change journal and waits for startup', async () => {
+  const calls = []
+  const entry = {
+    options: { id: 'dsh-remote', name: 'dsh-remote' },
+    parent: { tree: { commit(change) {
+      assert.equal(change.id, 'dsh-remote'); assert.equal(change.group, entry.parent)
+      assert.equal(change.legacy.disabled, true); assert.equal(change.options.disabled, undefined)
+      calls.push('commit')
+    } } },
+    fiber: { dispose: async () => { entry.options.disabled = true; calls.push('dispose') } },
+    init: async () => { calls.push('init'); entry.fiber = { await: async () => { calls.push('ready') } } },
+  }
+  assert.equal((await reloadSelf({ entries: () => [entry] })).ok, true)
+  assert.deepEqual(calls, ['dispose', 'commit', 'init', 'ready'])
 })
 
 test('reloadSelf leaves an entry that was already disabled disabled', async () => {

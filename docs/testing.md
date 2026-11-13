@@ -229,3 +229,14 @@ node scripts/manual/settings-web-e2e.mjs
 ```
 
 检查主机结果列与编辑表单对齐、远程主机图标、键盘标签导航、菜单关闭、草稿、测试与保存，以及 1440px / 390px 布局。此项接入最新宿主的原生 Agent CI，并上传截图。
+
+
+## 9. 1.0.1 升级与原生入口回归
+
+`client-lifecycle.test.js` 在已有旧样式节点时挂载新客户端，验证原节点被更新且不重复注入；设置浏览器脚本通过 `IT_SETTINGS_LEGACY_CSS=1` 预置旧 CSS，检查页面无需手动刷新即可恢复网格布局。该脚本还实际读写临时 SSH 配置、验证外部编辑冲突和窄屏工具按钮。
+
+`ssh-config-editor.test.js` 验证显式读配置、原文保存、版本冲突、输入限制与符号链接保留；`settings-ssh-editor.test.js` 验证内置编辑器、草稿、快捷键和重新载入确认。
+
+Agent 浏览器验收新增原生“工作区文件”点击：在任务完成后创建只存在于远端、没有本地镜像副本的文件，通过原生入口列出并打开它。客户端路由测试还验证两个远程会话、本地会话、异步到达和插件卸载隔离。CI 覆盖 DSH 0.2.0、0.2.1-rc.5、0.2.2 三条宿主的 native/PTC 路径。
+
+- `test/auto-update.test.js` 和 `test/update-routes.test.js` 验证运行中启停、并发去重、失败退避、落盘未切换、卸载保护与无 registry 请求的状态轮询。`scripts/manual/auto-update-web-e2e.mjs` 在隔离的真实 DSH 进程中开启自动模式，用实际候选 tgz 完成下载和 Loader 热切换，整个过程不请求手动更新。Agent CI 的三个宿主原生路径均执行此验收。
