@@ -7,7 +7,7 @@
 Practical implications you should be aware of:
 
 - Adding a machine grants the agent **arbitrary command execution as your user on that host** over SSH. Only add machines you trust.
-- Credentials (password or key passphrase) are stored **locally** in the machine file, or in the OS keychain when "加密保存密码" is enabled (macOS Keychain / Windows DPAPI / Linux `secret-tool`). If no keychain backend is available, the plugin falls back to plaintext on disk — treat that file as sensitive and lock down its ACL.
+- Credentials (password or key passphrase) are stored **locally** in the machine file, or in the OS keychain when "加密保存密码" is enabled (macOS Keychain / Windows DPAPI / Linux `secret-tool`). If the secure backend fails, the default `credentialFallback: refuse` does not silently save plaintext. Plaintext fallback requires explicitly setting `credentialFallback: plain`; protect that file with appropriate ACLs.
 - When `auditLog` is enabled, every executed command is recorded in the audit log; review it from the Settings page.
 - Remote files are mirrored into a local workspace. A compromised remote host can therefore influence what lands in your local mirror.
 

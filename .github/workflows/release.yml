@@ -20,7 +20,40 @@ permissions:
   id-token: write # npm --provenance (sigstore attestation)
 
 jobs:
+  verify:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
+      - name: Verify candidate on the supported platform
+        shell: bash
+        run: |
+          for f in lib/*.js lib/*.cjs; do node --check "$f"; done
+          node check.mjs
+          npm test
+          mkdir -p "$RUNNER_TEMP/candidate"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/candidate"
+          node scripts/verify-release-package.mjs "$RUNNER_TEMP"/candidate/*.tgz
+      - name: Coverage gate
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 22
+        run: npm run test:coverage:gate
+
+  agent-acceptance:
+    uses: ./.github/workflows/agent-acceptance.yml
+    permissions:
+      contents: read
+
   publish:
+    needs: [verify, agent-acceptance]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -40,12 +73,15 @@ jobs:
           for f in lib/*.js; do node --check "$f"; done
           node check.mjs
           npm test
+          mkdir -p "$RUNNER_TEMP/candidate"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/candidate"
+          node scripts/verify-release-package.mjs "$RUNNER_TEMP"/candidate/*.tgz
           # Prove the PREVIOUS release's updater can lay this candidate down
           # completely (the #126 half-updated-tree class). Needs network: it
           # installs the npm `latest` release into a scratch dir and drives
           # ITS updater. Runs before publish, while latest still names the
           # version users would update FROM.
-          node scripts/verify-self-update.mjs
+          node scripts/verify-self-update.mjs --tarball "$RUNNER_TEMP"/candidate/*.tgz
 
       - name: Tag must match package.json version
         run: |
@@ -55,6 +91,10 @@ jobs:
             echo "tag $TAG does not match package.json $VER — move the tag or bump the version"
             exit 1
           fi
+
+      - name: Select stable or prerelease channel
+        id: channel
+        run: node scripts/release-channel.mjs "${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       # Idempotent by design: a tag pushed after a MANUAL publish (or a re-run
       # of this workflow) must not go red on "version already exists". Uses the
@@ -87,7 +127,7 @@ jobs:
 
       - name: Publish to npm (with provenance)
         if: steps.pub.outputs.already != 'true'
-        run: npm publish --access public --provenance
+        run: npm publish --access public --provenance --tag "${{ steps.channel.outputs.npmTag }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -98,7 +138,9 @@ jobs:
           if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
             echo "release ${GITHUB_REF_NAME} already exists — leaving it untouched"
           else
-            gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file notes.md
+            FLAGS=()
+            if [ "${{ steps.channel.outputs.prerelease }}" = true ]; then FLAGS+=(--prerelease); fi
+            gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file notes.md "${FLAGS[@]}"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

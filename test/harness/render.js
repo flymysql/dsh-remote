@@ -64,10 +64,11 @@ export function mountClient(opts = {}) {
   // made lib/client.js coverage wobble with machine load. Intervals keep the
   // older capture-and-fireIntervals pattern above (also deterministic).
   const timers = fakeTimers()
+  const windowListeners = new Map()
   const sandbox = {
     window: {
-      addEventListener: () => {},
-      removeEventListener: () => {},
+      addEventListener: (type, fn) => { if (!windowListeners.has(type)) windowListeners.set(type, new Set()); windowListeners.get(type).add(fn) },
+      removeEventListener: (type, fn) => windowListeners.get(type)?.delete(fn),
       location: { protocol: 'http:', href: 'http://127.0.0.1:3080/' },
       localStorage: { getItem: () => null, setItem: () => {} },
       confirm: () => true,
@@ -84,6 +85,7 @@ export function mountClient(opts = {}) {
       getElementById: () => null,
       querySelector: () => null,
       addEventListener: () => {},
+      removeEventListener: () => {},
     },
     navigator: { clipboard: null, userAgent: 'node', languages: opts.languages || ['zh-CN'] },
     setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout, setInterval: setIntervalStub, clearInterval: clearIntervalStub, console,
@@ -253,6 +255,7 @@ export function mountClient(opts = {}) {
 
   return {
     React,
+    dispatchWindowEvent(type, event) { for (const fn of windowListeners.get(type) || []) fn(event) },
     registered,
     slots,
     /** Component registered into a named slot. */

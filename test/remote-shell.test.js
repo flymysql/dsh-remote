@@ -972,3 +972,23 @@ test('--machines is parsed and unknown arguments are ignored', () => {
   assert.deepEqual(child.parseArgs(['-i']), {})
   assert.deepEqual(child.parseArgs(['--machines']), {})
 })
+
+
+test('the terminal context banner is compact, theme-safe and cannot inject terminal controls', () => {
+  const plain = child.connectionBanner({ host: 'dev', username: 'alice', port: 2222, remotePath: '/srv/project' }, { TERM: 'dumb' })
+  assert.match(plain, /SSH  alice@dev:2222/)
+  assert.match(plain, /\/srv\/project/)
+  assert.equal(plain.includes('\x1b'), false)
+  const escaped = child.connectionBanner({ host: 'dev\x1b]0;evil\x07', remotePath: '/srv/line\nnext' }, {})
+  assert.equal(escaped.includes('\x1b'), false)
+  assert.equal(escaped.includes('\x07'), false)
+  assert.match(child.connectionBanner({ host: 'dev' }, { TERM: 'xterm-256color' }), /\x1b\[36m/)
+  assert.equal(child.connectionBanner({ host: 'dev' }, { TERM: 'xterm', NO_COLOR: '1' }).includes('\x1b'), false)
+})
+
+test('a terminal started below a mirror root lands in the corresponding remote subdirectory', () => {
+  const root = path.join(fsRoot(), 'remote-workspaces', 'mirror')
+  const marker = path.join(root, '.dsh-remote-meta.json')
+  const resolved = child.resolveTarget({ cwd: path.join(root, 'src', 'nested'), exists: (p) => p === marker, readJsonFile: () => ({ host: 'dev', username: 'user', remotePath: '/srv/project' }) })
+  assert.equal(resolved.target.remotePath, '/srv/project/src/nested')
+})

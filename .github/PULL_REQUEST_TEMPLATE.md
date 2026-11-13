@@ -10,8 +10,11 @@
 - [ ] `node check.mjs` 通过
 - [ ] 行尾：代码文件 LF（**不要**用 PowerShell 的 Set-Content/Out-File 重写代码文件，会引入 CRLF）
 - [ ] README 双语同步改了的话 `node --test test/readme-parity.test.js` 通过
-- [ ] 不带版本号与 CHANGELOG（发布流程统一处理）
+- [ ] 非发布 PR 不改版本号；发布 PR 同步 CHANGELOG、双语 README 和验收记录
 
 ## 验证
 
 <!-- 你怎么验证的：单测/真机/截图。宿主行为假设请注明出处（bundle 行号/文档）。 -->
+
+- [ ] Agent/工作区改动注明原生工具、PTC、真实模型与脚本模型各自的验证范围
+- [ ] 介绍页或截图改动验证桌面、窄屏、双语、图片与链接

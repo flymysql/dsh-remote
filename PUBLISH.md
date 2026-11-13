@@ -1,7 +1,7 @@
 # Publish Guide — dsh-remote
 
 Current product: a **remote-work assistant** for DeepSeek Harness (multi-machine
-SSH, remote workspace picker, 22 `rw_*` tools, conflict-aware SFTP sync, port
+SSH, remote workspace picker, 21 `rw_*` tools, conflict-aware SFTP sync, port
 forwarding, optional sidebar editor). This is **not** the early “print SSH
 tunnel commands” plugin.
 
@@ -83,8 +83,8 @@ Repo **About → Topics**:
 dsh-plugin  deepseek-harness  remote  ssh  tunnel  plugin
 ```
 
-README must reference `docs/cover.png` with a **relative** path so GitHub Topics
-can show a card image.
+README references the real `docs/cover.png` through an absolute raw GitHub URL
+so GitHub and npm can both render it. Repository social-preview configuration is separate.
 
 ## 5. Install blurb (awesome lists)
 
@@ -99,3 +99,23 @@ without exposing the harness on `0.0.0.0`.
 - **npm**: https://www.npmjs.com/package/dsh-remote
 - **Install**: `dsh plugin add dsh-remote`
 ```
+
+
+## Stable release acceptance
+
+Publishing a stable version requires successful Linux/macOS/Windows checks on Node 22 and 24, coverage gates, and the isolated Agent/Web acceptance workflow. DSH 0.2.2 acceptance runs on Node 24 because that host requires ≥24.9. Native and PTC cases use an actual Agent loop, SSH/SFTP, compiler and browser; the scripted adapter is explicitly identified. Live-model validation must be recorded separately with `IT_AGENT_REAL_MODEL=1` and an environment-injected API key. Do not count an environment-blocked run as passed.
+
+The release workflow now waits for those jobs before publishing. Stable versions use npm `latest`; prereleases use `next` and a GitHub prerelease. `scripts/release-channel.mjs` owns that decision. A release candidate is not a stable product declaration.
+
+Pack from a script-free dependency tree and inspect the actual archive:
+
+```sh
+npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
+npm pack --ignore-scripts
+node scripts/verify-release-package.mjs dsh-remote-<version>.tgz
+node scripts/verify-self-update.mjs --tarball dsh-remote-<version>.tgz
+```
+
+The package gate rejects platform-specific `.node` build output, application credentials and local/test fixtures. Known public protocol keys bundled by upstream ssh2 are permitted. The update gate checks both upgrade from npm latest and rollback to it. In a proxy-restricted Node 24 cloud session, use its inherited proxy settings and `NODE_USE_ENV_PROXY=1` for standalone network checks.
+
+Before stable publication, update the bilingual READMEs, changelog, migration guide, homepage and rendered cover/feature images. README images use absolute raw GitHub URLs so npm renders the same assets. Publish repository content before npm, then verify those public URLs, the npm README/version and the release artifact. Follow [SUPPORT.md](SUPPORT.md) and the contributor guide for community routes; discussion templates only apply after matching categories are enabled on GitHub.

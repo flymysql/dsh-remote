@@ -25,6 +25,7 @@ import path from 'node:path'
 import ssh2 from 'ssh2'
 import { resolveMachineSshConfig, sshAliasTarget, expandSshTokens } from '../lib/sshconfig.js'
 import { SshPool, isPublicKeyPath, publicKeyBlob, PreferredKeyAgent } from '../lib/pool.js'
+import { createValidHostKey } from './harness/fake-ssh.js'
 
 const LF = '\n'
 const { utils, Server, AgentProtocol } = ssh2
@@ -116,7 +117,7 @@ function startAgent(sockPath, keys) {
 function startServer(allowed) {
   const offered = []
   const allowedBlob = publicKeyBlob(allowed)
-  const server = new Server({ hostKeys: [utils.generateKeyPairSync('ed25519').private] }, (client) => {
+  const server = new Server({ hostKeys: [createValidHostKey()] }, (client) => {
     client.on('authentication', (ctx) => {
       if (ctx.method !== 'publickey') return ctx.reject(['publickey'])
       offered.push(Buffer.from(ctx.key.data))
@@ -139,7 +140,11 @@ test('a .pub IdentityFile + IdentityAgent authenticates with the matching agent 
   const sockPath = process.platform === 'win32'
     ? `\\\\.\\pipe\\dra-${path.basename(dir)}`
     : path.join(dir, 'a.sock')
-  const pairs = [0, 1, 2].map(() => utils.generateKeyPairSync('ed25519'))
+  const pairs = [0, 1, 2].map(() => ({ private: createValidHostKey() }))
+  for (const pair of pairs) {
+    const key = utils.parseKey(pair.private)
+    pair.public = key.type + ' ' + key.getPublicSSH().toString('base64')
+  }
   const agent = await startAgent(sockPath, pairs.map((p) => utils.parseKey(p.private)))
   const want = pairs[2]
   const pubPath = path.join(dir, 'box.pub')

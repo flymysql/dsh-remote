@@ -257,7 +257,7 @@ test('#52: the suggestion dropdown is out of document flow, so it cannot push th
 
   const dropdown = elements(tree).find((el) => {
     const s = (el.props && el.props.style) || {}
-    return s.position === 'absolute' && s.top === '100%' && typeof s.maxHeight === 'number' && s.zIndex
+    return el.props.role === 'listbox' && s.position === 'absolute' && typeof s.maxHeight === 'number' && s.zIndex
   })
   assert.ok(dropdown, 'the suggestion dropdown must be absolutely positioned against suggestRef')
   assert.equal(dropdown.props.style.zIndex, 60)
@@ -280,13 +280,12 @@ test('#52: the action row is lifted above the dropdown and is opaque', () => {
   assert.ok(row.props.style.background, 'an opaque action row lets the list slide underneath it')
 })
 
-test('#52: the remote column stops clipping when the dropdown is open', () => {
+test('#52: the reserved suggestions stay inside a scrollable remote column', () => {
   const m = remoteWithSuggestions()
   const tree = m.render()
-  // Opening must switch the scroll container to `visible`, or an absolutely
-  // positioned dropdown is clipped by its own scroller.
-  const scroller = elements(tree).find((el) => el.props.style && el.props.style.overflowY === 'visible')
-  assert.ok(scroller, 'the remote column must not clip the absolutely positioned dropdown')
+  // Results now have reserved space inside the scrollable remote column.
+  const scroller = elements(tree).find((el) => el.props.style && el.props.style.overflowY === 'auto')
+  assert.ok(scroller, 'the remote column scrolls while its result region keeps suggestions inside its bounds')
 })
 
 // ── the render-level click chain (testing.md §7's open item) ────────────────
@@ -316,7 +315,7 @@ test('click chain: type → 220ms debounce → suggestion pick → submit → mi
     },
   })
   const picked = []
-  const m = mount({ onPicked: (local, remote) => picked.push([local, remote]) }, P)
+  const m = mount({ initialMachineId: 'm1', onPicked: (local, remote) => picked.push([local, remote]) }, P)
   m.setters[0]('remote')
   m.setters[1]([MACHINE])
   m.setters[2]('m1')
@@ -377,4 +376,73 @@ test('click chain: type → 220ms debounce → suggestion pick → submit → mi
   // what onPicked reports). This pins the current wire shape.
   assert.deepEqual(body, { path: '/home/dev/', machineId: 'm1', registerWorkspace: true })
   assert.deepEqual(picked, [[MIRROR, '/home/dev']], 'onPicked hands back (localMirror, remotePath)')
+})
+
+// Keyboard navigation must drive the rendered selection and the submitted path.
+const pathBox = (m) => elements(m.render()).find((el) => el.props.role === 'combobox')
+const press = (m, key, extra = {}) => {
+  const event = { key, preventDefault() {}, stopPropagation() {}, ...extra }
+  pathBox(m).props.onKeyDown(event)
+}
+
+test('path completion: arrow keys select a visible option and Enter accepts that path', () => {
+  const m = remoteWithSuggestions()
+  press(m, 'ArrowDown')
+  const input = pathBox(m)
+  const selected = elements(m.render()).find((el) => el.props.role === 'option' && el.props['aria-selected'])
+  assert.equal(selected.props.children, '/home/a')
+  assert.equal(input.props['aria-activedescendant'], selected.props.id)
+  assert.equal(input.props['aria-controls'], elements(m.render()).find((el) => el.props.role === 'listbox').props.id)
+  press(m, 'Enter')
+  assert.equal(pathBox(m).props.value, '/home/a/')
+  assert.equal(m.cancelled(), 0)
+})
+
+test('path completion: arrow navigation wraps in both directions', () => {
+  const m = remoteWithSuggestions()
+  const selected = () => elements(m.render()).find((el) => el.props.role === 'option' && el.props['aria-selected']).props.children
+  press(m, 'ArrowUp')
+  assert.equal(selected(), '/home/a')
+  press(m, 'ArrowDown')
+  assert.equal(selected(), '/home/dev')
+})
+
+test('path completion: Escape closes suggestions before closing the picker', () => {
+  const m = remoteWithSuggestions()
+  let stopped = 0
+  press(m, 'Escape', { stopPropagation() { stopped++ } })
+  assert.equal(pathBox(m).props['aria-expanded'], false)
+  assert.equal(pathBox(m).props['aria-activedescendant'], undefined)
+  assert.equal(m.cancelled(), 0)
+  assert.equal(stopped, 1, 'Escape must not bubble to the modal layer')
+  press(m, 'Escape')
+  assert.equal(m.cancelled(), 1)
+})
+
+test('path completion: IME Enter and workspace shortcut do not accept a suggestion', () => {
+  const m = remoteWithSuggestions()
+  for (const extra of [{ isComposing: true }, { keyCode: 229 }, { ctrlKey: true }, { metaKey: true }]) {
+    press(m, 'Enter', extra)
+    assert.equal(pathBox(m).props.value, '/home/')
+    assert.equal(pathBox(m).props['aria-expanded'], true)
+  }
+})
+
+test('path completion: mouse hover and keyboard share the selected option', () => {
+  const m = remoteWithSuggestions()
+  const options = elements(m.render()).filter((el) => el.props.role === 'option')
+  options[1].props.onMouseEnter()
+  press(m, 'Enter')
+  assert.equal(pathBox(m).props.value, '/home/a/')
+})
+
+
+test('path completion: the results region reserves space even when suggestions close', () => {
+  const m = remoteWithSuggestions()
+  const region = () => elements(m.render()).find((el) => el.props.className === 'dsh-rw-suggestions')
+  const height = region().props.style.height
+  assert.ok(height, 'a stable result area must be reserved')
+  press(m, 'Escape')
+  assert.equal(region().props.style.height, height)
+  assert.equal(elements(m.render()).filter((el) => el.props.role === 'listbox').length, 0)
 })

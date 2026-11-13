@@ -1,4 +1,4 @@
-**English** · [中文](./README.md)
+**English** · [中文](https://github.com/flymysql/dsh-remote/blob/main/README.md)
 
 ---
 
@@ -10,9 +10,9 @@
 [![license](https://img.shields.io/github/license/flymysql/dsh-remote)](LICENSE)
 [![dsh-plugin](https://img.shields.io/badge/topic-dsh--plugin-7a3ef3)](https://github.com/topics/dsh-plugin)
 
-Maintained by [@flymysql](https://github.com/flymysql) · [Homepage](https://flymysql.github.io/dsh-remote/) · [Usage stats](https://flymysql.github.io/dsh-remote/stats/) · [Blog](https://gitpull.cn) · [Discussions](https://github.com/flymysql/dsh-remote/discussions) · [Issues](https://github.com/flymysql/dsh-remote/issues) · [中文说明](./README.md)
+Maintained by [@flymysql](https://github.com/flymysql) · [Homepage](https://flymysql.github.io/dsh-remote/) · [Usage stats](https://flymysql.github.io/dsh-remote/stats/) · [Blog](https://gitpull.cn) · [Discussions](https://github.com/flymysql/dsh-remote/discussions) · [Issues](https://github.com/flymysql/dsh-remote/issues) · [中文说明](https://github.com/flymysql/dsh-remote/blob/main/README.md)
 
-![dsh-remote — make any SSH machine a real DSH workspace](docs/cover.png)
+![dsh-remote — make any SSH machine a real DSH workspace](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/cover.png)
 
 **Remote-work assistant for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH).**
 
@@ -22,38 +22,47 @@ The harness Web UI intentionally binds `127.0.0.1` (the CLI rejects `--host 0.0.
 
 It works the other way too: **you can open the remote machine's own DSH Web UI as a page in your local browser** — again without exposing any port on the remote. The remote dsh must be installed by you (the plugin no longer installs it).
 
-## Screen previews
+## 1.0 workspace experience
 
-**Settings → 远程工作区** — hosts from `~/.ssh/config`, advanced config (key / jump host / agent), remote DSH Web UI, port forwarding, audit log, update:
+Search and reopen recent remote projects directly. The explorer keeps session context and files use native tabs. Agent command cards show actual exit codes, duration and compiler diagnostics; a diagnostic opens the remote file at the reported line. Files support search, wrapping, Markdown preview and save shortcuts. Reopening a file revalidates changes made by the agent.
 
-<img src="docs/shots/settings-panel.png" alt="dsh-remote settings: host list, connect, pick folder, remote DSH Web UI, port forwarding, audit log, update" width="612"/>
+Unsaved drafts remain in page memory, with an unload warning; browser crashes or forced termination can still lose them. The file pane accesses the remote host directly. Mirrors update through `rw_sync` / `rw_push`, or explicitly enabled autoPush. A completed sync describes that operation, not continuous equality.
 
-The native **"Add workspace"** flow — a centered modal with two tabs, opening on Local; here switched to **Remote**:
+The new interface primarily targets DSH Web 0.2.x; DSH 0.2.2 requires Node.js ≥24.9. Older hosts use the available fallback interfaces. This plugin does not provide a remote language server, extension host, or hosted remote Git/debugger.
 
-<img src="docs/shots/picker-dialog.png" alt="The 远程 (remote) tab of the workspace picker: machine select, recent workspaces, browse, set-as-remote-workspace" width="632"/>
-
-- The path field autocompletes live; on Windows hosts the root shows a multi-drive view; the floating browser fills the field without committing.
-- On confirm a **real local mirror** is created and adopted by the harness, kept in sync over SFTP; the choice persists on the machine.
-- A remote workspace is named **`<machine>-<folder>` at creation** (e.g. `code-server-xdfs`), so it never collides with a local folder of the same name; rename it later from the sidebar if you prefer.
 
 ---
 
+## Screen previews
+
+**Agent diagnostics and remote source navigation** — inspect actual exit codes and open the reported remote file line:
+
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-agent.png" alt="Remote compiler diagnostics, exit code and source navigation" width="1000"/>
+
+**File viewing and search** — line numbers, syntax highlighting, match navigation and wrapping:
+
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-file.png" alt="Remote file search, match count, wrapping and highlighting" width="620"/>
+
+**Native remote terminal** — explicitly launch remote ssh in the current session's remote directory:
+
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-terminal.png" alt="Actual keyboard input and command output in the DSH remote terminal" width="1000"/>
+
 ## Features
 
-![Capabilities at a glance — multi-machine SSH, live alias resolution, the two-tab picker, three-way sync, remote @ completion, a remote DSH Web UI in your local browser, audit, port forwarding, sidebar editing, self-update, and the 21 rw_* tools](docs/shots/features.png)
+![1.0 capabilities: recent projects, files, agent results, remote terminals, mirror sync and recovery](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/features.png)
 
 The image above is the overview. What follows is only what the image does not make obvious.
 
 **Workspace picker** (fills the native "Add workspace" flow) — Local uses the system folder chooser; Remote browses inside the modal:
 
-<img src="docs/shots/picker-dialog.png" alt="The 远程 (remote) tab of the workspace picker: machine select, recent workspaces, browse, set-as-remote-workspace" width="632"/>
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/picker-dialog.png" alt="The 远程 (remote) tab of the workspace picker: machine select, recent workspaces, browse, set-as-remote-workspace" width="632"/>
 
 - The path field autocompletes live; on Windows hosts the root shows a multi-drive view; the floating browser fills the field without committing.
 - On confirm a **real local mirror** is created and adopted by the harness, kept in sync over SFTP; the choice persists on the machine.
 
 **Settings** (hosts from `~/.ssh/config`, port forwarding, audit log, update mode):
 
-<img src="docs/shots/settings-panel.png" alt="dsh-remote settings: host list, connect, pick folder, remote DSH Web UI, port forwarding, audit log, update" width="612"/>
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/settings-panel.png" alt="dsh-remote settings: host list, connect, pick folder, remote DSH Web UI, port forwarding, audit log, update" width="612"/>
 
 The rest:
 
@@ -81,7 +90,7 @@ Runs on **both** the `0.1.x` and `0.2.x` DSH lines. DSH validates every `@deepse
 dsh: skipping profile bundle "dsh-remote": Error: Plugin dsh-remote@… is incompatible …
 ```
 
-A caret on `0.x` is locked to that minor line (`^0.1.x` cannot admit `0.2.x`, and vice versa), so since **0.8.29** the ranges are cross-line intervals: `>=0.1.0-rc.6 <0.3.0`. **If you are below 0.8.29, upgrade the plugin before you upgrade DSH.**
+A caret on `0.x` is locked to that minor line (`^0.1.x` cannot admit `0.2.x`, and vice versa), so since **0.8.29** the ranges are cross-line intervals: `>=0.1.0-rc.6 <0.3.0`. Version 1.0 also declares explicit prerelease ranges for normal npm installs on 0.1.5, 0.1.7, 0.2.0 and 0.2.2 RC hosts. **If you are below 0.8.29, upgrade the plugin before you upgrade DSH.**
 
 ### Official Desktop compatibility (experimental)
 
@@ -99,7 +108,7 @@ Verified: host startup, IPC requests, real SSH read-only connect/list/read, and 
 dsh plugin add dsh-remote
 ```
 
-Since **v0.8.18** it installs and mounts only itself; the Web sidebar ([dsh-better-sidebar](https://www.npmjs.com/package/dsh-better-sidebar)) is optional. Install it separately if you want the Web remote file explorer/editor — without it the `rw_*` tools, settings UI, sync, audit log and port forwarding all still work.
+Since **v0.8.18** it installs and mounts only itself; the Web sidebar ([dsh-better-sidebar](https://www.npmjs.com/package/dsh-better-sidebar)) is optional. DSH Web hosts with the native sidebar already have a remote file explorer/editor; better-sidebar is an optional alternative.
 
 > **Upgrading from 0.7.2–0.8.17:** the embedded sidebar goes away; any old profile override for `id: dsh-remote-sidebar` can be removed.
 
@@ -192,7 +201,7 @@ Restart dsh-tui afterwards. What you get:
 - the status bar names the current remote machine (remote Sessions only; hover for details).
 
 Web profiles are unaffected: without the terminal seams the layer stays off, silently. Keymap,
-cleanup semantics, the host-API contract and the limits live in **[docs/tui.md](docs/tui.md)** (Chinese).
+cleanup semantics, the host-API contract and the limits live in **[docs/tui.md](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/tui.md)** (Chinese).
 
 ## CLI defaults (optional)
 
@@ -310,7 +319,7 @@ Deploying to a product profile is a separate, explicit action (`./sync.sh`) for 
 
 ## FAQ / troubleshooting
 
-Quick answers first — the long root-cause stories moved to [docs/troubleshooting.en.md](docs/troubleshooting.en.md):
+Quick answers first — the long root-cause stories moved to [docs/troubleshooting.en.md](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/troubleshooting.en.md):
 
 - **The built-in Files panel shows a LOCAL directory** — that is the mirror working copy (by design);
   the live remote tree lives in the Remote Files tab (auto-opens on remote Sessions since 0.8.82).
@@ -325,7 +334,7 @@ Quick answers first — the long root-cause stories moved to [docs/troubleshooti
   multi-hop chains work (ProxyJump equivalent).
 - **A container as a workspace** — yes; two recipes by whether the container exposes a port, see the manual.
 
-The full troubleshooting handbook: **[docs/troubleshooting.en.md](docs/troubleshooting.en.md)**
+The full troubleshooting handbook: **[docs/troubleshooting.en.md](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/troubleshooting.en.md)**
 (including the "remote DSH UI won't connect" chapter).
 
 ## Safety
@@ -337,6 +346,9 @@ Giving the plugin a machine's credentials lets the agent run **shell commands as
 MIT
 
 ## Contributing & credits
+
+See [SUPPORT.md](https://github.com/flymysql/dsh-remote/blob/main/SUPPORT.md) for help and reporting, and the [1.0 upgrade guide](https://github.com/flymysql/dsh-remote/blob/main/docs/migration-1.0.md) for migration details.
+
 
 Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md). Questions, setups and "is this supported?" go to [Discussions](https://github.com/flymysql/dsh-remote/discussions); reproducible bugs go to [Issues](https://github.com/flymysql/dsh-remote/issues).
 

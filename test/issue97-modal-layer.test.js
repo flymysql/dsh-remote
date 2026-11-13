@@ -190,3 +190,17 @@ test('without the host layer nothing is registered and the document listener sti
   assert.match(src, /if \(!useModalLayerFn && e\.key === 'Escape'\)/)
   assert.match(src, /useModalLayerFn\) \{\s*\n\s*try \{ useModalLayerFn\(/)
 })
+
+
+test('host dialogs opened later can overlay the picker; the registered layer owns the actual dialog', () => {
+  const { Picker, layerCalls } = loadPicker({ withLayer: true })
+  const m = mount(Picker)
+  const tree = m.render()
+  const walk = (node) => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(walk) : [node, ...walk(node.props && node.props.children)]
+  const nodes = walk(tree)
+  const mask = nodes.find((n) => n.props && n.props.style && n.props.style.position === 'fixed' && n.props.style.inset === 0)
+  assert.equal(mask.props.style.zIndex, 1000)
+  const dialog = nodes.find((n) => n.props && n.props.role === 'dialog')
+  assert.ok(dialog)
+  assert.equal(dialog.props.ref, layerCalls.at(-1).ref)
+})

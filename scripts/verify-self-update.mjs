@@ -153,6 +153,13 @@ async function main() {
     const prevDir = path.join(prevHome, 'node_modules', 'dsh-remote')
     if (!existsSync(path.join(prevDir, 'lib', 'update.js'))) fail(`previous install at ${prevDir} has no lib/update.js`)
     console.log(`previous copy:   installed at ${prevDir}`)
+    const previousFiles = listFiles(prevDir).filter((rel) => rel === 'package.json' || rel === 'cordis.patch.yml' || rel.startsWith('lib/'))
+    const previousSnapshot = path.join(scratch, 'previous-snapshot')
+    for (const rel of previousFiles) {
+      const dest = path.join(previousSnapshot, rel)
+      mkdirSync(path.dirname(dest), { recursive: true })
+      writeFileSync(dest, readFileSync(path.join(prevDir, rel)))
+    }
 
     // ── 4. drive the PREVIOUS release's own updater onto the candidate ────
     // Feed the local candidate tarball by patching global fetch BEFORE the old
@@ -179,6 +186,20 @@ async function main() {
     if (unresolved.length) fail(`imports pointing at files the update did not install:\n  - ${unresolved.join('\n  - ')}`)
 
     console.log(`checked ${candFiles.length} shipped files, all present and consistent; all relative imports resolve`)
+    // The candidate must also permit an explicit rollback, preserving the
+    // previous release's complete source tree rather than only its manifest.
+    const previousTar = await realFetch(`https://registry.npmjs.org/dsh-remote/-/dsh-remote-${fromVersion}.tgz`)
+    if (!previousTar.ok) fail(`cannot read rollback artifact (HTTP ${previousTar.status})`)
+    const previousBytes = Buffer.from(await previousTar.arrayBuffer())
+    globalThis.fetch = async (url, init) => String(url).endsWith('.tgz')
+      ? new Response(previousBytes, { status: 200 }) : realFetch(url, init)
+    const candidateUpdater = await import(pathToFileURL(path.join(prevDir, 'lib', 'update.js')).href + '?rollback=' + Date.now())
+    const rolledBack = await candidateUpdater.applyUpdate(fromVersion)
+    if (!rolledBack?.ok) fail('candidate updater refused rollback')
+    const rollbackAudit = auditAppliedTree(previousSnapshot, prevDir, previousFiles)
+    if (Object.values(rollbackAudit).some((items) => items.length)) fail(`rollback tree incomplete: ${JSON.stringify(rollbackAudit)}`)
+    globalThis.fetch = realFetch
+    console.log(`ROLLBACK GATE: PASS — restored ${fromVersion}, ${previousFiles.length} files consistent`)
     console.log('SELF-UPDATE GATE: PASS')
   } finally {
     try { rmSync(scratch, { recursive: true, force: true }) } catch {}

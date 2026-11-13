@@ -1,4 +1,4 @@
-[English](./README.en.md) · **中文**
+[English](https://github.com/flymysql/dsh-remote/blob/main/README.en.md) · **中文**
 
 ---
 
@@ -10,9 +10,9 @@
 [![license](https://img.shields.io/github/license/flymysql/dsh-remote)](LICENSE)
 [![dsh-plugin](https://img.shields.io/badge/topic-dsh--plugin-7a3ef3)](https://github.com/topics/dsh-plugin)
 
-由 [@flymysql](https://github.com/flymysql) 维护 · [主页](https://flymysql.github.io/dsh-remote/) · [用量统计](https://flymysql.github.io/dsh-remote/stats/) · [博客](https://gitpull.cn) · [讨论区](https://github.com/flymysql/dsh-remote/discussions) · [Issue](https://github.com/flymysql/dsh-remote/issues) · [English](./README.en.md)
+由 [@flymysql](https://github.com/flymysql) 维护 · [主页](https://flymysql.github.io/dsh-remote/) · [用量统计](https://flymysql.github.io/dsh-remote/stats/) · [博客](https://gitpull.cn) · [讨论区](https://github.com/flymysql/dsh-remote/discussions) · [Issue](https://github.com/flymysql/dsh-remote/issues) · [English](https://github.com/flymysql/dsh-remote/blob/main/README.en.md)
 
-![dsh-remote —— 把任意 SSH 机器变成真正的 DSH 工作区](docs/cover.png)
+![dsh-remote —— 把任意 SSH 机器变成真正的 DSH 工作区](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/cover.png)
 
 **为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）打造的远程工作助手。**
 
@@ -22,25 +22,31 @@ DSH 的 Web 界面刻意只监听 `127.0.0.1`（CLI 为安全拒绝 `--host 0.0.
 
 反过来也成立：**你可以把远端那台机器的 DSH 网页界面，当成本机浏览器里的一个页面打开**——同样不需要在远端开放任何端口（详见 [在本地打开远程机器上的 DSH 界面](#在本地打开远程机器上的-dsh-界面)）。远端 dsh 需要你先装好（插件不再代装）。
 
+## 1.0 工作区体验
+
+最近远程项目可直接搜索并打开；文件树保留会话上下文，文件以原生标签页查看和编辑。Agent 的远程命令展示实际退出码、耗时和编译诊断，点击诊断可打开远程文件对应行。文件支持查找、换行、Markdown 预览和保存快捷键，重新打开会读取 Agent 的最新修改。
+
+未保存草稿保存在当前页面内存，离开页面前会提醒；浏览器崩溃或强制退出仍可能丢失。文件栏直接访问远端；镜像通过 `rw_sync` / `rw_push` 按需同步，或显式启用 autoPush。同步完成表示该次操作的结果，不保证之后两端持续相等。
+
+新界面以 DSH Web 0.2.x 为主要验收目标；DSH 0.2.2 要求 Node.js ≥24.9。旧宿主缺少扩展接口时使用现有回退路径。本插件不提供远端语言服务、扩展宿主或远端 Git/调试器托管。
+
 ## 界面预览
 
-**设置 → 远程工作区** —— 直接列出 `~/.ssh/config` 里的主机、高级配置（私钥/跳板机/agent）、远程 DSH 界面、端口转发、审计日志、更新：
+**Agent 编译诊断与远程源码定位** —— 查看实际退出码和错误，点击诊断进入远程文件对应行：
 
-<img src="docs/shots/settings-panel.png" alt="dsh-remote 设置页：主机列表、连接、选目录、远程 DSH 界面、端口转发、审计日志、更新" width="612"/>
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-agent.png" alt="Agent 远程编译错误、退出码与源码行定位" width="1000"/>
 
-原生 **「Add workspace / 选择工作区」** 流程 —— 居中弹窗、两个 tab，默认落在「本机」；切到**「远程」**：
+**文件查看与查找** —— 行号、语法高亮、匹配跳转和自动换行：
 
-<img src="docs/shots/picker-dialog.png" alt="选择工作目录弹窗的「远程」tab：机器下拉、最近工作区、浏览…、设为远程工作区" width="632"/>
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-file.png" alt="远程文件中的查找、匹配计数、换行和高亮" width="620"/>
 
-- 路径框实时补全；Windows 主机根级显示「此电脑」多盘视图；「浏览…」浮层选中只回填、不直接提交。
-- 确定后创建**真实本地镜像**并被 harness 收养，同时通过 SFTP 保持同步；所选工作区持久化到该机器。
-- 远程工作区在**创建时**就按 `机器名-目录名` 命名（如 `code-server-xdfs`），不会和本地同名目录混在一起；之后仍可在侧边栏重命名。
+**原生远程终端** —— 明确启动 remote ssh，进入当前会话的远程目录：
 
----
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-terminal.png" alt="DSH 原生远程终端实际输入与命令输出" width="1000"/>
 
 ## 功能
 
-![核心能力总览 — 多机 SSH / 别名实时解析 / 双 tab 选择器 / 三路同步 / 远程 @ 补全 / 远端 DSH 界面挂到本机 / 安全审计 / 端口转发 / 侧栏编辑 / 自动更新，以及 21 个 rw_* 工具](docs/shots/features.png)
+![1.0 核心能力：最近项目、文件、Agent 结果、远程终端、镜像同步与恢复](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/features.png)
 
 上图是能力总览；下面只列**上图没说清、但用起来需要知道**的部分。
 
@@ -71,7 +77,7 @@ DSH 的 Web 界面刻意只监听 `127.0.0.1`（CLI 为安全拒绝 `--host 0.0.
 dsh: skipping profile bundle "dsh-remote": Error: Plugin dsh-remote@… is incompatible …
 ```
 
-caret 在 `0.x` 上会锁死小版本线（`^0.1.x` 容不下 `0.2.x`，反之亦然），所以自 **0.8.29** 起改为跨线区间 `>=0.1.0-rc.6 <0.3.0`。**低于 0.8.29 请在升级 DSH 前先升级本插件**。
+caret 在 `0.x` 上会锁死小版本线（`^0.1.x` 容不下 `0.2.x`，反之亦然），所以自 **0.8.29** 起改为跨线区间 `>=0.1.0-rc.6 <0.3.0`。1.0 另为 npm 安装补充明确的预发布范围，覆盖 0.1.5、0.1.7、0.2.0 与 0.2.2 的 RC 版本。**低于 0.8.29 请在升级 DSH 前先升级本插件**。
 
 ### 官方 Desktop 兼容适配（实验性）
 
@@ -174,7 +180,7 @@ dsh plugin --profile dsh-tui add dsh-remote
 - 底栏状态行显示当前远程机器（仅远程会话，悬停有详情）。
 
 Web profile 不受影响：TUI 层在缺少终端接缝时静默关闭。按键速查、三档清理语义、宿主 API
-契约与限制都在 **[docs/tui.md](docs/tui.md)**。
+契约与限制都在 **[docs/tui.md](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/tui.md)**。
 
 ## 可选：CLI 默认机
 
@@ -293,7 +299,7 @@ scripts/dev-run.sh --status    # 是否在运行
 
 ## 常见问题 / 排查
 
-快速自救（每条一行；根因故事与设计权衡的完整版搬到了 [docs/troubleshooting.md](docs/troubleshooting.md)）：
+快速自救（每条一行；根因故事与设计权衡的完整版搬到了 [docs/troubleshooting.md](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/troubleshooting.md)）：
 
 - **侧边栏「文件」面板显示的是本地目录** —— 那是镜像工作副本（地基如此）；看远端实时树用
   「远程文件」页签（0.8.82 起进入远程会话自动展开，两个右栏世界都算）。
@@ -305,7 +311,7 @@ scripts/dev-run.sh --status    # 是否在运行
 - **连不上内网机器** —— 填「跳板机」主机（可把跳板机本身先配成一台机器）；多级链路也支持。
 - **想拿容器当工作空间** —— 可以，按容器有没有暴露端口二选一，详见排障手册。
 
-完整排查手册：**[docs/troubleshooting.md](docs/troubleshooting.md)**（含「远程 DSH 界面连不上」专题）。
+完整排查手册：**[docs/troubleshooting.md](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/troubleshooting.md)**（含「远程 DSH 界面连不上」专题）。
 
 ## 安全提醒
 
@@ -316,6 +322,9 @@ scripts/dev-run.sh --status    # 是否在运行
 MIT
 
 ## 参与贡献与致谢
+
+使用交流与缺陷反馈见 [SUPPORT.md](https://github.com/flymysql/dsh-remote/blob/main/SUPPORT.md)，迁移说明见 [1.0 升级指南](https://github.com/flymysql/dsh-remote/blob/main/docs/migration-1.0.md)。
+
 
 欢迎贡献，请先阅读 [CONTRIBUTING.md](./CONTRIBUTING.md)。使用问题、环境配置、「支持 XX 吗」这类讨论请走 [讨论区](https://github.com/flymysql/dsh-remote/discussions)；可复现的缺陷请提 [Issue](https://github.com/flymysql/dsh-remote/issues)。
 

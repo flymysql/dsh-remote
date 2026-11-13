@@ -49,11 +49,12 @@ function imageRefs(file) {
   for (const m of text.matchAll(/!\[[^\]]*\]\(([^)\s]+)\)/g)) out.push(m[1])
   for (const m of text.matchAll(/<img[^>]+src="([^"]+)"/g)) out.push(m[1])
   for (const m of text.matchAll(/"((?:docs|\.\/)[^"]+\.(?:png|svg|jpe?g))"/g)) out.push(m[1])
-  return [...new Set(out)].filter((r) => !/^(https?:|data:)/.test(r))
+  return [...new Set(out.map((ref) => ref.replace('https://raw.githubusercontent.com/flymysql/dsh-remote/main/', '')))].filter((r) => !/^(https?:|data:)/.test(r))
 }
 
 /** 解析引用到实际文件：README 在仓库根，docs/*.html 在 docs/。 */
 function resolveRef(file, ref) {
+  ref = ref.replace('https://raw.githubusercontent.com/flymysql/dsh-remote/main/', '')
   const baseDir = file.includes('/') ? path.join(root, path.dirname(file)) : root
   const candidates = ref.startsWith('./')
     ? [path.join(baseDir, ref.slice(2))]
@@ -168,15 +169,14 @@ test('a width= attribute never upscales the bitmap', () => {
   assert.deepEqual(offenders, [], `width attribute would upscale the bitmap:\n  ${offenders.join('\n  ')}`)
 })
 
-test('side-by-side figures are constrained so different aspect ratios stay balanced', () => {
-  // 回归：三张比例差异很大的图（0.84 / 2.66 / 1.81）曾塞进同一个三列网格，
-  // 结果被压到 332px 宽、长图还把同行压成 1px 高。现在竖向排列且各自限宽。
+test('workspace previews use labelled panels and keep files at their native width', () => {
   const home = readFileSync(path.join(root, 'docs/index.html'), 'utf8')
-  const shots = home.slice(home.indexOf('.shots'), home.indexOf('.shots') + 900)
-  assert.match(shots, /grid-template-columns:1fr/, 'the shots block must stack vertically')
-  // 每张并排图都要有 max-width，防止位图被拉伸到容器宽度而放大
-  const constrained = (home.match(/class="shots"[\s\S]*?<\/div>/)[0].match(/max-width:\d+px/g) || []).length
-  assert.ok(constrained >= 2, `each stacked figure needs a max-width cap, found ${constrained}`)
+  for (const name of ['agent', 'file', 'terminal']) {
+    assert.match(home, new RegExp(`id="tab-${name}"[^>]*aria-controls="panel-${name}"`))
+    assert.match(home, new RegExp(`role="tabpanel" id="panel-${name}" aria-labelledby="tab-${name}"`))
+  }
+  assert.match(home, /#panel-file img\{max-width:719px/)
+  assert.match(home, /\.shot-panel\[hidden\]\{display:none\}/)
 })
 
 test('no screenshot has text cut off at its edges', async (t) => {

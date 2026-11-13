@@ -134,7 +134,7 @@ test('/mirror without a machine id keeps the machine-scoped active-pool behaviou
     // it was NOT refused by the new identity check.
     const r = await call(routes, '/dsh-remote/mirror', { path: '/proj' })
     assert.equal(r.status, 400, 'the request must reach the directory probe')
-    assert.match(String(r.json.error || ''), /not a directory|unreachable/)
+    assert.match(String(r.json.error || ''), /not a directory|unreachable|ECONNREFUSED/)
   } finally { cleanup(home) }
 })
 
@@ -165,7 +165,7 @@ test('the picker sends machineId on /mirror and /home', () => {
     return clientSrc.slice(start, next > 0 ? start + 1 + next : start + 1400)
   }
   const mirror = bodyOf('commitPath')
-  assert.match(mirror, /api\('POST', '\/dsh-remote\/mirror', \{ path: target, machineId[^}]*\}\)/,
+  assert.match(mirror, /api\('POST', '\/dsh-remote\/mirror', \{ path: target, machineId[^}]*\}, signal\)/,
     'commitPath must name the machine the pick was made on')
   // The same commit also tells the host whether the core will adopt the mirror
   // as a workspace (the native Add-workspace flow) or the picker only chose a
