@@ -28,7 +28,7 @@ Search and reopen recent remote projects directly. The explorer keeps session co
 
 Unsaved drafts remain in page memory, with an unload warning; browser crashes or forced termination can still lose them. The file pane accesses the remote host directly. Mirrors update through `rw_sync` / `rw_push`, or explicitly enabled autoPush. A completed sync describes that operation, not continuous equality.
 
-The new interface primarily targets DSH Web 0.2.x; DSH 0.2.2 requires Node.js ≥24.9. Older hosts use the available fallback interfaces. This plugin does not provide a remote language server, extension host, or hosted remote Git/debugger.
+The new interface primarily targets DSH Web 0.2.x; DSH 0.2.2 requires Node.js ≥24.9. Older hosts use the available fallback interfaces. This plugin does not provide a remote language server, extension host or hosted debugger; its Git panel provides read-only inspection of remote changes.
 
 
 ---
@@ -53,12 +53,31 @@ The new interface primarily targets DSH Web 0.2.x; DSH 0.2.2 requires Node.js �
 
 The image above is the overview. What follows is only what the image does not make obvious.
 
-**Workspace picker** (fills the native "Add workspace" flow) — Local uses the system folder chooser; Remote browses inside the modal:
+### Daily development workflow
 
-<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/picker-dialog.png" alt="The 远程 (remote) tab of the workspace picker: machine select, recent workspaces, browse, set-as-remote-workspace" width="632"/>
+- **IDE mode**: place the remote file tree on the left, native editor in the center and native conversation on the right, with adjustable column widths. Narrow screens switch between files, editor and chat. Returning to the normal layout preserves the session, tasks and unsaved edits; hosts missing the required native interfaces show a fallback notice.
+- **Keep files with their session**: the native explorer reads the directory on that session's remote host. Open files in tabs with highlighting, in-file search, line navigation, editing and saving, without first syncing the project into its local mirror.
+- **Search the remote project recursively**: search file and directory names, files only, directories only, or file contents. Preparation appears immediately; the default view keeps a compact status, result count and scan summary with stop and retry controls. Expand scan details for directory/file counts, elapsed time and skipped items. Results reveal directories or open a content match at its line. Dependencies, build folders and configured ignores are skipped by default; expand search options to include ignored directories or enable case sensitivity when needed. Limits produce an explicit partial-result status.
+- **Inspect remote Git changes**: open the branch and changed-file list from the explorer, switch between working-tree and staged diffs, filter files and jump from a diff line to remote source. It reads the remote repository without requiring a mirrored `.git`; the panel does not commit or change the index.
+- **Protect edits while saving**: a content revision/hash detects external changes, including changes with an unchanged timestamp, while conflicts retain the draft. Saving preserves CRLF line endings. Older responses cannot discard newer input when typing continues during a save or the file/session changes. Writes use a neighboring temporary file and recheck the baseline before replacement; this is optimistic conflict detection, not a cross-process file lock.
+- **Review what the agent changed**: successful remote writes, edits and appends show an applied diff, added/deleted line counts and the file path in their tool cards. Large files, binary files and unavailable baselines explain preview limits. Command cards retain actual exit codes, build output and clickable compiler diagnostics.
+- **Room to browse and a quieter terminal**: the folder list fills the picker, with fixed path and action bars and keyboard entry, back and cancel controls; a 640px-tall viewport displays eight directory rows. A small DSH pixel fish replaces repeated connection details before the real SSH shell starts.
 
-- The path field autocompletes live; on Windows hosts the root shows a multi-drive view; the floating browser fills the field without committing.
-- On confirm a **real local mirror** is created and adopted by the harness, kept in sync over SFTP; the choice persists on the machine.
+**Remote search progress** — traverse folders that have never been expanded in the explorer, with actual scan counts:
+
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-search-progress.png" alt="Recursive remote search showing scanned directories, files, elapsed time and stop control" width="675"/>
+
+**Search results** — distinguish files and directories and open their remote locations:
+
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-search-results.png" alt="Remote recursive name search results containing a nested directory and file" width="675"/>
+
+**Remote Git** — inspect working-tree and staged changes and navigate from a diff to source:
+
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-git.png" alt="Read-only remote Git changes and working-tree diff" width="675"/>
+
+**Workspace folder picker** — the list uses the dialog's main area; confirm a path before creating the workspace:
+
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workspace-picker-browse.png" alt="Remote folder picker with fixed controls and eight visible directory rows in a compact viewport" width="720"/>
 
 **Settings** — independent host connectivity checks and connection-test duration, with host configuration separate from workspace creation:
 

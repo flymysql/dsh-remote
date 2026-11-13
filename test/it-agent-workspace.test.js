@@ -81,10 +81,43 @@ test('agent consumes real compiler errors, edits the remote file, rebuilds and r
   assert.equal(results[1].data.meta.code, 1)
   assert.equal(results[3].data.meta.status, 'completed')
   assert.equal(results[3].data.meta.code, 0)
+  assert.equal(results[2].data.meta.kind, 'dsh-remote.change')
+  assert.equal(results[2].data.meta.applied, true)
+  assert.ok(results[2].data.meta.diffs.some(diff => diff.newText.includes('REMOTE_BUILD_OK')))
+  assert.ok(results[2].data.meta.diffs.some(diff => diff.oldText.includes('puts')))
   assert.equal(events.at(-1).type, 'turn/end')
   assert.match(JSON.stringify(events.at(-1)), /completed|stop/)
 })
 
+
+test('agent records only successful edits as applied while model output stays ordinary tool text', { skip }, async (t) => {
+  const h = await setup(t, (llm, options) => createBuildAdapter(llm, { ...options, reviewFailure: true }))
+  h.send('验证旧内容不匹配时拒绝编辑，然后修复远程编译错误并运行。')
+  await h.agent.whenIdle()
+  assert.equal(h.adapter.step, 7, JSON.stringify(h.agent.session.snapshotEvents().slice(-4)))
+  assert.equal(fs.readFileSync(path.join(h.project, 'src/main.c'), 'utf8'), fixed)
+  assert.equal(fs.readFileSync(path.join(h.mirror, 'src/main.c'), 'utf8'), h.localSentinel)
+  const events = h.agent.session.snapshotEvents()
+  const results = events.filter(event => event.type === 'tool/result')
+  const failedCall = events.find(event => event.type === 'tool/call' && event.data.name === 'rw_edit' && event.data.arguments.includes('__MISSING_EDIT_BASELINE__'))
+  assert.ok(failedCall)
+  const failed = results.find(event => event.data.message.toolCallId === failedCall.data.callId)
+  assert.equal(failed.data.message.isError, true)
+  assert.notEqual(failed.data.meta?.applied, true)
+  assert.match(JSON.stringify(failed.data.message.content), /old text not found/)
+  const changes = results.filter(event => event.data.meta?.kind === 'dsh-remote.change')
+  assert.equal(changes.length, 1)
+  const success = changes[0].data
+  assert.equal(success.meta.applied, true)
+  assert.equal(success.meta.additions, 1)
+  assert.equal(success.meta.deletions, 1)
+  assert.ok(success.meta.diffs.some(diff => diff.oldText.includes('#include <stdio.h>') && diff.newText.includes('puts("REMOTE_BUILD_OK");') && diff.newText.includes('return 0;')))
+  const modelResult = h.adapter.results.find(message => message.toolCallId === success.message.toolCallId)
+  assert.deepEqual(modelResult.content, [{ type: 'text', text: `edited ${h.project}/src/main.c: replaced 1 occurrence(s)` }])
+  assert.equal(modelResult.meta, undefined, 'presentation metadata stays out of the model-visible tool message')
+  assert.doesNotMatch(JSON.stringify(modelResult), /oldText|newText|dsh-remote\.change|"diffs"/)
+  assert.match(JSON.stringify(events.filter(event => event.type === 'assistant/message').at(-1)), /远端 GCC 编译通过/)
+})
 
 test('stopping a running agent stops the remote process and the next task can still run', { skip }, async (t) => {
   const h = await setup(t, ({ LlmAdapter, ToolCallId }) => new class extends LlmAdapter {

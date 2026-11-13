@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { execFileSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -862,7 +863,19 @@ test('both launchers export DSH_TERM_DIR so the child can find the bridge', () =
   const win = launcherSource({ platform: 'win32', childPath: 'C:\\p\\c.cjs', machinesFile: 'C:\\m.json' })
   assert.match(win, /set "DSH_TERM_DIR=%~dp0"/)
   const posix = launcherSource({ platform: 'linux', childPath: '/p/c.cjs', machinesFile: '/m.json' })
-  assert.match(posix, /DSH_TERM_DIR=\$\(CDPATH= cd -- "\$\(dirname -- "\$0"\)" && pwd\)/)
+  assert.match(posix, /export DSH_TERM_DIR=\$\(CDPATH= cd -- "\$\(dirname -- "\$0"\)" && pwd\)/)
+})
+
+test('the POSIX launcher passes its credential-bridge directory to the executed child', { skip: process.platform === 'win32' }, () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'dsh terminal launcher '))
+  try {
+    const childPath = path.join(dir, 'child script.cjs')
+    const launcher = path.join(dir, 'remote ssh')
+    writeFileSync(childPath, 'process.stdout.write(process.env.DSH_TERM_DIR || "MISSING_BRIDGE_DIRECTORY")')
+    writeFileSync(launcher, launcherSource({ platform: 'linux', childPath, machinesFile: path.join(dir, 'machines.json'), nodePath: process.execPath }))
+    const env = { ...process.env }; delete env.DSH_TERM_DIR
+    assert.equal(execFileSync('/bin/sh', [launcher], { env, encoding: 'utf8' }), dir)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
 test('writeLauncher also writes the askpass helper pair (no secrets baked in)', () => {
@@ -974,16 +987,35 @@ test('--machines is parsed and unknown arguments are ignored', () => {
 })
 
 
-test('the terminal context banner is compact, theme-safe and cannot inject terminal controls', () => {
-  const plain = child.connectionBanner({ host: 'dev', username: 'alice', port: 2222, remotePath: '/srv/project' }, { TERM: 'dumb' })
-  assert.match(plain, /SSH  alice@dev:2222/)
-  assert.match(plain, /\/srv\/project/)
+test('terminal welcome uses a compact pixel fish without duplicating remote identity', () => {
+  const target = { host: 'dev', username: 'alice', port: 2222, remotePath: '/srv/project' }
+  const plain = child.connectionBanner(target, { TERM: 'xterm', NO_COLOR: '1' })
+  assert.match(plain, /[█▀▄]/)
+  assert.match(plain, /dsh/)
+  assert.doesNotMatch(plain, /SSH|alice|dev|2222|srv|project/)
   assert.equal(plain.includes('\x1b'), false)
-  const escaped = child.connectionBanner({ host: 'dev\x1b]0;evil\x07', remotePath: '/srv/line\nnext' }, {})
-  assert.equal(escaped.includes('\x1b'), false)
-  assert.equal(escaped.includes('\x07'), false)
-  assert.match(child.connectionBanner({ host: 'dev' }, { TERM: 'xterm-256color' }), /\x1b\[36m/)
-  assert.equal(child.connectionBanner({ host: 'dev' }, { TERM: 'xterm', NO_COLOR: '1' }).includes('\x1b'), false)
+  const lines = plain.trim().split('\r\n')
+  assert.equal(lines.length, 5, 'two pixel rows share one terminal row')
+  assert.ok(lines.every(line => [...line].length <= 30), 'the mascot cannot consume a wide terminal row')
+})
+
+test('terminal welcome cannot replay host controls and resets colors before the shell prompt', () => {
+  const poison = { host: 'dev\x1b]0;evil\x07', username: '\x1b[2J', remotePath: '/srv/line\nnext' }
+  const rendered = child.connectionBanner(poison, { TERM: 'xterm-256color' })
+  assert.match(rendered, /\x1b\[36;/)
+  assert.doesNotMatch(rendered, /evil|\x07|\x1b\]|\x1b\[2J|srv|next/)
+  assert.match(rendered, /\x1b\[0m[^\x1b]*\r\n\r\n$/)
+  assert.equal(child.connectionBanner(poison, { TERM: 'xterm', NO_COLOR: '' }).includes('\x1b'), false, 'NO_COLOR also applies when its value is empty')
+})
+
+test('narrow and dumb terminals get a one-line ASCII fish that fits, or no decoration', () => {
+  for (const env of [{ TERM: 'dumb' }, { TERM: 'xterm', COLUMNS: '20' }, { COLUMNS: '12' }]) {
+    const plain = child.connectionBanner({}, env).replace(/\x1b\[[0-9;]*m/g, '').trim()
+    assert.equal(plain, '><(((o>  dsh')
+    assert.ok(plain.length <= 12)
+  }
+  assert.equal(child.connectionBanner({}, { COLUMNS: '8' }), '')
+  assert.equal(child.connectionBanner({}, { TERM: 'xterm', COLUMNS: '80' }, 20).replace(/\x1b\[[0-9;]*m/g, '').trim(), '><(((o>  dsh', 'the actual PTY width overrides an outdated environment value')
 })
 
 test('a terminal started below a mirror root lands in the corresponding remote subdirectory', () => {

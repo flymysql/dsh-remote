@@ -169,13 +169,13 @@ jobs:
           NPM_CONFIG_USERCONFIG: /dev/null
         run: |
           export VER="${GITHUB_REF_NAME#v}"
-          for i in $(seq 1 12); do
+          for i in $(seq 1 30); do
             CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/dsh-remote/-/dsh-remote-${VER}.tgz")
             [ "$CODE" = 200 ] && break
-            echo "tarball not on CDN yet (HTTP $CODE), waiting 10s ($i/12)"
+            echo "tarball not on CDN yet (HTTP $CODE), waiting 10s ($i/30)"
             sleep 10
           done
-          [ "$CODE" = 200 ] || { echo "tarball still 404 after 2min"; exit 1; }
+          [ "$CODE" = 200 ] || { echo "tarball unavailable after 5min"; exit 1; }
           TMP=$(mktemp -d) && cd "$TMP"
           npm init -y >/dev/null
           npm install "dsh-remote@${VER}" --prefer-online

@@ -38,14 +38,15 @@ class DiskFs {
 }
 
 /** Only for trusted test commands: shell processes have the test runner's OS permissions. */
-export async function startDiskWorkspace(root) {
+export async function startDiskWorkspace(root, options = {}) {
   const children = new Set()
   const commands = []
   const filesystem = new DiskFs(root)
   const server = await startFakeSsh({
     users: { root: { password: 'test-only' } }, cwd: root, filesystem,
-    onPtyExec(command, stream) {
+    onPtyExec(command, stream, session) {
       commands.push(command)
+      if (options.onPtyExec?.(command, stream, session)) return true
       const child = spawn('/bin/sh', ['-c', command], { cwd: root, detached: true, stdio: ['pipe', 'pipe', 'pipe'] })
       children.add(child)
       const kill = () => { if (child.exitCode === null) { try { process.kill(-child.pid, 'SIGKILL') } catch { /* exited */ } } }

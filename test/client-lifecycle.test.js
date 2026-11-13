@@ -207,7 +207,7 @@ test('native right-sidebar attaches late, opens a session-scoped remote file, an
     types.set(type.kind, type)
     return () => types.delete(type.kind)
   } })
-  assert.deepEqual([...types.keys()], ['dsh-remote/explorer', 'dsh-remote/file', 'dsh-remote/remote-link'])
+  assert.deepEqual([...types.keys()], ['dsh-remote/explorer', 'dsh-remote/changes', 'dsh-remote/file', 'dsh-remote/remote-link'])
   assert.equal(types.get('dsh-remote/explorer').guide.length, 1)
   assert.deepEqual([...types.get('dsh-remote/file').patterns], ['dsh-resource://dsh-remote/**'])
   // Issue #55: the third type claims the CORE's own address (not this plugin's),

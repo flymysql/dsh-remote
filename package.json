@@ -1,7 +1,7 @@
 {
   "name": "dsh-remote",
-  "version": "1.0.1",
-  "description": "Remote SSH workspaces for DeepSeek Harness: native file and terminal tabs, agent tools with exit codes and compiler diagnostics, conflict-aware mirror sync, SSH configuration, port forwarding and audit logs.",
+  "version": "1.1.0",
+  "description": "Remote SSH development for DeepSeek Harness: optional IDE layout, remote file and content search, native editor and terminal tabs, Git diffs, and agent tools with compiler diagnostics.",
   "license": "MIT",
   "author": "flymysql <flyphp@outlook.com>",
   "homepage": "https://flymysql.github.io/dsh-remote/",
@@ -88,13 +88,14 @@
     "@deepseek-ai/dsh-llm": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-sandbox": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-scope": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-skill": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-session": "^0.2.0-rc.2",
+    "@deepseek-ai/dsh-skill": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-system-prompt": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-timeout": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-tools": "^0.2.0-rc.2",
     "react": "^19.3.1",
-    "semver": "^7.8.5"
+    "semver": "^7.8.5",
+    "diff": "8.0.4"
   },
   "scripts": {
     "test": "node --import ./test/setup-telemetry-off.mjs --test --test-timeout=40000 --test-force-exit --test-concurrency=8",
