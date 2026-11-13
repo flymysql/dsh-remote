@@ -111,6 +111,7 @@ Pack from a script-free dependency tree and inspect the actual archive:
 
 ```sh
 npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
+node scripts/prepare-npm-readme.mjs # on the isolated publish staging tree
 npm pack --ignore-scripts
 node scripts/verify-release-package.mjs dsh-remote-<version>.tgz
 node scripts/verify-self-update.mjs --tarball dsh-remote-<version>.tgz
@@ -119,3 +120,5 @@ node scripts/verify-self-update.mjs --tarball dsh-remote-<version>.tgz
 The package gate rejects platform-specific `.node` build output, application credentials and local/test fixtures. Known public protocol keys bundled by upstream ssh2 are permitted. The update gate checks both upgrade from npm latest and rollback to it. In a proxy-restricted Node 24 cloud session, use its inherited proxy settings and `NODE_USE_ENV_PROXY=1` for standalone network checks.
 
 Before stable publication, update the bilingual READMEs, changelog, migration guide, homepage and rendered cover/feature images. README images use absolute raw GitHub URLs so npm renders the same assets. Publish repository content before npm, then verify those public URLs, the npm README/version and the release artifact. Follow [SUPPORT.md](SUPPORT.md) and the contributor guide for community routes; discussion templates only apply after matching categories are enabled on GitHub.
+
+`package.json.readme` is body text, not a filename. npm may also select `README.zh.md` (the compatibility redirect) when multiple localized files exist. The workflow fills the complete canonical `README.md` body in its disposable publish tree before packing; do not hand-maintain a duplicate body in the source manifest. Verify the public registry README after publication.

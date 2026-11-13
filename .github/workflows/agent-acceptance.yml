@@ -38,6 +38,7 @@ jobs:
       - name: Pack the actual candidate
         run: |
           mkdir -p "$RUNNER_TEMP/candidate"
+          node scripts/prepare-npm-readme.mjs
           npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/candidate"
           node scripts/verify-release-package.mjs "$RUNNER_TEMP"/candidate/*.tgz
       - name: Install isolated host and candidate

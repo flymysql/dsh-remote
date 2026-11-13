@@ -4,8 +4,6 @@
   "description": "Remote SSH workspaces for DeepSeek Harness: native file and terminal tabs, agent tools with exit codes and compiler diagnostics, conflict-aware mirror sync, SSH configuration, port forwarding and audit logs.",
   "license": "MIT",
   "author": "flymysql <flyphp@outlook.com>",
-  "readme": "README.md",
-  "readmeFilename": "README.md",
   "homepage": "https://flymysql.github.io/dsh-remote/",
   "repository": {
     "type": "git",

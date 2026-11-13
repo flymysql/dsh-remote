@@ -41,6 +41,7 @@ jobs:
           node check.mjs
           npm test
           mkdir -p "$RUNNER_TEMP/candidate"
+          node scripts/prepare-npm-readme.mjs
           npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/candidate"
           node scripts/verify-release-package.mjs "$RUNNER_TEMP"/candidate/*.tgz
       - name: Coverage gate
@@ -74,6 +75,7 @@ jobs:
           node check.mjs
           npm test
           mkdir -p "$RUNNER_TEMP/candidate"
+          node scripts/prepare-npm-readme.mjs
           npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/candidate"
           node scripts/verify-release-package.mjs "$RUNNER_TEMP"/candidate/*.tgz
           # Prove the PREVIOUS release's updater can lay this candidate down
