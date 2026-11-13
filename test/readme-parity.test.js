@@ -75,6 +75,7 @@ test('each section is paired by position, not merely equal in count', () => {
     ['1.0 工作区体验', '1.0 workspace experience'],
     ['界面预览', 'Screen previews'],
     ['功能', 'Features'],
+    ['1.0.1 升级修复', '1.0.1 upgrade fixes'],
     ['安装', 'Install'],
     ['快速上手', 'Quick start'],
     ['在本地打开远程机器上的 DSH 界面', 'Open a remote machine\'s DSH Web UI locally'],

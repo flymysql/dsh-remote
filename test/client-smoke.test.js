@@ -104,7 +104,7 @@ test('lib/client.js registers through the module loader and its apply() runs', (
     // each row reports independent connectivity without selecting a workspace.
     'settings.pickHost', 'settings.hostListSource', 'settings.hostListRefresh',
     'settings.hostListEmpty', 'settings.reachable', 'settings.unreachable', 'settings.latencyHint',
-    'settings.openSshConfig', 'settings.sshConfigOpened', 'settings.probeDetails',
+    'settings.openSshConfig', 'settings.sshConfigEditorTitle', 'settings.probeDetails',
     // The alias/ssh-config semantics the list still relies on.
     'settings.useSshConfig', 'settings.useSshConfigHint', 'settings.sshResolvedTo',
     'settings.sshResolvedNone', 'settings.sshResolvedWarn', 'settings.badgeSshConfig',

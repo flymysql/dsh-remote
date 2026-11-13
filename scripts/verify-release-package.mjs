@@ -9,7 +9,7 @@ export function auditPackagePaths(paths) {
   // ssh2's published package includes public protocol-test keys. These are
   // upstream fixtures, not user credentials; do not reject the locked bundle.
   const publicFixtures = new Set(['id_rsa', 'https_cert.pem', 'https_key.pem'].map((name) => 'package/node_modules/ssh2/test/fixtures/' + name))
-  const required = ['package/package.json', 'package/cordis.patch.yml', 'package/lib/boot.js', 'package/lib/client.js', 'package/lib/index.js', 'package/lib/sync-status.js']
+  const required = ['package/package.json', 'package/cordis.patch.yml', 'package/lib/boot.js', 'package/lib/client.js', 'package/lib/index.js', 'package/lib/sync-status.js', 'package/lib/auto-update.js']
   const missing = required.filter((name) => !paths.includes(name))
   const forbidden = paths.filter((name) => !name.startsWith('package/') || name.split('/').includes('..')
     || /\.node$/i.test(name) || !publicFixtures.has(name) && (/\.(?:pem|key)$/i.test(name) || /(?:^|\/)(?:\.env(?:\.[^/]*)?|\.git|\.ssh|machines\.json|id_rsa|id_ed25519)(?:\/|$)/.test(name))

@@ -147,6 +147,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upload the verified installation archive and checksum
+        run: |
+          ARCHIVE="$RUNNER_TEMP/candidate/dsh-remote-${GITHUB_REF_NAME#v}.tgz"
+          (cd "$(dirname "$ARCHIVE")" && sha256sum "$(basename "$ARCHIVE")" > "$(basename "$ARCHIVE").sha256")
+          EXISTING=$(gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name')
+          for FILE in "$ARCHIVE" "$ARCHIVE.sha256"; do
+            if ! echo "$EXISTING" | grep -Fxq "$(basename "$FILE")"; then
+              gh release upload "${GITHUB_REF_NAME}" "$FILE"
+            fi
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       # The registry packument flips before the CDN serves the tarball; verify
       # the ARTIFACT, not the metadata (PUBLISH.md §3), with a bounded retry.
       # A public package installs without auth — bypass the generated .npmrc so

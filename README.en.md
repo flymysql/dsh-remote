@@ -80,6 +80,12 @@ The rest:
 - **No `dsh-workspace` core changes** — everything ships as a normal plugin.
 - **Pages in the terminal UI too (dsh-tui)** — `/dsh-remote` opens a server management page (add/edit/delete, connect, browse remote directories; press `w` there to set the current directory as a workspace), and the new-workspace picker can list remote project directories directly — again without patching dsh-tui. See "Use it from the TUI" below.
 
+## 1.0.1 upgrade fixes
+
+Stale settings styles are replaced during a client upgrade. SSH configuration opens in an in-app editor with save and external-change protection. The native workspace-files action opens the remote tree, including files not present in the local mirror. DSH 0.2.1-rc.5 is explicitly supported alongside the 0.2.0 and 0.2.2 acceptance hosts.
+
+Automatic mode starts checking immediately when enabled, checks every 30 minutes by default, retries failures and displays progress/errors in Preferences. An already installed disk update also triggers a loader reload. After a CLI installation, restart DSH Web and refresh the browser if the running process still serves the previous version.
+
 ## Install
 
 ### DSH version compatibility
@@ -294,8 +300,8 @@ Deploying to a product profile is a separate, explicit action (`./sync.sh`) for 
 | `fileReferenceTimeoutMs` | int | `4000` | wall-clock budget for one remote `@` index pass (on expiry the partial index answers rather than making the caret wait) |
 | `searchTimeoutMs` | int | `60000` | Cooperative budget (ms) for `rw_search`: declared as the tool's `timeoutMs` for DSH's timeout policy and used as the search's own wall-clock cap; on expiry it returns partial results marked `TRUNCATED` (issue #44). |
 | `searchMaxEntries` | int | `50000` | Max files `rw_search` scans before returning partial results. |
-| `updateMode` | string | `auto` | self-update behaviour: `auto` checks npm on load and every 6h and applies a newer release; `manual` only checks when asked; `off` disables checks. **Default changed to `auto` in 0.8.27** — safe because 0.8.24 added the host-half hot swap |
-| `updateCheckIntervalMs` | int | 21600000 (6h) | how often `auto` mode checks npm (floor 60000) |
+| `updateMode` | string | `auto` | self-update behaviour: `auto` checks npm on load, when enabled and every 30 minutes and applies a newer release; `manual` only checks when asked; `off` disables checks. **Default changed to `auto` in 0.8.27** — safe because 0.8.24 added the host-half hot swap |
+| `updateCheckIntervalMs` | int | 1800000 (30 min) | how often `auto` mode checks npm (floor 60000) |
 | `updateAutoReload` | bool | `true` | hot-swap the host half after an update lands; `false` defers it to the next process start and the panel reports `pendingReload` |
 | `webAttachPortStart` | int | `3088` | first local port for the "Remote DSH Web UI" tunnel (later ports are tried when taken; loopback only) |
 | `webAttachCommand` | string | `dsh` | command used to start `dsh web` on the remote; change it when the remote `dsh` is not on the SSH login PATH (also settable per machine under "Advanced" in the settings page, which wins over this default) |

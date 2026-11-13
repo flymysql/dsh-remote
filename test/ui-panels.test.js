@@ -221,7 +221,7 @@ test('there is no add-machine form; editing a saved machine still opens one (iss
     assert.doesNotMatch(before, /HostKey 模式/, 'the edit form is not on screen until 编辑')
     ui.button(tree, /编辑 SSH 配置/).el.props.onClick()
     await ui.tick()
-    assert.ok(stub.calls.some((c) => c.url.includes('/dsh-remote/ssh-config') && c.body && c.body.action === 'open'),
+    assert.ok(stub.calls.some((c) => c.url.includes('/dsh-remote/ssh-config') && c.body && c.body.action === 'read'),
       '打开配置文件 must ask the host to open the ssh config, not a form')
     tree = await ui.click(tree, /^编辑$/)
     assert.match(ui.text(tree), /主机/, 'editing a saved machine still shows the credential form')
