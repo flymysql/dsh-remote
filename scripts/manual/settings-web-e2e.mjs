@@ -32,6 +32,13 @@ try{
  const page=await browser.newPage({viewport:{width:1440,height:1100},locale:'zh-CN'})
  page.setDefaultTimeout(7000);await page.goto(url)
  for(const name of ['继续','稍后配置'])await page.getByRole('button',{name,exact:true}).click({timeout:1000}).catch(()=>{})
+ // A clean host without model credentials can show its account introduction
+ // after the older onboarding steps. Dismiss it through the real close control.
+ const introduction=page.getByRole('dialog',{name:'开始使用',exact:true})
+ if(await introduction.waitFor({timeout:8000}).then(()=>true,()=>false)){
+   await introduction.getByRole('button',{name:'关闭',exact:true}).click()
+   await introduction.waitFor({state:'hidden'})
+ }
  await page.getByText('更多',{exact:true}).last().click()
  await page.getByText('设置',{exact:true}).click()
  await page.getByText('远程工作区',{exact:true}).first().click()
