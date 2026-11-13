@@ -199,3 +199,14 @@ test('overview and migrated reference links resolve to repository files and head
     }
   }
 })
+
+
+test('the overview retains the original project badges, community links and contributor wall', () => {
+  const badges = text => [...text.matchAll(/https:\/\/img\.shields\.io\/[^)\s]+/g)].map(match => match[0]).sort()
+  const avatars = text => [...text.matchAll(/src="https:\/\/avatars\.githubusercontent\.com\/[^"]+"[^>]*alt="([^"]+)"/g)].map(match => match[1]).sort()
+  for (const [overview, reference] of [[zh, referenceZh], [en, referenceEn]]) {
+    assert.deepEqual(badges(overview), badges(reference), 'version, download, license and topic badges must remain visible')
+    assert.deepEqual(avatars(overview), avatars(reference), 'the existing contributor wall must remain on the overview')
+    for (const link of ['https://flymysql.github.io/dsh-remote/stats/', 'https://gitpull.cn', 'https://github.com/topics/dsh-plugin']) assert.ok(overview.includes(link))
+  }
+})
