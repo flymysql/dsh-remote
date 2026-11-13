@@ -137,6 +137,29 @@ A new tab opens showing that remote machine's full DSH interface (chat, tool tre
 - If the remote already runs an interface (for example one you started in a terminal), pick the machine
   and paste its `http://127.0.0.1:<port>/?token=…` into the field, then "Attach to running instance" —
   no second instance will be started.
+- For a **boot-start / resident remote DSH**, manual pasting is unnecessary: configure
+  `webAttachDiscoverCommand` on the machine card → "Advanced" → "Discover command" (per machine only;
+  empty keeps the historical always-spawn behaviour). Before "Connect & open", the plugin runs this command
+  on the remote and takes the last `http(s)://…` line with a valid port and token. If that address answers
+  a health probe, the resident instance is reused: no second process is spawned, and disconnect never stops
+  it. Empty output, a failing command, an 8-second timeout, or a failed health probe all fall back to the
+  normal launch, with the reason shown in the UI. Raw discovery output and its token never enter the audit log.
+
+  Have the resident instance's startup script save its launch URL in `$HOME/.dsh-web-url` (on Windows,
+  `%USERPROFILE%\.dsh-web-url`). The file contains one line, `http://127.0.0.1:<port>/?token=…`; then use
+  the command appropriate for that remote:
+
+  ```bash
+  # Linux / macOS (sh / bash)
+  cat "$HOME/.dsh-web-url" 2>/dev/null
+
+  # Windows remote (PowerShell; works with cmd or PowerShell as the SSH login shell)
+  powershell -NoProfile -Command "Get-Content $env:USERPROFILE\.dsh-web-url -ErrorAction SilentlyContinue"
+  ```
+
+  The discover command runs verbatim in the remote **login shell** — the plugin does not rewrite it as a
+  POSIX command — so Windows remotes can use PowerShell directly. A missing file produces empty output and
+  the plugin starts a fresh instance as before.
 - When the remote `dsh` is not on the SSH login PATH, point `webAttachCommand` at its absolute path; to
   keep an attached instance out of the remote user's own sessions and settings, point `webAttachDshHome`
   at a scratch directory. This is **per machine**: Settings → Remote workspace → the machine card →
