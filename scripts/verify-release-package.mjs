@@ -18,10 +18,14 @@ export function auditPackagePaths(paths) {
 }
 
 export function verifyReleasePackage(file) {
-  const paths = execFileSync('tar', ['-tzf', path.resolve(file)], { encoding: 'utf8' }).trim().split(/\r?\n/)
+  // Git Bash's GNU tar treats a Windows drive colon as a remote host.
+  // Run beside the archive and pass only its basename; BSD tar accepts this too.
+  const archive = path.resolve(file)
+  const tarOptions = { encoding: 'utf8', cwd: path.dirname(archive) }
+  const paths = execFileSync('tar', ['-tzf', path.basename(archive)], tarOptions).trim().split(/\r?\n/)
   const audit = auditPackagePaths(paths)
   if (audit.missing.length || audit.forbidden.length) throw new Error(`Invalid release package: ${JSON.stringify(audit)}`)
-  const manifest = JSON.parse(execFileSync('tar', ['-xOzf', path.resolve(file), 'package/package.json'], { encoding: 'utf8' }))
+  const manifest = JSON.parse(execFileSync('tar', ['-xOzf', path.basename(archive), 'package/package.json'], tarOptions))
   const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
   const expected = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'))
   if (manifest.name !== expected.name || manifest.version !== expected.version) throw new Error('Candidate manifest does not match this checkout')
