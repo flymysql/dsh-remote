@@ -106,7 +106,10 @@ function fakePool({ discover = { code: 0, stdout: '' }, launch = READY(), probe 
 function unitAttach() {
   return new WebAttach({
     net: fakeNet(), localPortStart: 3088, trackPool: false,
-    discoverTimeoutMs: 30, probeTimeoutMs: 30,
+    // A 30ms probe budget was flaky on loaded macOS CI: even setImmediate can
+    // arrive after 50ms there, turning a healthy fake into probe-failed. These
+    // budgets only keep tests quick; production remains 8s discover / 4s probe.
+    discoverTimeoutMs: 100, probeTimeoutMs: 500,
   })
 }
 
