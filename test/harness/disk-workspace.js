@@ -6,10 +6,17 @@ import { spawn } from 'node:child_process'
 import { startFakeSsh } from './fake-ssh.js'
 
 class DiskFs {
-  constructor(root) { this.root = path.resolve(root) }
+  constructor(root) {
+    this.root = path.resolve(root)
+    // Git and shells may canonicalize a workspace reached through an alias:
+    // macOS temp directories commonly have /var and /private/var spellings.
+    // Both names identify this fixture's disk; neither permits sibling paths.
+    this.realRoot = fs.realpathSync(this.root)
+  }
   resolve(raw) {
     const target = path.resolve(raw)
-    if (target !== this.root && !target.startsWith(this.root + path.sep)) throw new Error('outside disposable workspace')
+    const within = root => target === root || target.startsWith(root + path.sep)
+    if (!within(this.root) && !within(this.realRoot)) throw new Error('outside disposable workspace')
     return target
   }
   _norm(raw) { return this.resolve(raw) }

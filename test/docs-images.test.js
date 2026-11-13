@@ -40,7 +40,7 @@ function detectPillow() {
   return pillowProbe
 }
 
-const SOURCES = ['README.md', 'README.en.md', 'docs/index.html', 'docs/stats/index.html', 'screenshots.json']
+const SOURCES = ['README.md', 'README.en.md', 'docs/reference.zh.md', 'docs/reference.en.md', 'docs/index.html', 'docs/stats/index.html', 'screenshots.json']
 
 /** 抽出所有相对图片引用（跳过 http/data URI）。 */
 function imageRefs(file) {
@@ -104,11 +104,9 @@ test('both READMEs carry enough images to be the primary explanation', () => {
   }
 })
 
-test('the capability overview image is referenced by both READMEs', () => {
-  // 「功能」节现在以这张图为主，两版都必须引用它。
-  for (const f of ['README.md', 'README.en.md']) {
-    const refs = imageRefs(f)
-    assert.ok(refs.some((r) => r.includes('features.png')), `${f} must reference the capabilities overview image`)
+test('the capability overview remains available in both detailed references', () => {
+  for (const file of ['docs/reference.zh.md', 'docs/reference.en.md']) {
+    assert.ok(imageRefs(file).some(ref => ref.endsWith('features.png')), `${file} must retain the capabilities overview`)
   }
 })
 
@@ -153,7 +151,7 @@ test('a width= attribute never upscales the bitmap', () => {
   // 而 README 里的 width 属性还是旧值 —— GitHub 会按属性把位图放大，直接糊掉。
   // 判据：写了 width 就必须 <= 图片真实宽度。
   const offenders = []
-  for (const f of ['README.md', 'README.en.md']) {
+  for (const f of ['README.md', 'README.en.md', 'docs/reference.zh.md', 'docs/reference.en.md']) {
     const text = readFileSync(path.join(root, f), 'utf8')
     for (const m of text.matchAll(/<img[^>]+src="([^"]+)"[^>]*width="(\d+)"/g)) {
       const [, ref, w] = m

@@ -10,8 +10,13 @@ import { startDiskWorkspace } from './harness/disk-workspace.js'
 
 const git = (root, ...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : '/dev/null' } })
 
-async function setup(t) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-git-workspace-'))
+async function setup(t, { aliasedRoot = false } = {}) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-git-workspace-'))
+  const root = aliasedRoot ? path.join(directory, 'alias') : directory
+  if (aliasedRoot) {
+    const physical = path.join(directory, 'disk')
+    fs.mkdirSync(physical); fs.symlinkSync(physical, root, 'dir')
+  }
   git(root, 'init', '-q', '-b', 'daily-work')
   for (const [name, content] of Object.entries({ 'main.c': 'int before = 1;\n', 'delete.txt': 'delete me\n', 'old name.txt': 'rename me\n', '[test].js': 'before bracket\n', 'test1.js': 'before wildcard\n', 'src/nested.txt': 'nested before\n' })) {
     fs.mkdirSync(path.dirname(path.join(root, name)), { recursive: true }); fs.writeFileSync(path.join(root, name), content)
@@ -24,7 +29,7 @@ async function setup(t) {
   fs.writeFileSync(path.join(root, 'image.bin'), Buffer.from([1,0,2])); fs.writeFileSync(path.join(root, 'large.txt'), 'x'.repeat(70 * 1024))
   const server = await startDiskWorkspace(root)
   const pool = new SshPool({ host: '127.0.0.1', port: server.port, username: 'root', password: 'test-only', hostKeyMode: 'off', connectTimeoutMs: 5000, commandTimeoutMs: 5000, maxOutputChars: 40 })
-  t.after(async () => { pool.close(); await server.close(); fs.rmSync(root, { recursive: true, force: true }) })
+  t.after(async () => { pool.close(); await server.close(); fs.rmSync(directory, { recursive: true, force: true }) })
   return { root, pool, server, binding: { pool, ws: root, bound: true } }
 }
 
@@ -88,6 +93,22 @@ test('real SSH Git status and working/staged diffs inspect remote disk without c
   assert.deepEqual(fs.readFileSync(path.join(root, '.git/index')), index)
   assert.equal(fs.readFileSync(path.join(root, 'main.c'), 'utf8'), 'int working = 3;\n')
   assert.ok(server.commands.filter(c => c.includes("'git'")).every(c => c.includes("'--no-optional-locks'")))
+})
+
+test('an aliased workspace root permits canonical Git preview paths within the same disposable disk', { skip: process.platform === 'win32' }, async t => {
+  const { root, binding, server } = await setup(t, { aliasedRoot: true })
+  const canonical = fs.realpathSync(root)
+  assert.notEqual(root, canonical, 'exercise the /var versus /private/var distinction on every POSIX platform')
+  const state = await inspectRemoteGit(binding)
+  assert.equal(state.repo, canonical)
+  assert.equal(state.files.find(file => file.path === '新文件.txt').absolutePath, path.join(root, '新文件.txt'))
+  const preview = await inspectRemoteGit(binding, { action: 'diff', path: '新文件.txt' })
+  assert.equal(preview.untracked, true)
+  assert.match(preview.patch, /\+new\n$/)
+  assert.equal(preview.absolutePath, path.join(root, '新文件.txt'))
+  for (const outside of [root + '-sibling/file', canonical + '-sibling/file', path.join(root, '..', 'outside'), path.join(canonical, '..', 'outside')]) {
+    assert.throws(() => server.fs.resolve(outside), /outside disposable workspace/, 'accept only the logical and real roots, not their siblings or parents')
+  }
 })
 
 test('subdirectory workspaces only expose their files and reject a parent repository file', { skip: process.platform === 'win32' }, async t => {

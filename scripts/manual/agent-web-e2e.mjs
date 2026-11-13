@@ -40,6 +40,11 @@ if(process.env.IT_AGENT_SOURCE==='1'){
 }
 const require=createRequire(path.join(path.resolve(modules),'__e2e__.cjs'))
 const reviewFailure=process.env.IT_AGENT_APPLIED_DIFF==='1'
+const hostToolsVersion=require('@deepseek-ai/dsh-tools/package.json').version
+// This exact host only projects presentationMeta on top-level calls and does
+// not persist it in tool/ptc-dispatch. Keep the full task and test its honest
+// snippet fallback; native calls and all newer hosts retain strict diff checks.
+const legacyPtcMetadata=process.env.IT_AGENT_PTC==='1'&&hostToolsVersion==='0.2.0-rc.2'
 if(reviewFailure&&live)throw Error('The applied-diff failure scenario requires the scripted model')
 const selectedPlugin=path.join(path.resolve(modules),'dsh-remote')
 const selectedManifest=JSON.parse(fs.readFileSync(path.join(selectedPlugin,'package.json'),'utf8'))
@@ -129,11 +134,23 @@ try {
   assert.ok(failedCall,'the real Agent must attempt the intentionally conflicting edit')
   const failed=resultEvents.find(event=>event.data.message?.toolCallId===failedCall.data.callId)
   assert.equal(failed?.data.message.isError,true);assert.notEqual(failed?.data.meta?.applied,true)
-  const success=resultEvents.find(event=>event.data.meta?.kind==='dsh-remote.change'&&event.data.meta.applied===true)
-  assert.ok(success,'the successful Agent edit must persist applied metadata')
-  assert.equal(success.data.meta.path,project+'/src/main.c')
-  assert.equal(success.data.meta.additions,1);assert.equal(success.data.meta.deletions,1)
-  assert.ok(success.data.meta.diffs.some(diff=>diff.oldText.includes('#include <stdio.h>')&&diff.newText.includes('return 0;')&&diff.newText.includes('puts("REMOTE_BUILD_OK");')),'persist actual changed hunks with surrounding context, not just old/new arguments')
+  let success
+  if(legacyPtcMetadata){
+   const successfulEdits=edits.filter(event=>event.data.callId!==failedCall.data.callId)
+   assert.equal(successfulEdits.length,1,'the complete seven-step task must include one successful edit')
+   success=resultEvents.find(event=>event.data.message?.toolCallId===successfulEdits[0].data.callId&&!event.data.message.isError)
+   assert.ok(success,'the successful nested edit must persist its ordinary result')
+   const nested=status.events.filter(event=>event.type==='tool/ptc-dispatch')
+   assert.ok(nested.some(event=>event.data.name==='rw_exec'),'the same task must execute real nested compiler commands')
+   assert.ok(nested.every(event=>event.data.meta===undefined),'this old host omits all nested presentation metadata, including command metadata')
+   assert.ok(resultEvents.every(event=>event.data.meta?.applied!==true),'the old host must not invent an applied marker')
+  }else{
+   success=resultEvents.find(event=>event.data.meta?.kind==='dsh-remote.change'&&event.data.meta.applied===true)
+   assert.ok(success,'the successful Agent edit must persist applied metadata')
+   assert.equal(success.data.meta.path,project+'/src/main.c')
+   assert.equal(success.data.meta.additions,1);assert.equal(success.data.meta.deletions,1)
+   assert.ok(success.data.meta.diffs.some(diff=>diff.oldText.includes('#include <stdio.h>')&&diff.newText.includes('return 0;')&&diff.newText.includes('puts("REMOTE_BUILD_OK");')),'persist actual changed hunks with surrounding context, not just old/new arguments')
+  }
   const successText=success.data.message.content.filter(part=>part.type==='text').map(part=>part.text).join('\n')
   assert.equal(successText,`edited ${project}/src/main.c: replaced 1 occurrence(s)`)
   const modelResult=status.modelResults.find(message=>message.toolCallId===success.data.message.toolCallId)||
@@ -143,19 +160,38 @@ try {
   if(process.env.IT_AGENT_PTC!=='1')assert.equal(modelText,successText,'model-visible output remains unchanged by UI metadata')
   else assert.ok(modelText.includes(successText),'PTC returns the ordinary edit output through run_code')
   assert.doesNotMatch(modelText,/oldText|newText|dsh-remote\.change|"diffs"/)
-  const applied=page.locator('[data-rw-agent-tool=rw_edit] [data-rw-applied-change]').first()
-  await applied.waitFor();assert.match(await applied.innerText(),/已应用到远端/)
-  assert.match(await applied.innerText(),/\+1\s*−1/)
-  assert.match(await applied.innerText(),/#include <stdio.h>/)
-  assert.match(await applied.innerText(),/puts\("REMOTE_BUILD_OK"\);/)
-  assert.equal(await applied.locator('.dsh-rw-change-hunk').count(),0,'this host must render its shared native DiffBlock, not the fallback details preview')
-  await applied.scrollIntoViewIfNeeded();await page.screenshot({path:path.join(artifactDir,'agent-applied-diff.png')})
+  if(legacyPtcMetadata){
+   const row=page.locator('[data-rw-agent-tool=rw_edit][data-rw-agent-status=completed]').first()
+   await row.waitFor()
+   const header=row.locator('button[aria-expanded]').first()
+   if(await header.getAttribute('aria-expanded')==='false')await header.click()
+   assert.equal(await page.locator('[data-rw-applied-change]').count(),0,'without persisted metadata no card may claim an applied diff')
+   assert.match(await row.innerText(),/请求的替换片段/)
+   assert.match(await row.innerText(),/记录未保存完整差异/)
+   const snippets=row.locator('.dsh-rw-agent-output')
+   assert.equal(await snippets.nth(0).innerText(),'puts("REMOTE_BUILD_OK")')
+   assert.equal(await snippets.nth(1).innerText(),'puts("REMOTE_BUILD_OK");')
+   assert.equal(await snippets.nth(2).innerText(),successText)
+   assert.doesNotMatch(await row.innerText(),/已应用到远端|#include <stdio.h>/,'requested fragments must not become a fabricated full-context applied diff')
+   await row.scrollIntoViewIfNeeded();await page.screenshot({path:path.join(artifactDir,'agent-legacy-edit-snippets.png')})
+  }else{
+   const applied=page.locator('[data-rw-agent-tool=rw_edit] [data-rw-applied-change]').first()
+   await applied.waitFor();assert.match(await applied.innerText(),/已应用到远端/)
+   assert.match(await applied.innerText(),/\+1\s*−1/)
+   assert.match(await applied.innerText(),/#include <stdio.h>/)
+   assert.match(await applied.innerText(),/puts\("REMOTE_BUILD_OK"\);/)
+   assert.equal(await applied.locator('.dsh-rw-change-hunk').count(),0,'this host must render its shared native DiffBlock, not the fallback details preview')
+   await applied.scrollIntoViewIfNeeded();await page.screenshot({path:path.join(artifactDir,'agent-applied-diff.png')})
+  }
   const failedRow=page.locator('[data-rw-agent-tool=rw_edit][data-rw-agent-status=failed]').first()
   await failedRow.waitFor();assert.equal(await failedRow.locator('[data-rw-applied-change]').count(),0)
   assert.doesNotMatch(await failedRow.innerText(),/已应用到远端/)
+  assert.doesNotMatch(await failedRow.innerText(),/请求的替换片段/,'a rejected edit must not be presented as a completed replacement')
   assert.match(await failedRow.innerText(),/old text not found/)
   await failedRow.scrollIntoViewIfNeeded();await page.screenshot({path:path.join(artifactDir,'agent-rejected-edit.png')})
-  console.log('PASS: real Agent rejected edit has no applied marker; successful edit shows the shared native DiffBlock, actual context and counts; ordinary model-facing edit text is unchanged.')
+  console.log(legacyPtcMetadata
+   ?'PASS: full seven-step task; DSH tools 0.2.0-rc.2 PTC HOST LIMITATION: nested presentation metadata is not recorded. Successful edit shows requested before/after snippets and ordinary output; no fabricated applied diff; rejected edit stays failed; model output contains no diff metadata.'
+   :'PASS: real Agent rejected edit has no applied marker; successful edit shows the shared native DiffBlock, actual context and counts; ordinary model-facing edit text is unchanged.')
  }
  await compileRow.getByRole('button',{name:'打开 src/main.c 第 3 行',exact:true}).click()
  const file=page.locator('[data-rw-file]')

@@ -260,6 +260,8 @@ Agent 浏览器验收新增原生“工作区文件”点击：在任务完成�
 
 `file-save-integrity.test.js`、`remote-write.test.js`、`editor-save-lifecycle.test.js` 验证同秒同大小外部修改、CRLF、符号链接/权限、写失败、保存期间继续输入与恢复原文。`file-change-tools.test.js` 和 Agent 集成测试核对实际应用差异元数据，模型可见结果仍保持简洁。
 
+`IT_AGENT_APPLIED_DIFF=1` 的 Agent 浏览器验收完整执行 7 步：读取 → 实际编译失败 → 拒绝不匹配编辑 → 成功编辑 → 编译 → 运行 → 汇报。DSH 0.2.0-rc.2 的工具运行器仅对顶层调用生成 `presentationMeta`，且不将其写入 `tool/ptc-dispatch`；这同时影响 PTC 的编辑和命令展示元数据。脚本按实际安装的 `@deepseek-ai/dsh-tools` 版本，仅对 **0.2.0-rc.2 + PTC** 验证真实执行结果、请求的前后替换片段、失败状态、没有虚假“已应用”标记以及模型消息不含 diff 元数据，并明确打印宿主限制；不跳过任务、不修补宿主、不把展示信息塞入模型输出。0.2.0 原生调用及已验收的 0.2.1-rc.5 / 0.2.2-rc.1 原生和 PTC 调用仍严格要求持久化的真实 diff、上下文和增删行数。没有元数据的记录只能回退为替换片段，不能据此推断完整已应用差异。
+
 `ide-mode.test.js` 验证列宽夹持、偏好持久化、可选宿主服务以及停靠后原始属性、inert 与 CSS 变量的完整恢复。IDE 通过兼容适配原生宿主面板，不复制会话 React 树；未来宿主标记变化可能需要更新适配。
 
 jsdiff 的最小源码集合保留原 BSD-3-Clause 许可；`node scripts/vendor-diff.mjs` 可从锁定的开发依赖重建，CI 比较结果。覆盖率门禁统计第一方代码，第三方源码不计入；整体与逐文件阈值保持不变。

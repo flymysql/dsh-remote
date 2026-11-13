@@ -1,417 +1,67 @@
 [English](https://github.com/flymysql/dsh-remote/blob/main/README.en.md) · **中文**
 
----
-
 # dsh-remote
 
-[![npm version](https://img.shields.io/npm/v/dsh-remote)](https://www.npmjs.com/package/dsh-remote)
-[![downloads](https://img.shields.io/npm/dw/dsh-remote)](https://www.npmjs.com/package/dsh-remote)
-[![downloads](https://img.shields.io/npm/dm/dsh-remote)](https://www.npmjs.com/package/dsh-remote)
-[![license](https://img.shields.io/github/license/flymysql/dsh-remote)](https://github.com/flymysql/dsh-remote/blob/main/LICENSE)
-[![dsh-plugin](https://img.shields.io/badge/topic-dsh--plugin-7a3ef3)](https://github.com/topics/dsh-plugin)
+[![npm](https://img.shields.io/npm/v/dsh-remote)](https://www.npmjs.com/package/dsh-remote) [![MIT](https://img.shields.io/github/license/flymysql/dsh-remote)](https://github.com/flymysql/dsh-remote/blob/main/LICENSE)
 
-由 [@flymysql](https://github.com/flymysql) 维护 · [主页](https://flymysql.github.io/dsh-remote/) · [用量统计](https://flymysql.github.io/dsh-remote/stats/) · [博客](https://gitpull.cn) · [讨论区](https://github.com/flymysql/dsh-remote/discussions) · [Issue](https://github.com/flymysql/dsh-remote/issues) · [English](https://github.com/flymysql/dsh-remote/blob/main/README.en.md)
+在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 中，把 SSH 主机变成日常开发工作区：浏览远程文件、编辑代码、运行终端，让 Agent 在同一远端完成任务。多个工作区可并行连接不同主机。
 
-![dsh-remote —— 把任意 SSH 机器变成真正的 DSH 工作区](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/cover.png)
+**IDE 模式：左侧文件，中间编辑器，右侧原生 Agent 会话。** 可调整栏宽；窄屏切换文件、编辑器与会话。切回普通布局保留任务和未保存编辑。
 
-**为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）打造的远程工作助手。**
-
-维护多台 SSH 机器，然后在「选择工作区」时选一个**远程工作区**（或**本地工作区**），Agent 就能在不离开 harness 的情况下直接操作——列文件、读代码、在远程主机上跑构建/命令，并把远程目录镜像成一个真实的本地工作区对象。
-
-DSH 的 Web 界面刻意只监听 `127.0.0.1`（CLI 为安全拒绝 `--host 0.0.0.0`）。本插件反过来：**由你主动连出**到你维护的机器，选一个工作区，然后通过 DSH 原生的工作区 + 文件流来工作——**不改动 `dsh-workspace` 核心**。
-
-反过来也成立：**你可以把远端那台机器的 DSH 网页界面，当成本机浏览器里的一个页面打开**——同样不需要在远端开放任何端口（详见 [在本地打开远程机器上的 DSH 界面](#在本地打开远程机器上的-dsh-界面)）。远端 dsh 需要你先装好（插件不再代装）。
-
-## 1.0 工作区体验
-
-最近远程项目可直接搜索并打开；文件树保留会话上下文，文件以原生标签页查看和编辑。Agent 的远程命令展示实际退出码、耗时和编译诊断，点击诊断可打开远程文件对应行。文件支持查找、换行、Markdown 预览和保存快捷键，重新打开会读取 Agent 的最新修改。
-
-未保存草稿保存在当前页面内存，离开页面前会提醒；浏览器崩溃或强制退出仍可能丢失。文件栏直接访问远端；镜像通过 `rw_sync` / `rw_push` 按需同步，或显式启用 autoPush。同步完成表示该次操作的结果，不保证之后两端持续相等。
-
-新界面以 DSH Web 0.2.x 为主要验收目标；DSH 0.2.2 要求 Node.js ≥24.9。旧宿主缺少扩展接口时使用现有回退路径。本插件不提供远端语言服务、扩展宿主或调试器托管；Git 面板用于只读检查远端改动。
-
-## 界面预览
-
-**Agent 编译诊断与远程源码定位** —— 查看实际退出码和错误，点击诊断进入远程文件对应行：
-
-<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-agent.png" alt="Agent 远程编译错误、退出码与源码行定位" width="1000"/>
-
-**文件查看与查找** —— 行号、语法高亮、匹配跳转和自动换行：
-
-<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-file.png" alt="远程文件中的查找、匹配计数、换行和高亮" width="620"/>
-
-**原生远程终端** —— 明确启动 remote ssh，进入当前会话的远程目录：
-
-<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-terminal.png" alt="DSH 原生远程终端实际输入与命令输出" width="1000"/>
-
-**主机设置** —— 自动检测连通性与耗时，配置和工作区操作分开：
-
-<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/settings-panel.png" alt="远程主机设置：独立连接检测与耗时，编辑和删除主机，无全局当前主机或目录选择" width="1000"/>
-
-## 功能
-
-![1.0 核心能力：最近项目、文件、Agent 结果、远程终端、镜像同步与恢复](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/features.png)
-
-上图是能力总览；下面只列**上图没说清、但用起来需要知道**的部分。
-
-### 日常开发主路径
-
-- **IDE 模式**：远程会话可切换为左侧文件树、中间原生编辑区、右侧原生会话的布局，支持调整栏宽；窄屏通过文件、编辑器、会话切换。切回普通模式时保留会话、任务和未保存编辑；缺少所需原生接口的宿主会提示返回普通模式。
-- **文件与会话一起工作**：原生文件树直接读取当前会话绑定的远端目录，文件在标签页中打开，支持代码高亮、文件内查找、行号定位、编辑和保存；无需先把项目同步到本地镜像。
-- **递归搜索远端项目**：搜索文件与目录名称、仅文件、仅目录，或文件内容。输入后立即显示准备状态，默认只保留状态、结果与扫描摘要，可停止和重新搜索；展开「扫描详情」查看目录、文件、耗时与跳过项。结果支持展开目标目录，或打开内容匹配的对应行；默认跳过依赖、构建目录和配置的忽略项，展开「搜索选项」可切换包含忽略目录、区分大小写。达到数量或时间上限会提示部分结果。
-- **只读查看远端 Git 改动**：从文件树打开分支与改动列表，分别查看工作区和已暂存 diff，筛选文件，点击 diff 行进入远程源码。读取远端仓库，不依赖镜像中的 `.git`；面板不提交或修改暂存区。
-- **保存时保护已有修改**：远程编辑使用内容 revision/hash 检测外部修改，包括时间戳未变的内容变化，冲突时保留草稿。CRLF 文件保存后保留换行格式；保存期间继续输入、切换文件或会话时，较早请求的响应不会清掉较新的输入。写入先落入相邻临时文件、复核后替换，这是乐观冲突检测，不是跨进程文件锁。
-- **看清 Agent 实际改动**：Agent 的远程写入、编辑与追加成功后，在工具卡中展示已应用的 diff、增删行数和路径；大文件、二进制或无法取得基线时说明预览范围。命令卡继续展示实际退出码、构建输出和可点击的编译诊断。
-- **目录选择与终端细节**：浏览目录时列表占据弹窗主要区域，固定路径和操作栏，支持键盘进入、返回与取消；640px 高窗口能看到 8 行目录。远程终端以轻量的 DSH 像素鱼欢迎图替代重复的连接说明，随后交给真实 SSH shell。
-
-**远程搜索进度** —— 扫描尚未在文件树展开的目录，并显示实际进度：
-
-<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-search-progress.png" alt="远端递归搜索进行中：已扫描目录、文件、耗时与停止操作" width="675"/>
-
-**搜索结果** —— 区分文件和目录，点击进入远端位置：
-
-<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-search-results.png" alt="远程工作区递归名称搜索结果，包含嵌套目录和文件" width="675"/>
-
-**远端 Git** —— 分开查看工作区与已暂存改动，并从 diff 定位源码：
-
-<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-git.png" alt="只读远端 Git 改动与工作区 diff" width="675"/>
-
-**选择工作目录** —— 浏览列表使用弹窗主要高度，确认后再创建工作区：
-
-<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workspace-picker-browse.png" alt="远程工作目录选择器：固定路径和操作栏，紧凑窗口可见八行目录" width="720"/>
-
-其余要点：
-
-- **21 个模型工具**（便于复制/检索）：`rw_info`、`rw_connect`、`rw_machines`、`rw_pick_workspace`、`rw_list_dir`、`rw_stat`、`rw_read_file`、`rw_write_file`、`rw_edit`、`rw_append`、`rw_mkdir`、`rw_remove`、`rw_move`、`rw_exec`、`rw_search`、`rw_download`、`rw_upload`、`rw_sync`、`rw_push`、`rw_forward`、`rw_disconnect`。
-- **会话列表里区分本地/远程**（`0.8.43+`）—— 远程会话的行首有一个**绿点**，悬停显示 `user@host:port` 与远端路径；打开该会话后，标题栏还会常显一个主机标签（本地会话两者都没有）。判定只看会话 cwd 是否落在 `$DSH_HOME/remote-workspaces/…` 镜像里，所以「保存过但没在用」的机器不会给本地会话打标。
-- **远程会话的终端开箱即在远端**（`0.8.75+`）—— 侧栏终端的 shell 菜单里有插件贡献的 **remote ssh**：按 cwd 智能路由（远程镜像 → `ssh` 进远端工作目录；本地会话 → 自动回落本地 shell），在没人占位时它还是**默认 shell**。已保存的密码由本机凭据桥自动应答（`0.8.81+`，含操作系统钥匙串里的），不会再每次开终端都问一遍 `password:`。
-- **远程文件预览带行号与语法高亮**（`0.8.86+`）—— 代码文件用宿主自家的 Shiki 引擎着色；AI 回答里的 `文件:行号`（或 `#L行号`）链接点开直接落到那一行并闪烁提示。
-- **远程项目技能无需先同步**（issue #120）—— 远程工作区的 `.dsh/skills` 与 `.agents/skills` 会直接进入 DSH 技能目录，支持目录型 `SKILL.md` 和顶层 `.md`，完整正文按需经 SFTP 加载；同名时远端内容优先于本地镜像副本。技能里引用相邻资源时用 `rw_list_dir` / `rw_read_file` 读取。写入、推送、autoPush 会立即失效目录缓存；后台或外部进程的修改由每 5 分钟一次的**只失效、不联网**刷新兜底，不会制造定时 SFTP 流量。普通本地会话仍只使用宿主原有技能目录。
-- **把远端机器的 DSH 界面挂到本机**（`0.8.36+`）—— 不用在远端开任何端口：插件主动 SSH 连过去，在远端**只监听 `127.0.0.1`** 地起一个 `dsh web`，再把端口经隧道搬回本机的一个 loopback 端口。地址带一次性登录令牌，只在本机这次跳转里用一次。
-- **审计日志可以在本机直接打开** —— 面板里预览最近条目，另有「打开日志文件」「在文件夹中显示」直接调用本机程序打开那个日志（日志在运行 DSH 的机器上，浏览器打不开它）。
-- **远端跨平台** —— 文件访问走 SFTP 协议层（不依赖 POSIX shell），Linux/macOS/Windows 远端都能列/读/写/搜索/同步。
-- **Windows 主机** —— 自动探测平台并定位 Git Bash，命令经 `bash -s` 走 stdin 执行，不受引号/反斜杠转义困扰（`config.shell` 可指定或设 `native` 关闭）；`C:\Users\dev` 与 `/c/Users/dev` 两种写法都接受。
-- **长任务异步化** —— `rw_sync`/`rw_push` 传 `async: true` 返回 `taskId`，可查询进度/结果/取消。
-- **数据跟随 Harness 根目录** —— 机器清单与镜像在 `$DSH_HOME/remote-workspaces`；0.6 之前的数据首次启动自动迁移。
-- **`~/.ssh/config` 是连接四字段的唯一来源**（`0.8.50+`，issue #50）—— 保存机器时把 主机/用户/端口/私钥 写入 `~/.ssh/config` 的受管块（`# dsh-remote: managed` 标记，只动自己的块；你手写的同名 Host 块绝不覆盖，会提示冲突）。之后**改这个文件立即生效**：任何 Host 块点名的主机（含字面 IP），连接都按文件解析（裸 `Host *` 是通用默认，不算点名）；机器记录里的副本只做兜底，插件自己的状态（最近工作区/延迟等）仍存注册表。
-- **不改动 `dsh-workspace` 官方代码** —— 全部作为普通插件实现。
-- **终端界面（dsh-tui）里也有页面** —— `/dsh-remote` 打开服务器管理页（增删改/连接/浏览远端目录），浏览时按 `w` 把当前目录设为工作区；同样不改 dsh-tui 本体。见下文「在 TUI 里使用」。
-
-## 1.0.1 升级修复
-
-自动更新支持运行中切换模式、立即检查、默认每 30 分钟检查、失败重试与状态提示；磁盘已升级时会尝试切换运行版本。
-
-支持 DSH 0.2.1-rc.5。升级时会替换页面残留的旧样式；“编辑 SSH 配置”直接打开内置编辑器，支持保存、快捷键与外部修改冲突保护。远程会话点击原生“工作区文件”入口，会显示并读取该会话的远程目录；无需先同步到本地镜像。
-
-通过 CLI 更新插件后，请完整重启 DSH Web 并刷新浏览器，使前后端同时切换。设置页会提示仍在运行的旧服务版本。
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-ide.png" alt="DSH 远程工作区 IDE 模式：远程文件树、代码编辑器和原生 Agent 会话三栏" width="1200"/>
 
 ## 安装
 
-### DSH 版本兼容性
-
-同时支持 `0.1.x` 与 `0.2.x` 两条 DSH 线。DSH 会在导入 bundle **之前**校验所有 `@deepseek-ai/dsh-*` 的 peer 范围，**任一条不匹配就整包丢弃**（没有设置页、没有 `rw_*` 工具）：
-
-```
-dsh: skipping profile bundle "dsh-remote": Error: Plugin dsh-remote@… is incompatible …
-```
-
-caret 在 `0.x` 上会锁死小版本线（`^0.1.x` 容不下 `0.2.x`，反之亦然），所以自 **0.8.29** 起改为跨线区间 `>=0.1.0-rc.6 <0.3.0`。1.0 另为 npm 安装补充明确的预发布范围，覆盖 0.1.5、0.1.7、0.2.0、0.2.1 与 0.2.2 的 RC 版本。**低于 0.8.29 请在升级 DSH 前先升级本插件**。
-
-### 官方 Desktop 兼容适配（实验性）
-
-对 [DeepSeek 官方 Desktop](https://github.com/deepseek-ai/deepseek-harness) 的适配（以 `0.1.5-rc.2` Host 协议验证，不修改 Harness 核心）：
-
-- 经 `ctx.connection.fetch` 注册 `/api/dsh-remote/*`，由 Desktop 的 `dsh-app:` 通道承载，不启动 Web Server。
-- 经 `sidebarRightTabs` 提供原生「远程文件」入口，不把远端路径传给本地预览器。
-- `dsh-better-sidebar` 不再内置；官方 Desktop 用原生右侧栏，不需要它。
-
-已验证 Host 启动、IPC 请求、真实 SSH 的只读连接/列目录/读文件，以及双机会话路由（侧栏 `/ls` `/read` `/write` `/fs` 带 `sessionId` 时按会话选机）。原生文件 tab 的完整 GUI、失败/取消交互、非 macOS 宿主仍属实验性。Desktop 安装器可能需为 `ssh2` / `cpu-features` 可选构建脚本配置策略。
-
-### 已发布的 Web bundle
-
 ```bash
-dsh plugin add dsh-remote
-```
-
-插件只安装并挂载自身。DSH Web 的原生侧栏支持远程文件浏览、编辑和终端；[dsh-better-sidebar](https://www.npmjs.com/package/dsh-better-sidebar) 为可选集成，无需安装即可使用工作区与 Agent 工具。
-
-> **从 0.7.2–0.8.17 升级：** 内嵌侧边栏会消失，旧 profile 里 `id: dsh-remote-sidebar` 的覆盖可以删除。
-
-（或 `npm install dsh-remote`，再在 `cordis.patch.yml` 加 `- id: dsh-remote / name: dsh-remote`。）
-
-## 快速上手
-
-1. **配置主机** —— 设置 → 远程工作区：列出 `~/.ssh/config` 与已保存的主机，打开页面自动检测 SSH 连通性并显示耗时。检测只验证连接，不选目录、不切换工作区，也不要求先“连接”。点「编辑 SSH 配置」添加 Host 段，再「刷新」；已保存主机的更多菜单可编辑密码、认证方式等配置。
-2. **新建远程工作区** —— 从侧栏「添加工作区」进入远程项目选择器，选择主机与远程目录，或直接打开最近项目。确认后创建/复用本地镜像并由宿主打开工作区。每个工作区独立绑定主机，可同时在多台远程主机上工作，设置页没有“当前远程机”。本机项目仍可通过系统文件夹选择或内置目录浏览器打开。
-3. **让 Agent 工作** —— 当作普通工作区使用，例如 `rw_read_file` / `rw_write_file` / `rw_edit` / `rw_exec` / `rw_search` / `rw_sync` / `rw_push` / `rw_forward`（完整列表见上文）。
-
-> **Remote context 是 session 级的**：只有当前 session 的工作区是某个远程镜像时，system prompt 才注入「Remote workspace」段落；普通本地 session 不受影响，模型也不会主动调 `rw_*`。
-
-## 在本地打开远程机器上的 DSH 界面
-
-远程机器上那个 `dsh web` 也可以**当成本机的一个页面打开**（issue #46）。方向仍然是「本地主动连出去」：
-
-> **远端不需要开放任何端口**。DSH 刻意拒绝 `--host 0.0.0.0`（它会把远程代码执行能力暴露到网络上），
-> 所以正确的做法是由本机 SSH 连过去，在远端**只监听 127.0.0.1** 地起一个 `dsh web`，
-> 再把它的端口经 SSH 隧道搬回本机的一个 loopback 端口。
-
-用法：设置 → 远程工作区 → **「远程 DSH 界面」** → 选一台机器 → **连接并打开**。
-浏览器会新开一个标签页，显示的就是**那台远端机器**的完整 DSH 界面（聊天、工具树、设置都在）。
-
-- 界面地址形如 `http://127.0.0.1:3088/?token=…`。那个 token 是远端进程启动时打印的一次性凭据，
-  只在**本机**的这次跳转里用一次：DSH 会把它换成 30 天有效的签名 cookie 并跳转到干净的 `/`。
-  **请不要把这个带 token 的地址外发**。
-- 「断开」只关隧道，**不会**杀掉远端进程（它可能是你在别处也在用的实例）；
-  要连远端进程一起停，用「断开并停止远端」——它只会结束**本次由插件启动**的那个进程。
-- 若远端已经在跑一个界面（比如你自己在终端里起的），可以选机器后把它的
-  `http://127.0.0.1:<端口>/?token=…` 粘进输入框，点「连接已有实例」，插件不会再去启第二个。
-- 如果远端有**开机自启 / 常驻的 DSH**，不必每次手工粘贴：在机器卡片 →「高级」→「常驻实例发现命令」
-  配置 `webAttachDiscoverCommand`（仅按机器设置，留空则保持原来的总是新启行为）。点「连接并打开」时，
-  插件先在远端执行这条命令，取 stdout 中最后一个带端口和 token 的 `http(s)://…` 地址；探活成功就复用
-  常驻实例，不启动第二个进程，断开时也绝不会停掉它。无输出、命令失败或超过 8 秒、地址探活失败，
-  都会回退到原来的新启流程，并在界面上说明原因。发现命令的原始输出和 token 不写入审计日志。
-
-  让常驻实例的启动脚本把启动地址保存到 `$HOME/.dsh-web-url`（Windows 为 `%USERPROFILE%\.dsh-web-url`），
-  文件内容就是一行 `http://127.0.0.1:<端口>/?token=…`，然后按远端平台配置：
-
-  ```bash
-  # Linux / macOS（sh / bash）
-  cat "$HOME/.dsh-web-url" 2>/dev/null
-
-  # Windows 远端（PowerShell；cmd 或 PowerShell 作为默认 SSH shell 均可）
-  powershell -NoProfile -Command "Get-Content $env:USERPROFILE\.dsh-web-url -ErrorAction SilentlyContinue"
-  ```
-
-  发现命令按远端的**登录 shell** 原样执行，不由插件改写成 POSIX 命令，因此 Windows 远端可以直接用
-  PowerShell；文件不存在时 PowerShell 安静返回空输出，插件随即新启一个实例。
-- 远端 `dsh` 不在 SSH 登录 PATH 时，用 `webAttachCommand` 指向它的绝对路径；
-  想让它别污染远端用户自己的会话/设置，用 `webAttachDshHome` 指一个临时目录。
-  **按机器设**：设置 → 远程工作区 → 机器卡片 → 展开「高级」→「远端 dsh 命令」，
-  填绝对路径即可（例如
-  `/home/you/.nvm/versions/node/v22.19.0/bin/node /home/you/.dsh-remote/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js`）；
-  留空则用全局的 `webAttachCommand`。
-- 隧道跟着 SSH 连接走：连接断了界面会显示「连接已断开」，**不会**影响本机 DSH 进程；
-  池自动重连后插件会重新解析远端端口（必要时重启它自己启动的那个远端进程），界面点「重连」即可继续用。
-- 远端 node 需要 **≥ 20.12**（dsh 启动要用 `node:util` 的 `parseEnv`，该导出从 20.12 起才有）。
-  更旧的 node 上 npm 只会给 EBADENGINE 警告、照样把包装完，直到启动才崩在
-  `does not provide an export named 'parseEnv'`，所以装之前先确认版本。
-
-## 在 TUI（dsh-tui）里使用
-
-插件自带 TUI 适配层：装进 `dsh-tui` profile 后，同一份机器清单、SSH 池和远程工作区在
-终端界面里也能用，**不修改 dsh-tui 本体**（全部通过它的插件接缝注册）。
-
-```bash
-# 已装好 dsh-tui 的机器只需这一条；本地开发可直接给绝对路径
-dsh plugin --profile dsh-tui add dsh-remote
-# 或：dsh plugin --profile dsh-tui add /path/to/dsh-remote
-```
-
-装完重启 dsh-tui 生效。装好之后你会得到：
-
-- `/dsh-remote` 全屏服务器管理页（增删改 / 连接 / 探测 / 浏览远端目录 / 设为工作区 / 清理）；
-- `/workspace` 选择器里直接列远程项目（或用 `dshremote://<机器>/<远端路径>` 直达）；
-- 底栏状态行显示当前远程机器（仅远程会话，悬停有详情）。
-
-Web profile 不受影响：TUI 层在缺少终端接缝时静默关闭。按键速查、三档清理语义、宿主 API
-契约与限制都在 **[docs/tui.md](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/tui.md)**。
-
-## 可选：CLI 默认机
-
-可在 `cordis.patch.yml` 提供默认机：
-
-```yaml
-# 示例：请换成你自己的机器
-- id: dsh-remote
-  name: dsh-remote
-  config:
-    host: 203.0.113.10   # 或你的真实主机 / hostname
-    port: 22
-    username: dev
-    privateKeyPath: ~/.ssh/id_rsa
-    # 或用密码登录：
-    # password: '…'
-    workspace: ~/project
-```
-
-若 `host` 为空，插件启动时处于断开状态，在 UI 里配置机器即可。
-
-## 常用命令（安装 / 查看 / 启动）
-
-DSH 的 `dsh` 可能不在某些 shell 的 PATH（比如 Windows PowerShell 里在某个仓库目录下），所以同时列出 `dsh` 与 `npx` 两种写法。操作都要用 `--profile <name>` 指定 profile（一般 `web`）：
-
-```bash
-# 安装（从 npm 拉到 profile）
 dsh plugin --profile web add dsh-remote
-# 同一效果：当 `dsh` 不在 PATH 时用 npx
-npx --yes @deepseek-ai/dsh plugin --profile web add dsh-remote
-
-# 确认已装
-dsh plugin --profile web list
-npx --yes @deepseek-ai/dsh plugin --profile web list
-
-# 启动 web 界面（重载 profile，新插件在启动时生效）
-dsh --profile web
-npx --yes @deepseek-ai/dsh --profile web   # 访问 http://127.0.0.1:3080
-
-# 迭代用本地源码替换 npm 版（便于改 dsh 插件代码后即测）
-npx --yes @deepseek-ai/dsh plugin --profile web add D:/path/to/dsh-remote
-npx --yes @deepseek-ai/dsh plugin --profile web remove dsh-remote   # 恢复用发行版
 ```
 
-启动成功后，设置 →「远程工作区」会出现；「Add workspace」流程会带「本机 / 远程」两个 tab（见上方效果图）。
+安装或升级后，重启 DSH Web 并刷新页面。自动更新状态在设置 → 远程工作区 → 插件偏好中查看。
 
-## 开发（沙箱优先，勿改产品）
+## 3 步开始
 
-迭代一律在沙箱里做——手工改产品 profile 会被插件管理器在重装时还原：
+1. **配置主机**：设置 → 远程工作区，编辑 SSH 配置或保存主机凭据；打开设置会自动检查连通性，无需手动“连接”。
+2. **创建工作区**：添加工作区 → 远程，选择主机与目录。每个工作区独立绑定主机，设置页不选目录或“当前远程机”。
+3. **开始开发**：打开工作区文件或切换 IDE 模式，在远端编辑、搜索、运行命令并与 Agent 协作。
 
-```bash
-scripts/dev-run.sh --restart   # 启动 / 重启隔离沙箱
-scripts/dev-run.sh --stop      # 停止
-scripts/dev-run.sh --status    # 是否在运行
-```
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workspace-picker-browse.png" alt="选择远程目录：固定路径与确认栏，目录列表占据弹窗主要区域" width="720"/>
 
-- 沙箱自带独立 DSH 实例（仓库内 `dev-harness/harness`），UI 在 `http://127.0.0.1:50599`。
-- **宿主半**（`lib/index.js`）改动需 `--restart`；**客户端半**（`lib/client.js`）改动刷新页面即可。
-- 脚本用**硬链接拷贝**把 `lib/` 放进沙箱而非软链——软链会破坏 `@deepseek-ai/*` 的解析。
-- 提交前跑 `node check.mjs`（框架约束闸门）与 `npm test`；`scripts/boot-smoke.sh` 证明插件仍能启动。
-- 完整规则见 `scripts/dev-standards.md`。
+## 日常开发
 
-部署到产品 profile 是单独的受控动作（`./sync.sh`），只在确定要发布时做。
+### 搜索远端文件与内容
 
-## 配置
+文件、目录和内容递归搜索，无需先展开目录或同步镜像。默认界面只显示搜索范围与进度摘要；按需展开搜索选项、扫描详情，支持大小写、忽略项、停止与重试。点击结果进入目录或文件对应行。
 
-| 键 | 类型 | 默认 | 说明 |
-| --- | --- | --- | --- |
-| `host` | string | `''` | 默认 SSH 主机（空=断开） |
-| `port` | int | `22` | 默认 SSH 端口 |
-| `username` | string | `''` | 默认 SSH 用户 |
-| `password` | string | `''` | 默认 SSH 密码（非空覆盖 key） |
-| `privateKeyPath` | string | `''` | 私钥路径（仅在显式提供时使用） |
-| `passphrase` | string | `''` | 加密私钥的 passphrase |
-| `workspace` | string | `''` | 默认远程工作区路径 |
-| `shell` | string | `''` | 远程命令终端策略：`''`=自动检测（Windows 找 Git Bash）、`'git-bash'`=优先 Git Bash、`'native'`=不包装、其他=显式 bash.exe 路径（如 `C:\Program Files\Git\bin\bash.exe`） |
-| `commandTimeoutMs` | int | 20000 | 单条远程命令超时 |
-| `connectTimeoutMs` | int | 15000 | SSH 连接超时 |
-| `maxOutputChars` | int | 200000 | 单条远程命令捕获的 stdout/stderr 上限 |
-| `maxFileBytes` | int | 52428800 | 镜像同步时跳过超过该大小的文件（0=不设上限） |
-| `hostKeyMode` | string | `accept-new` | 主机指纹策略：`accept-new`（首次信任）、`verify`（拒绝未知主机）、`off`（跳过校验） |
-| `useAgent` | bool | `false` | 用 OpenSSH agent（`SSH_AUTH_SOCK`）认证 |
-| `keyboardInteractive` | bool | `false` | 允许 keyboard-interactive 认证（OTP/MFA）并复用配置的密码 |
-| `backend` | string | `native` | SSH 传输后端（issue #51）。`native`=内置 ssh2（密码/私钥/agent/动态码）；`openssh`=**调用本机 `ssh` 命令**，因此支持 GSSAPI/Kerberos（`kinit` 后免密）以及 `ProxyCommand`、`PKCS11Provider`、`Match` 等 OpenSSH 专有特性。**可按机器单独设置**。代价：每条命令新建一次连接（比 native 慢）；SFTP 仍复用单条长连接。主机名会被**原样**交给 ssh（`~/.ssh/config` 是配置唯一来源），主机密钥也由 ssh 用你自己的 `known_hosts` 校验 |
-| `sshBinary` | string | `''` | `openssh` 后端调用的 `ssh` 可执行文件（留空=用 PATH 里的 `ssh`） |
-| `proxy` | object | — | 跳板机：`{ host, port?, username?, password?, privateKeyPath? }`；语义是「在跳板机上连目标 host:port」，所以也能用来连跳板机上 docker 容器的 sshd（见「常见问题」里的 issue #56） |
-| `autoPush` | bool | `false` | 镜像内文件被编辑后自动推回远端（watcher，带防抖） |
-| `auditLog` | bool | `true` | 把执行的命令追加到 `$DSH_HOME/remote-workspaces/audit.log` |
-| `encoding` | string | `utf-8` | 远程文件读写的文本编码（如 `gbk`） |
-| `fileReference` | bool | `true` | 远程 `@` 补全：远程会话的 `@` 列出**远端**目录树（issue #39）；关闭则只有本地镜像 |
-| `fileReferenceMaxResults` | int | `20` | 一次 `@` 查询最多返回多少候选 |
-| `fileReferenceMaxEntries` | int | `3000` | 一棵远程工作区索引最多保留多少条目 |
-| `fileReferenceExcludedDirectories` | string[] | `[.git, node_modules, dist, build, out, coverage, target, .next, .nuxt, .turbo, .venv, __pycache__, .pytest_cache, .mypy_cache, .gradle]` | 远程 `@` 遍历跳过的目录名 |
-| `fileReferenceTimeoutMs` | int | `4000` | 一次远程索引遍历的墙钟预算（超时用已扫到的部分结果，不让光标等） |
-| `searchTimeoutMs` | int | `60000` | `rw_search` 的协作式预算（ms）：既作为工具声明的 `timeoutMs` 交给 DSH 的 timeout-policy，也是搜索自身的墙钟上限；到点返回部分结果并标 `TRUNCATED`（issue #44）。 |
-| `searchMaxEntries` | int | `50000` | `rw_search` 在返回部分结果前最多扫描多少个文件。 |
-| `updateMode` | string | `auto` | 自更新模式：`auto`=加载、切换到自动时立即检查，此后默认每 30 分钟检查并自动应用、`manual`=仅在手动检查时查、`off`=完全不查。**0.8.27 起默认 `auto`**——之所以现在才安全，是因为 0.8.24 补上了宿主半热切换 |
-| `updateCheckIntervalMs` | int | 1800000（30 分钟） | `auto` 模式检查 npm 的间隔（下限 60000） |
-| `updateAutoReload` | bool | `true` | 更新落地后自动热切换宿主半；`false` 则留到下次启动，设置页会显示 `pendingReload` |
-| `webAttachPortStart` | int | `3088` | 「远程 DSH 界面」在本机监听的起始端口（占用则顺延，仅监听 127.0.0.1） |
-| `webAttachCommand` | string | `dsh` | 在远端启动 `dsh web` 用的命令；远端 `dsh` 不在 SSH 登录 PATH 时改这里（也可按机器在设置页「高级」里单独设，机器级优先） |
-| `webAttachDshHome` | string | `''` | 远端启动时导出的 `DSH_HOME`；留空则复用远端用户自己的 harness home |
-| `webAttachWaitSeconds` | int | `45` | 等待远端 `dsh web` 打印启动令牌的秒数 |
-| `localTools` | string | `bootstrap` | 本地 session（cwd 不在远程镜像里）暴露哪些 `rw_*` 工具（issue #63）：`bootstrap`=只暴露配置闭环 `rw_machines`/`rw_connect`/`rw_pick_workspace`（其余 19 个在本地 session 必然报 "this session is LOCAL"，暴露只是白占 schema）；`none`=完全不暴露 `rw_*`（远程配置只能走设置页）；`all`=旧的 full 暴露。远程 session（cwd 在镜像里）不受影响，始终全量；非法值按 `bootstrap` 处理 |
-| `telemetry` | bool | `true` | 匿名安装心跳（日活统计，每天至多一次；内容为插件专属 HMAC 伪名+版本号，不含机器信息）。`false` 关闭（管理员路径）；0.8.78 曾有的设置页复选框已于 0.8.81 移除——已存在的用户关闭选择仍被尊重 |
-| `remoteTerminalDefault` | bool | `true` | 让 shell 菜单里的「remote ssh」启动器成为终端**默认 shell**（宿主未配置、用户未手动选择时）：远程会话开终端即落到远端工作目录，本地会话自动回落本地 shell（issue #55）；`false` 则只保留菜单项 |
-| `tui` | bool | `true` | TUI 适配层（dsh-tui）总开关；`false` 时不注册 `/dsh-remote` 页面、工作区 provider 与状态行字段 |
-| `tuiProviderListRecent` | bool | `true` | TUI 工作区选择器里是否列出每台机器最近的远程项目 |
-| `tuiProviderRecentLimit` | int | `5` | 每台机器列出的最近远程项目数（1–20） |
-| `tuiAutoSwitchWorkspace` | bool | `true` | 在浏览目录里按 `w`「设为工作区」后立即把会话切过去 |
-| `tuiLang` | string | `''` | TUI 层文案语言：`''`=自动（中文；`DSH_TUI_LANG=en` 时英文），`zh` / `en` 固定 |
-| `remoteSandbox` | string | `inherit` | 远程操作套用哪套 sandbox 语义（0.8.54+）：`inherit`=读取本机 `ctx.sandboxPolicy` 已解析的模式（read-only 拒远端写入/命令/转发，workspace-write 把远端写入围在 workspace 根内，danger-full-access 全放行）；`off`=不设围栏（旧行为）；也可显式写某一模式。**这是遏制不是安全边界**，硬边界请在远端一侧做 |
-| `credentialFallback` | string | `refuse` | 系统密钥库写密码失败时怎么办（0.8.54+）：`refuse`=不保存该密码（机器照常保存，界面报出失败原因，绝不把明文写进 machines.json）；`plain`=旧的明文回退（会警告）。主动关掉加密（`backend: plain`）不受影响 |
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-search-results.png" alt="简洁远程搜索：名称搜索结果包含嵌套目录与文件" width="675"/>
 
-> 权威清单是 `lib/index.js` 里的 `Config` schema，本表与之一致。
+### 查看远端 Git 改动
 
-## 常见问题 / 排查
+分别查看工作区和已暂存 diff，筛选文件，点击改动行定位源码。面板只读，不提交或修改暂存区。
 
-快速自救（每条一行；根因故事与设计权衡的完整版搬到了 [docs/troubleshooting.md](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/troubleshooting.md)）：
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-git.png" alt="远端 Git 工作区与已暂存改动、文件列表和源码 diff" width="675"/>
 
-- **侧边栏「文件」面板显示的是本地目录** —— 那是镜像工作副本（地基如此）；看远端实时树用
-  「远程文件」页签（0.8.82 起进入远程会话自动展开，两个右栏世界都算）。
-- **远程终端还要输密码吗？** —— 不用：存过的密码由本机凭据桥自动应答（0.8.81+）；OTP 动态码除外。
-- **远程会话的终端开箱即在远端** —— shell 菜单的 remote ssh 是默认终端（0.8.75+，
-  `remoteTerminalDefault: false` 可关）。
-- **主机指纹变了** —— `/remote forget-key`（或设置页 → 机器 → 重新信任）。
-- **连接报「认证失败」** —— 检查用户名/密码/私钥路径；加密私钥要填 Passphrase；OTP 勾选 keyboard-interactive。
-- **连不上内网机器** —— 填「跳板机」主机（可把跳板机本身先配成一台机器）；多级链路也支持。
-- **想拿容器当工作空间** —— 可以，按容器有没有暴露端口二选一，详见排障手册。
+### 在远端运行终端
 
-完整排查手册：**[docs/troubleshooting.md](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/troubleshooting.md)**（含「远程 DSH 界面连不上」专题）。
+终端进入当前会话的远程目录；像素鱼欢迎图后接真实 SSH shell。已保存凭据可自动应答，支持多终端并行。
 
-## 安全提醒
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-terminal.png" alt="DSH 远程终端：像素鱼欢迎图与实际 SSH 命令输出" width="1000"/>
 
-把凭据交给插件等于允许 Agent 以你的用户身份在该主机执行 **shell 命令**——只添加可信机器。密码存在本机文件（或钥匙串），请当作敏感数据。开启 `auditLog` 时每条命令都会记入审计日志。
+### 与 Agent 一起修改和构建
 
-## License
+工具卡展示已应用改动、实际退出码和构建输出，编译诊断可跳转源码。编辑器保存会检测远端冲突、保留 CRLF，并保护保存期间继续输入的内容。
 
-MIT
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-applied-diff.png" alt="Agent 远程编辑成功后的已应用 diff、路径与增删行数" width="485"/>
 
-## 参与贡献与致谢
+## 兼容与边界
 
-使用交流与缺陷反馈见 [SUPPORT.md](https://github.com/flymysql/dsh-remote/blob/main/SUPPORT.md)，迁移说明见 [1.0 升级指南](https://github.com/flymysql/dsh-remote/blob/main/docs/migration-1.0.md)。
+- 主要面向 **DSH Web 0.2.x**；0.2.2 需要 **Node.js ≥24.9**。旧版宿主回退、Desktop/TUI 与 Agent diff 差异见[兼容说明](https://github.com/flymysql/dsh-remote/blob/main/docs/reference.zh.md#dsh-版本兼容性)。
+- 文件栏直接访问远端；镜像按需同步。草稿在当前页面内存，崩溃或强制退出仍可能丢失。
+- 不提供远端语言服务、扩展宿主或调试器。Agent 使用配置的 SSH 身份执行命令，请只配置可信主机。
 
+## 文档与社区
 
-欢迎贡献，请先阅读 [CONTRIBUTING.md](https://github.com/flymysql/dsh-remote/blob/main/CONTRIBUTING.md)。使用问题、环境配置、「支持 XX 吗」这类讨论请走 [讨论区](https://github.com/flymysql/dsh-remote/discussions)；可复现的缺陷请提 [Issue](https://github.com/flymysql/dsh-remote/issues)。
+[完整工具与配置参考](https://github.com/flymysql/dsh-remote/blob/main/docs/reference.zh.md) · [排障](https://github.com/flymysql/dsh-remote/blob/main/docs/troubleshooting.md) · [升级指南](https://github.com/flymysql/dsh-remote/blob/main/docs/migration-1.0.md) · [更新记录](https://github.com/flymysql/dsh-remote/blob/main/CHANGELOG.md)
 
+[主页](https://flymysql.github.io/dsh-remote/) · [讨论区](https://github.com/flymysql/dsh-remote/discussions) · [反馈问题](https://github.com/flymysql/dsh-remote/issues) · [贡献指南](https://github.com/flymysql/dsh-remote/blob/main/CONTRIBUTING.md) · [贡献者与致谢](https://github.com/flymysql/dsh-remote/blob/main/docs/reference.zh.md#参与贡献与致谢)
 
-感谢每一位让这个项目更好的朋友（头像可点进主页；按提交数排序，机器人不计）：
-
-<p align="left">
-  <a href="https://github.com/flymysql"><img src="https://avatars.githubusercontent.com/u/37113068?s=80&v=4" width="40" height="40" alt="@flymysql" title="@flymysql" /></a>
-  <a href="https://github.com/baiseraku"><img src="https://avatars.githubusercontent.com/u/139727690?s=80&v=4" width="40" height="40" alt="@baiseraku" title="@baiseraku" /></a>
-  <a href="https://github.com/glzhangzhi"><img src="https://avatars.githubusercontent.com/u/36995275?s=80&v=4" width="40" height="40" alt="@glzhangzhi" title="@glzhangzhi" /></a>
-  <a href="https://github.com/hjwsm1989"><img src="https://avatars.githubusercontent.com/u/1067541?s=80&v=4" width="40" height="40" alt="@hjwsm1989" title="@hjwsm1989" /></a>
-  <a href="https://github.com/j10ha0"><img src="https://avatars.githubusercontent.com/u/72346906?s=80&v=4" width="40" height="40" alt="@j10ha0" title="@j10ha0" /></a>
-  <a href="https://github.com/FoolishWiser"><img src="https://avatars.githubusercontent.com/u/104308087?s=80&v=4" width="40" height="40" alt="@FoolishWiser" title="@FoolishWiser" /></a>
-  <a href="https://github.com/kakaa-nju"><img src="https://avatars.githubusercontent.com/u/79886619?s=80&v=4" width="40" height="40" alt="@kakaa-nju" title="@kakaa-nju" /></a>
-  <a href="https://github.com/4FMTWRV"><img src="https://avatars.githubusercontent.com/u/190457700?s=80&v=4" width="40" height="40" alt="@4FMTWRV" title="@4FMTWRV" /></a>
-  <a href="https://github.com/dahaipeng"><img src="https://avatars.githubusercontent.com/u/25660610?s=80&v=4" width="40" height="40" alt="@dahaipeng" title="@dahaipeng" /></a>
-  <a href="https://github.com/davidlin2k"><img src="https://avatars.githubusercontent.com/u/17074619?s=80&v=4" width="40" height="40" alt="@davidlin2k" title="@davidlin2k" /></a>
-  <a href="https://github.com/FlintyLemming"><img src="https://avatars.githubusercontent.com/u/19165511?s=80&v=4" width="40" height="40" alt="@FlintyLemming" title="@FlintyLemming" /></a>
-  <a href="https://github.com/GDWhisper"><img src="https://avatars.githubusercontent.com/u/129148123?s=80&v=4" width="40" height="40" alt="@GDWhisper" title="@GDWhisper" /></a>
-  <a href="https://github.com/YiHui-Liu"><img src="https://avatars.githubusercontent.com/u/30190271?s=80&v=4" width="40" height="40" alt="@YiHui-Liu" title="@YiHui-Liu" /></a>
-  <a href="https://github.com/Minggle"><img src="https://avatars.githubusercontent.com/u/35053182?s=80&v=4" width="40" height="40" alt="@Minggle" title="@Minggle" /></a>
-  <a href="https://github.com/nekomona"><img src="https://avatars.githubusercontent.com/u/25474483?s=80&v=4" width="40" height="40" alt="@nekomona" title="@nekomona" /></a>
-  <a href="https://github.com/shis23"><img src="https://avatars.githubusercontent.com/u/189869650?s=80&v=4" width="40" height="40" alt="@shis23" title="@shis23" /></a>
-</p>
-
-近期的亮点贡献（欢迎随时加入这个名单）：
-
-| 贡献者 | 做了什么 |
-| --- | --- |
-| [@baiseraku](https://github.com/baiseraku) | 整个 dsh-tui 适配层（[#92](https://github.com/flymysql/dsh-remote/pull/92)）+ 底栏机器名修正（[#98](https://github.com/flymysql/dsh-remote/pull/98)） |
-| [@hjwsm1989](https://github.com/hjwsm1989) | 远程 .md 渲染连环两道：memo 守卫（[#102](https://github.com/flymysql/dsh-remote/pull/102)）+ labels 契约（[#107](https://github.com/flymysql/dsh-remote/pull/107)） |
-| [@shis23](https://github.com/shis23) | rw_sync 路径映射纠偏 + SFTP 超时韧性（[#105](https://github.com/flymysql/dsh-remote/pull/105)） |
-| [@davidlin2k](https://github.com/davidlin2k) | 无凭据机器走用户自有 ssh（[#100](https://github.com/flymysql/dsh-remote/pull/100)） |
-| [@GDWhisper](https://github.com/GDWhisper) | 目录补全逐字符重连修复（[#42](https://github.com/flymysql/dsh-remote/pull/42)，issue #41） |
-| [@glzhangzhi](https://github.com/glzhangzhi) | 多远端会话的连接池隔离（issue #25 的主体修复） |
-
-早期已合并 PR 的贡献者（考古名单）：
-
-
-
-[@dahaipeng](https://github.com/dahaipeng) (#31) ·
-[@YiHui-Liu](https://github.com/YiHui-Liu) (#28) ·
-[@nekomona](https://github.com/nekomona) (#24) ·
-[@zhz1667](https://github.com/zhz1667) (#43) ·
-[FoolishWiser](https://github.com/FoolishWiser) (#17) ·
-[@jace1cch](https://github.com/jace1cch) (#16) ·
-[@Minggle](https://github.com/Minggle) (#10) ·
-[4FMTWRV](https://github.com/4FMTWRV) (#6) ·
-[glzhangzhi](https://github.com/glzhangzhi)（per-session SSH 连接池修复）
-
-> 名单随版本更新；头像墙之外的每一份 issue 报告、复现步骤、根因线索同样珍贵——
-> 本仓库近半修复的起点都是一条写清楚的 issue。
-
-## 变更记录
-
-见 [CHANGELOG.md](https://github.com/flymysql/dsh-remote/blob/main/CHANGELOG.md)。
+由 [@flymysql](https://github.com/flymysql) 与社区共同维护 · [MIT](https://github.com/flymysql/dsh-remote/blob/main/LICENSE)
