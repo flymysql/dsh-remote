@@ -486,21 +486,27 @@ test('a Windows client mirroring a POSIX host joins with a forward slash', async
     'the comparison is separator- and case-insensitive on the Windows side')
 })
 
-test('a drive-letter path is refused on a POSIX remote rather than invented into it', async () => {
+test('an unmappable local drive path falls back to the local editor, not the remote error pane', async () => {
   const mixed = {
     dir: 'D:\\tmp\\iso\\remote-workspaces\\host-user-22',
     host: 'host', port: 22, username: 'user', remotePath: '/srv/app',
   }
-  const { bodies } = bootWithSidebar({
+  const { types, bodies } = bootWithSidebar({
     routes: { '/dsh-remote/bindings': { mirrors: [mixed] } },
     sessions: [{ id: 'm1', cwd: mixed.dir + '\\sub' }],
   })
   await new Promise((r) => setImmediate(r))
   // `D:/elsewhere/x.c` is a LOCAL path outside the mirror. Nothing on a Linux
-  // remote can name it, so the honest answer is "cannot resolve"; inventing
-  // "/srv/app/D:/elsewhere/x.c" would show a confusing error instead.
+  // remote can name it, so the remote body refuses it instead of inventing
+  // "/srv/app/D:/elsewhere/x.c". The ROUTER must make that same decision:
+  // claiming it first and rendering file.linkUnresolved afterwards strands the
+  // user in the remote error pane even though the built-in editor can open it.
   const addr = 'dsh-resource://file/session/m1/' + encodeURIComponent('D:/elsewhere/x.c')
   assert.equal(remotePathFor(bodies, addr, 'm1'), null)
+  const remote = types.get('dsh-remote/remote-link')
+  assert.equal(remote.canOpen(addr), false, 'routing and rendering must agree on unmappable paths')
+  const localEditor = { kind: 'editor', priority: 'extension', patterns: ['dsh-resource://file/**'], canOpen: () => true }
+  assert.equal(claimFile([remote, localEditor], addr), 'editor', 'the built-in local path keeps its native opener')
 })
 
 test('the link body is registered under the same kind as the type', () => {
