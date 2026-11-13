@@ -1,9 +1,4 @@
-// Issue #73, the click path: 「列出来 → 点连接 → 选目录」.
-//
-// The route tests prove the host half adopts a ~/.ssh/config host correctly. This
-// file proves the UI does what the reporter asked for: the list is on screen, one
-// click connects (activate + probe), the RESULT lands on that row, and the flow
-// continues into the folder picker — the way VSCode Remote-SSH behaves.
+// Settings manage hosts; the workspace creation flow owns directory selection.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mountClient } from './harness/render.js'
@@ -43,80 +38,46 @@ function stub({ probe = { ok: true, latencyMs: 42, host: '10.0.0.7', user: 'depl
     if (u.includes('/dsh-remote/update-check')) return reply({ ok: true, current: '9.9.9', latest: '9.9.9', updateAvailable: false, updateMode: 'off' })
     return reply({ ok: true })
   }
-  return { ui: mountClient({ fetch }), calls }
+  return { ui: mountClient({ fetch, effectDependencies: true }), calls }
 }
 
-test('clicking 连接 on a ~/.ssh/config host adopts it, probes it, and reports on that row', async () => {
+test('opening settings automatically probes each host without adopting, selecting, or opening a workspace', async () => {
   const { ui, calls } = stub()
   try {
-    let tree = await ui.settle()
-    // The discovered host is on screen with exactly one 连接 button.
-    assert.match(ui.text(tree), /fresh/)
-    assert.match(ui.text(tree), /打开配置文件/, 'a new host is added by editing ssh config')
-    assert.doesNotMatch(ui.text(tree), /手动添加|填表/, 'the add-machine form is gone')
-    const rowButtons = ui.buttons(tree).filter((b) => /^连接$/.test(b.label))
-    assert.equal(rowButtons.length, 2, 'one 连接 for the discovered host, one for the saved machine')
-
-    // Click the FIRST one — the discovered host (list order: discovered, then saved).
-    rowButtons[0].el.props.onClick()
-    await ui.tick()
-    tree = await ui.settle()
-
-    const adopt = calls.find((c) => c.body && c.body.action === 'from-ssh-config')
-    assert.ok(adopt, 'the click must adopt the ssh-config host (no form, no alias/copy jargon)')
-    assert.equal(adopt.body.alias, 'fresh')
-
-    const probe = calls.find((c) => c.url.includes('/dsh-remote/test-connect'))
-    assert.ok(probe, 'and then PROBE it, so the row can say whether it really works')
-    assert.equal(probe.body.id, MACHINE.id, 'the probe must target the machine it just adopted')
-
-    const text = ui.text(tree)
-    assert.match(text, /已连接/, 'the row must report success')
-    assert.match(text, /42ms/, 'with the latency it measured')
+    const tree = await ui.settle()
+    const probes = calls.filter(call => call.url.includes('/test-connect'))
+    assert.equal(probes.length, 2)
+    assert.ok(probes.some(call => call.body.id === MACHINE.id))
+    assert.ok(probes.some(call => call.body.host === 'fresh' && call.body.useSshConfig === true))
+    assert.match(ui.text(tree), /可用 · 42 ms/)
+    assert.equal(calls.filter(call => call.method === 'POST' && !call.url.includes('/test-connect')).length, 0)
+    assert.equal(ui.components(tree).some(component => component.type === ui.component('sidebar.workspaces.directoryFlow')), false)
+    assert.doesNotMatch(ui.text(tree), /当前远程机|默认目标|默认目录|打开项目|最近工作区/)
+    assert.equal(ui.buttons(tree).some(button => /^(连接|选目录|打开项目)$/.test(button.label)), false)
   } finally { ui.dispose() }
 })
 
-test('a failing connect reports the reason on that row, not in a panel-level blob', async () => {
+test('a failed automatic probe reports its own host and keeps other settings usable', async () => {
   const { ui } = stub({ probe: { ok: false, error: 'Permission denied (publickey)' } })
   try {
-    let tree = await ui.settle()
-    ui.buttons(tree).filter((b) => /^连接$/.test(b.label))[0].el.props.onClick()
-    await ui.tick()
-    tree = await ui.settle()
-    const text = ui.text(tree)
-    assert.match(text, /Permission denied/, 'the failure must be visible on the row that failed')
+    const tree = await ui.settle()
+    const rows = ui.elements(tree).filter(element => element.props.className?.includes('dsh-rw-settings-host-row'))
+    assert.equal(rows.length, 2)
+    for (const row of rows) assert.match(ui.textOf(row), /不可用.*Permission denied|Permission denied.*不可用/)
+    assert.equal(ui.buttons(tree).find(button => button.label === '编辑').disabled, false)
   } finally { ui.dispose() }
 })
 
-test('after connecting, the folder picker opens so the user can pick a remote directory', async () => {
-  const { ui } = stub()
-  try {
-    let tree = await ui.settle()
-    ui.buttons(tree).filter((b) => /^连接$/.test(b.label))[0].el.props.onClick()
-    await ui.tick()
-    tree = await ui.settle()
-    // The picker is the SAME component the sidebar registers; asserting identity
-    // (not just 'some modal') is what keeps the two entry points from drifting.
-    const DirPicker = ui.component('sidebar.workspaces.directoryFlow')
-    const modals = ui.components(tree).filter((el) => el.type === DirPicker)
-    assert.equal(modals.length, 1, 'the folder picker must be mounted after a successful connect')
-    assert.equal(modals[0].props.open, true, 'and open')
-    assert.equal(typeof modals[0].props.onPicked, 'function', 'committing a folder must go through onPicked')
-  } finally { ui.dispose() }
-})
-
-test('a saved machine can open the folder picker directly, without reconnecting', async () => {
+test('refresh rechecks connectivity without touching the workspace, while registry polls do not reconnect repeatedly', async () => {
   const { ui, calls } = stub()
   try {
     let tree = await ui.settle()
-    const openFolder = ui.buttons(tree).filter((b) => /^选目录$/.test(b.label))
-    assert.equal(openFolder.length, 1, 'the saved machine offers 选目录')
-    openFolder[0].el.props.onClick()
-    tree = await ui.settle()
-    const DirPicker = ui.component('sidebar.workspaces.directoryFlow')
-    assert.equal(ui.components(tree).filter((el) => el.type === DirPicker).length, 1, 'clicking 选目录 opens the picker')
-    assert.equal(calls.some((c) => c.url.includes('/dsh-remote/test-connect')), false,
-      'opening the folder picker must not probe anything')
+    await ui.fireIntervals(); tree = await ui.settle()
+    assert.equal(calls.filter(call => call.url.includes('/test-connect')).length, 2)
+    const refresh = ui.buttons(tree).find(button => button.title.includes('重新读取'))
+    refresh.el.props.onClick(); await ui.tick(); tree = await ui.settle()
+    assert.equal(calls.filter(call => call.url.includes('/test-connect')).length, 4)
+    assert.equal(calls.some(call => /\/(current|mirror|workspace)$/.test(call.url)), false)
   } finally { ui.dispose() }
 })
 
@@ -145,37 +106,18 @@ test('the search box narrows BOTH halves of the list', async () => {
   } finally { ui.dispose() }
 })
 
-test('saved machines are ordered most-recently-connected first', async () => {
+test('connectivity results replace historical connection state instead of implying a global active host', async () => {
   const machines = [
-    { ...MACHINE, id: 'm-old', name: 'olderbox', host: 'olderbox', lastConnectedAt: '2026-10-01T00:00:00.000Z' },
-    { ...MACHINE, id: 'm-new', name: 'newerbox', host: 'newerbox', lastConnectedAt: '2026-10-29T00:00:00.000Z' },
-    { ...MACHINE, id: 'm-never', name: 'neverbox', host: 'neverbox', lastConnectedAt: null },
+    { ...MACHINE, id: 'm-live', name: 'livebox', connected: true, latencyMs: 12 },
+    { ...MACHINE, id: 'm-past', name: 'pastbox', connected: false, latencyMs: 88, lastConnectedAt: new Date().toISOString() },
   ]
-  const { ui } = stub({ machines, entries: [] })
+  const { ui } = stub({ machines, entries: [], probe: { ok: true, latencyMs: 42 } })
   try {
     const tree = await ui.settle()
-    const text = ui.text(tree)
-    const at = (s) => text.indexOf(s)
-    assert.ok(at('newerbox') >= 0 && at('olderbox') >= 0, `both rows render: ${text.slice(0, 200)}`)
-    assert.ok(at('newerbox') < at('olderbox'), 'the most recent connection comes first')
-    assert.ok(at('olderbox') < at('neverbox'), 'a machine that never connected comes last')
-  } finally { ui.dispose() }
-})
-
-test('a live connection reads 已连接, a past one reads "上次连接 …"', async () => {
-  const machines = [
-    { ...MACHINE, id: 'm-live', name: 'livebox', host: 'livebox', connected: true, latencyMs: 12, lastConnectedAt: '2026-10-29T00:00:00.000Z' },
-    { ...MACHINE, id: 'm-past', name: 'pastbox', host: 'pastbox', connected: false, latencyMs: 88, lastConnectedAt: new Date(Date.now() - 5 * 60000).toISOString() },
-    { ...MACHINE, id: 'm-none', name: 'freshbox', host: 'freshbox', connected: false, latencyMs: null, lastConnectedAt: null },
-  ]
-  const { ui } = stub({ machines, entries: [] })
-  try {
-    const tree = await ui.settle()
-    const text = ui.text(tree)
-    assert.match(text, /已连接/, 'a live socket must be reported as connected')
-    assert.match(text, /上次连接/, 'a past connection says when it happened')
-    assert.match(text, /5 分钟前/, 'with a relative age')
-    assert.match(text, /88ms/, 'and the latency it measured')
+    const results = ui.elements(tree).filter(element => element.props.className === 'dsh-rw-settings-probe')
+    assert.equal(results.length, 2)
+    for (const result of results) assert.equal(ui.textOf(result), '可用 · 42 ms')
+    assert.doesNotMatch(ui.text(tree), /已连接|上次连接|当前远程机|默认目标/)
   } finally { ui.dispose() }
 })
 test('a FAILED ssh-config request says so — it must not masquerade as "no hosts in your config"', async () => {
@@ -202,4 +144,48 @@ test('a FAILED ssh-config request says so — it must not masquerade as "no host
     assert.match(text, /读取失败/, 'it must say the read failed')
     assert.match(text, /internal boom|HTTP 500/, 'and carry the underlying reason')
   } finally { ui.dispose() }
+})
+test('automatic checks are bounded and leaving settings cancels queued checks and late results', async t => {
+  const pending=[]
+  const machines=Array.from({length:7},(_,index)=>({...MACHINE,id:'host-'+index,host:'host-'+index,name:'Host '+index}))
+  const ui=mountClient({effectDependencies:true,fetch:async(url,init={})=>{
+    const reply=json=>({ok:true,status:200,json:async()=>json})
+    if(String(url).includes('/machines'))return reply({machines,currentId:'host-0'})
+    if(String(url).includes('/ssh-config'))return reply({entries:[]})
+    if(String(url).includes('/test-connect'))return new Promise(resolve=>pending.push({signal:init.signal,resolve}))
+    return reply({ok:true})
+  }})
+  t.after(()=>ui.dispose())
+  let tree=await ui.settle()
+  assert.equal(pending.length,3,'a large registry must not open an unbounded number of SSH probes')
+  assert.equal(ui.elements(tree).filter(element=>element.props.className==='dsh-rw-settings-probe').length,7)
+  pending[0].resolve({ok:true,status:200,json:async()=>({ok:true,latencyMs:12})})
+  await ui.tick();tree=await ui.settle()
+  assert.equal(pending.length,4,'the next queued host starts when a slot is free')
+  assert.match(ui.text(tree),/可用 · 12 ms/)
+  ui.dispose()
+  assert.ok(pending.every(check=>check.signal.aborted))
+  for(const check of pending)check.resolve({ok:true,status:200,json:async()=>({ok:true,latencyMs:99999})})
+  await ui.tick();tree=await ui.settle()
+  assert.equal(pending.length,4,'closing the settings page prevents the remaining queued probes')
+  assert.doesNotMatch(ui.text(tree),/99999/,'late probe results cannot update a closed settings page')
+})
+
+test('checks wait for both host lists so different API response times cannot start duplicate probe batches', async t => {
+  let deliverConfig
+  let probes=0
+  const reply=json=>({ok:true,status:200,json:async()=>json})
+  const ui=mountClient({effectDependencies:true,fetch:async(url)=>{
+    if(String(url).includes('/machines'))return reply({machines:[MACHINE]})
+    if(String(url).includes('/ssh-config'))return new Promise(resolve=>{deliverConfig=resolve})
+    if(String(url).includes('/test-connect')){probes++;return reply({ok:true,latencyMs:8})}
+    return reply({ok:true})
+  }})
+  t.after(()=>ui.dispose())
+  await ui.settle()
+  assert.equal(probes,0,'a slower SSH configuration read must not cause an early partial batch')
+  deliverConfig(reply({entries:[{alias:'fresh',hostName:'another.test'}]}))
+  await ui.tick();const tree=await ui.settle()
+  assert.equal(probes,2,'each saved or discovered host is tested exactly once after both lists arrive')
+  assert.match(ui.text(tree),/可用 · 8 ms/)
 })

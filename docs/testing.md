@@ -68,7 +68,7 @@ weighted line coverage: 80.3%   （全部 33 个 lib 文件加权；870+ 条测�
 `openssh.js` 56%（需要本机 `ssh`，真机夜跑见 nightly.yml）、`binding.js` 66%、
 `hostkey.js` 68%、`forwards.js` 69%、`client.js` 72%、`pool.js` 72%。门禁是双层的：
 `--gate 70` 管加权均值，`--file-gate 60` 管每一个文件的下限（例外在脚本 `FILE_FLOORS`
-里逐条注明原因——当前只剩 openssh.js 一条；例外一旦不再必要会被 stale 检查点名要求删除）。
+里逐条注明原因——当前无例外；若新增例外且之后不再必要，会被 stale 检查点名要求删除）。
 
 `lib/client.js` 是浏览器代码，测试从字符串求值——所有求值点都带
 `sourceURL`/`filename: 'lib/client.js'`，V8 覆盖率因此**能归源**，实测 **71.7% 且逐位稳定**。
@@ -130,13 +130,14 @@ weighted line coverage: 80.3%   （全部 33 个 lib 文件加权；870+ 条测�
 | 文件 | 真机验证了什么 | 需要 |
 |---|---|---|
 | it-openssh-real.test.js | 系统 OpenSSH 后端：真 ssh 连接 + exec + SFTP + 平台探测；**密码走 askpass**、**私钥 -i**、**~/.ssh/config 别名**三种认证；错密码在有限时间内报认证失败；close 后可重连 | IT_SSH_HOST + IT_SSH_PASSWORD 或 IT_SSH_KEY 或 IT_SSH_ALIAS |
-| it-keychain-real.test.js | 当前平台**真的**系统钥匙库：存入/读回/删除、含 shell 元字符的秘密不被破坏、DPAPI 落盘是密文、无钥匙库时 persistPassword 必须 efused 且不落明文 | 无（用当前平台） |
+| it-keychain-real.test.js | 当前平台**真的**系统钥匙库：存入/读回/删除、含 shell 元字符的秘密不被破坏、DPAPI 落盘是密文、无钥匙库时 persistPassword 必须
+efused 且不落明文 | 无（用当前平台） |
 | it-webattach-real.test.js | 真远端 dsh web：隧道打开到 loopback、**token URL 换 cookie（303 + Set-Cookie）**、带 cookie 的 / 返回 HTML、无 token 仍 401、close 释放端口、stopRemote 停掉它启动的远端进程 | IT_WEB_HOST + IT_WEB_PASSWORD/IT_WEB_KEY |
 
 **真机跑出来的两个结论**（假服务器永远测不到）：
 
 1. **Linux 钥匙库后端是完全坏的**：secret-tool store 通过 xecFile({input}) 拿不到 EOF，一直阻塞到 8s 超时被杀，
-   报错还是空的 Command failed: … —— 也就是说「勾选加密保存密码」在 Linux 上**必然失败**。改成 spawn + 显式 stdin.end() 后 
+   报错还是空的 Command failed: … —— 也就是说「勾选加密保存密码」在 Linux 上**必然失败**。改成 spawn + 显式 stdin.end() 后
    同一个真机 20ms 完成、读写回环正常（lib/credential.js）。
 2. **隧道是好的，但测试必须自己做 token 交换**：DSH 的 token URL 是 303 + Set-Cookie，Node 的 fetch 不存 cookie，
    直接 follow 会落到 401 —— 这不是产品 bug，是测试写法。现在测的是真链路（换 cookie → 200 → HTML）。
@@ -165,3 +166,66 @@ weighted line coverage: 80.3%   （全部 33 个 lib 文件加权；870+ 条测�
 
 下一步优先级：GSSAPI 用例在有 Kerberos 的环境跑一遍 → 目录选择器的渲染级点击链。
 
+
+## 7. Agent 远程任务与编译输出验收
+
+工具 handler 测试、人的文件栏操作、真实 Agent 循环和真实模型自主决策是不同层次，不能用其中一层的通过代替其他层。
+
+`test/it-agent-workspace.test.js` 使用真实 DSH 0.2.0-rc.2 的 Cordis、AgentLoop、ToolRuntime、会话日志和 SSH/SFTP 连接。模型决策由 `test/harness/agent-build-model.js` 确定性生成，每一步校验模型收到的上一工具结果；它不调用外部模型。`test/harness/disk-workspace.js` 让 SFTP 和真实 shell 子进程使用同一个临时磁盘目录，GCC 报错、生成的二进制和运行输出都来自实际进程，没有预制编译结果。
+
+前提：Linux/POSIX、Node.js ≥22、GCC，以及独立安装的 DSH 0.2.0-rc.2。默认 CI 没有完整 DSH 宿主时明确跳过：
+
+```sh
+IT_DSH_MODULES=/path/to/dsh-host/node_modules \
+  node --import ./test/setup-telemetry-off.mjs --test --test-timeout=40000 test/it-agent-workspace.test.js
+```
+
+这两项回归检查：
+
+- Agent 收到远程工作区提示和工具声明，读取远端源码，实际编译失败后看到文件/行号、stderr 和非零退出码，修改远程文件，重新编译并运行，最后将结果写入会话记录。
+- 本地镜像中放置不同的哨兵内容；确认它没有被编辑、没有生成二进制，防止“实际在本地执行却宣称远程成功”。
+- 命令已经在远端启动后停止 Agent，确认它没有继续写文件、没有继续请求模型；同一会话的新任务仍能执行。
+
+真实浏览器验收使用 `scripts/manual/agent-web-e2e.mjs`。需在独立宿主的 node_modules 中安装当前 checkout 的 dsh-remote，并另行准备 playwright-core 和 Chromium：
+
+```sh
+IT_DSH_MODULES=/path/to/dsh-host/node_modules \
+IT_BROWSER_MODULES=/path/to/browser-tools/node_modules \
+CHROMIUM_PATH=/usr/bin/chromium \
+IT_AGENT_ARTIFACTS=/tmp/dsh-agent-artifacts \
+  node scripts/manual/agent-web-e2e.mjs
+```
+
+脚本启动独立 DSH_HOME、loopback SSH 服务和 Web 宿主，通过正式 SessionController 创建会话、选择测试模型并提交任务；校验最终回复、展开后的编译诊断和退出码，以及文件侧栏读到的 Agent 修改结果。保存会话事件和截图，退出时清理临时 profile、文件和进程；默认使用本机 50602 端口，可用 `IT_AGENT_PORT` 调整。测试用路由仅在显式 E2E 环境变量和随机 nonce 下启用，不修改正式 profile。
+
+`IT_AGENT_PTC=1` 使用宿主正式 `ptc` preset，要求文件沙箱后端可工作。在嵌套 bubblewrap 的云执行器里，可在获准的外层执行相同测试；DSH 仍使用工作区沙箱，不改成无约束模式。新旧宿主分别使用自身支持的工具执行器 API，不能假设 `tools.presentAs()` 在新版仍存在。
+
+真实模型使用 `IT_AGENT_REAL_MODEL=1`，从环境设置注入 `DEEPSEEK_API_KEY`，默认模型 `deepseek-chat`；可用 `IT_AGENT_MODEL` 选择兼容模型。脚本断言远端真实源码和二进制、最终任务回复、可点击 GCC 诊断与侧栏文件结果；不会把只获得模型回复或 HTTP 200 当作通过。模型有时会在 GCC 后追加 `echo`，此时 shell 的真实退出码可以为 0；卡片保留该退出码，同时突出并自动展开编译错误，不能把 stdout 中的字符串冒充进程事实。
+
+本次真实模型通过记录与脚本原生/PTC 记录分开，范围见 [1.0 发布验收](release/1.0.0.md)。公网主机测试按用户指示停止，没有计入通过。
+
+## 8. 介绍页与配图
+
+```sh
+IT_BROWSER_MODULES=/path/to/browser-tools/node_modules \
+  node scripts/manual/site-e2e.mjs
+```
+
+脚本检查中英文、1440px 与 390px 布局、图片加载、键盘切图、安装命令复制和语言持久化；从真实 HTML 重渲染 `docs/cover.png` 与 `docs/shots/features.png`。工作区配图来自实际 DSH 会话，不能用概念图代替实测截图。默认产物在 `/tmp/dsh-site-artifacts`，可用 `IT_SITE_ARTIFACTS` 调整。
+
+
+## 8. 主机设置与独立工作区
+
+设置页只管理主机、凭据和连接配置。进入页面自动对已保存主机和 SSH 配置条目检测连通性，最多三个并行；离开时取消排队和晚到结果。刷新可重新检测，注册表轮询不重复连接；检测不调用 `/current`、`/mirror` 或打开工作区。显示的毫秒数是 SSH 建连与命令探测总耗时，不是 ICMP ping。目录选择只属于新建远程工作区，各工作区独立绑定主机。
+
+`issue73-connect-flow.test.js` 验证自动检测、隔离、延时、失败、并发上限与取消；`settings-workbench.test.js` 验证草稿、标签切换、保存及晚到编辑探测。真实浏览器验收（独立 DSH_HOME 和回环 SSH，不读取用户配置）：
+
+```sh
+IT_DSH_MODULES=/path/to/host/node_modules \
+IT_BROWSER_MODULES=/path/to/playwright/node_modules \
+CHROMIUM_PATH=/path/to/chromium \
+IT_SETTINGS_ARTIFACTS=/tmp/dsh-settings-artifacts \
+node scripts/manual/settings-web-e2e.mjs
+```
+
+检查主机结果列与编辑表单对齐、远程主机图标、键盘标签导航、菜单关闭、草稿、测试与保存，以及 1440px / 390px 布局。此项接入最新宿主的原生 Agent CI，并上传截图。

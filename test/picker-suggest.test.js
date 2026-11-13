@@ -82,7 +82,7 @@ const FACTORY_PARAMS = [
   'api', 'machines', 'parseLs', 'postedCurrentRef', 'currentPromiseRef',
   'lsCacheRef', 'lsInflightRef', 'lsGenRef', 'fetchSeqRef', 'suggestSeqRef',
   'setSuggest', 'setSuggestOpen', 'setPath', 'setErr', 'setPopOpen',
-  'onPicked', 'tr', 'machineId', 'busy',
+  'onPicked', 'tr', 'machineId', 'busy', 'pickerEpochRef', 'runPickerOperation', 'registerWorkspace',
 ]
 
 function deferred() {
@@ -156,6 +156,9 @@ function makePicker(api, { machines = MACHINES, machineId = 'm1' } = {}) {
     (k) => k,
     machineId,
     false,
+    { current: 0 },
+    async (_phase, task) => { try { await task(undefined, () => true) } catch (e) { ui.err = e.message } },
+    true,
   )
   return { ...out, ...refs, ui }
 }
@@ -294,7 +297,7 @@ test('B2: an identity-echo mismatch busts the memo, re-switches and retries ONCE
   assert.deepEqual(hit.node.all.map((x) => x.name), ['right'], 'only the matching listing is cached')
 })
 
-test('B2: a listing that mismatches on every attempt is returned but never cached', async () => {
+test('B2: a listing that mismatches on every attempt is rejected and never displayed', async () => {
   const wrong = { host: '10.0.0.9', port: 22, username: 'dev' }
   const mock = mockApi((method) => {
     if (method === 'POST') return Promise.resolve({ ok: true })
@@ -302,8 +305,8 @@ test('B2: a listing that mismatches on every attempt is returned but never cache
   })
   const picker = makePicker(mock.api)
 
-  const node = await picker.fetchDirList('m1', '/proj')
-  assert.deepEqual(node.all.map((x) => x.name), ['x'], 'callers still resolve their own result')
+  await assert.rejects(picker.fetchDirList('m1', '/proj'), /project.machineChanged/)
+  assert.equal(picker.postedCurrentRef.current, '', 'the next attempt must reassert its intended host')
   assert.equal(mock.posts().length, 2, 'retry ONCE only')
   assert.equal(picker.lsCacheRef.current.size, 0, 'a mismatched listing must never be cached')
 })

@@ -1,12 +1,10 @@
 {
   "name": "dsh-remote",
-  "version": "0.8.94",
-  "description": "Remote-work assistant for DeepSeek Harness: connect SSH (password/key/agent/keyboard-interactive, multi-hop ProxyJump), list hosts from ~/.ssh/config, pick a remote workspace, operate on it with 21 rw_* tools, conflict-aware mirror sync, an embedded PTY terminal, remote DSH web UI attach, port forwarding, host grouping, remote sandbox fencing, audit log, keychain passwords.",
+  "version": "1.0.0",
+  "description": "Remote SSH workspaces for DeepSeek Harness: native file and terminal tabs, agent tools with exit codes and compiler diagnostics, conflict-aware mirror sync, SSH configuration, port forwarding and audit logs.",
   "license": "MIT",
   "author": "flymysql <flyphp@outlook.com>",
-  "readme": "README.md",
-  "readmeFilename": "README.md",
-  "homepage": "https://github.com/flymysql/dsh-remote",
+  "homepage": "https://flymysql.github.io/dsh-remote/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/flymysql/dsh-remote.git"
@@ -23,7 +21,10 @@
     "remote",
     "ssh",
     "tunnel",
-    "plugin"
+    "plugin",
+    "remote-workspace",
+    "remote-development",
+    "sftp"
   ],
   "type": "module",
   "main": "lib/boot.js",
@@ -39,7 +40,7 @@
   ],
   "dsh": {
     "engines": {
-      "dsh": ">=0.1.0-rc.6 <0.3.0"
+      "dsh": ">=0.1.0-rc.6 <0.3.0 || >=0.1.5-0 <0.1.6 || >=0.1.7-0 <0.1.8 || >=0.2.0-0 <0.2.1 || >=0.2.2-0 <0.2.3"
     },
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -53,14 +54,14 @@
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.1.0",
-    "@deepseek-ai/dsh-client-connection": ">=0.1.2-rc.1 <0.3.0",
-    "@deepseek-ai/dsh-client-locale": ">=0.1.2-rc.1 <0.3.0",
-    "@deepseek-ai/dsh-client-ui-renderer": ">=0.1.2-rc.1 <0.3.0",
-    "@deepseek-ai/dsh-commands": ">=0.1.0-rc.6 <0.3.0",
-    "@deepseek-ai/dsh-host-webserver": ">=0.1.0-rc.6 <0.3.0",
-    "@deepseek-ai/dsh-system-prompt": ">=0.1.0-rc.6 <0.3.0",
-    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.6 <0.3.0"
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/dsh-client-connection": ">=0.1.2-rc.1 <0.3.0 || >=0.1.5-0 <0.1.6 || >=0.1.7-0 <0.1.8 || >=0.2.0-0 <0.2.1 || >=0.2.2-0 <0.2.3",
+    "@deepseek-ai/dsh-client-locale": ">=0.1.2-rc.1 <0.3.0 || >=0.1.5-0 <0.1.6 || >=0.1.7-0 <0.1.8 || >=0.2.0-0 <0.2.1 || >=0.2.2-0 <0.2.3",
+    "@deepseek-ai/dsh-client-ui-renderer": ">=0.1.2-rc.1 <0.3.0 || >=0.1.5-0 <0.1.6 || >=0.1.7-0 <0.1.8 || >=0.2.0-0 <0.2.1 || >=0.2.2-0 <0.2.3",
+    "@deepseek-ai/dsh-commands": ">=0.1.0-rc.6 <0.3.0 || >=0.1.5-0 <0.1.6 || >=0.1.7-0 <0.1.8 || >=0.2.0-0 <0.2.1 || >=0.2.2-0 <0.2.3",
+    "@deepseek-ai/dsh-host-webserver": ">=0.1.0-rc.6 <0.3.0 || >=0.1.5-0 <0.1.6 || >=0.1.7-0 <0.1.8 || >=0.2.0-0 <0.2.1 || >=0.2.2-0 <0.2.3",
+    "@deepseek-ai/dsh-system-prompt": ">=0.1.0-rc.6 <0.3.0 || >=0.1.5-0 <0.1.6 || >=0.1.7-0 <0.1.8 || >=0.2.0-0 <0.2.1 || >=0.2.2-0 <0.2.3",
+    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.6 <0.3.0 || >=0.1.5-0 <0.1.6 || >=0.1.7-0 <0.1.8 || >=0.2.0-0 <0.2.1 || >=0.2.2-0 <0.2.3"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-host-webserver": {

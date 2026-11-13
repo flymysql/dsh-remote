@@ -1,0 +1,23 @@
+title: "[Q&A] "
+body:
+  - type: markdown
+    attributes:
+      value: 欢迎中文和英文。请描述目标和遇到的障碍；不要提交凭据或私有项目内容。
+  - type: textarea
+    id: goal
+    attributes:
+      label: 想完成什么 / What are you trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 版本和环境 / Versions and environment
+      description: DSH、dsh-remote、本机/远端系统，Web 或 Desktop。
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: 已尝试什么 / What have you tried?
+      description: 提供脱敏的错误、退出码或最小复现。

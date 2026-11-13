@@ -34,7 +34,7 @@ test('the current platform\'s keychain really stores, returns and deletes a secr
       // locked keychain) is a legitimate outcome — what matters is that it says so
       // and that nothing was written.
       assert.ok(String(saved.error || '').length > 0, 'a failed store must explain itself')
-      assert.equal(await getSecret(ID, dir), null, 'and must not leave a retrievable secret behind')
+      assert.equal(await getSecret(ID, dir), null, `and must not leave a retrievable secret behind (${saved.error})`)
       return
     }
     const back = await getSecret(ID, dir)

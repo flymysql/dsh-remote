@@ -1,0 +1,15 @@
+title: "[Workflow] "
+body:
+  - type: textarea
+    id: workflow
+    attributes:
+      label: 分享你的工作流 / Share your workflow
+      description: 项目类型、远程环境、使用的工具和解决的问题；请勿包含凭据或私有源码。
+    validations:
+      required: true
+  - type: textarea
+    id: useful
+    attributes:
+      label: 有用的经验和仍需改进的地方 / What worked and what could improve?
+    validations:
+      required: true

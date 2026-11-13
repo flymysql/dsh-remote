@@ -179,6 +179,8 @@ const DEFAULT_TREE = {
  * @param {Function} [opts.onExec] - `(cmd, { username }) => { stdout?, stderr?, code?, delayMs? }`.
  *   `delayMs` postpones the response so callers can exercise real client-side
  *   exec deadlines (the issue #125 discover timeout needs this).
+ * @param {Function} [opts.onPtyExec] - optional `(command, stream, session) => boolean`; true owns the channel for a real interactive test shell.
+ * @param {object} [opts.filesystem] - optional FakeFs-compatible disposable disk filesystem.
  * @param {boolean} [opts.silent] - do not print protocol errors to the console.
  */
 export async function startFakeSsh(opts = {}) {
@@ -186,7 +188,7 @@ export async function startFakeSsh(opts = {}) {
     users = {}, rejectAll = false, platform = 'posix', fs = DEFAULT_TREE,
     cwd = '/home/user', onExec = null,
   } = opts
-  const tree = new FakeFs(fs)
+  const tree = opts.filesystem || new FakeFs(fs)
   tree._mkdirp(cwd)
   const execLog = []
   const connections = []
@@ -289,6 +291,7 @@ export async function startFakeSsh(opts = {}) {
         session.on('env', (acceptEnv) => { try { acceptEnv() } catch { /* optional */ } })
         session.on('exec', (acceptExec, rejectExec, info) => {
           const stream = acceptExec()
+          if (opts.onPtyExec && opts.onPtyExec(info.command, stream, session)) return
           const res = answerExec(info.command)
           const respond = () => {
             // A client-side deadline may close the channel before a delayed
@@ -341,7 +344,9 @@ export async function startFakeSsh(opts = {}) {
     server.listen(0, '127.0.0.1', resolve)
   })
   const port = server.address().port
-  server.on('connection', (socket) => {
+  // ssh2.Server emits an SSH Client here, not a net.Socket. Track the actual
+  // TCP listener so teardown also destroys pre-handshake and half-open sockets.
+  server._srv.on('connection', (socket) => {
     sockets.add(socket)
     socket.on('close', () => sockets.delete(socket))
   })

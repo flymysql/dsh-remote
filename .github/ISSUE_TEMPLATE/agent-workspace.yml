@@ -1,0 +1,40 @@
+name: Agent 远程任务 / Remote agent task
+description: Agent 读写、构建、测试、停止或诊断定位问题 / Agent execution and result issues
+title: "[Agent] "
+labels: [bug]
+body:
+  - type: dropdown
+    id: mode
+    attributes:
+      label: 工具模式 / Tool mode
+      options: ["原生工具 / Native", "PTC / run_code", "不确定 / Not sure"]
+    validations:
+      required: true
+  - type: textarea
+    id: versions
+    attributes:
+      label: 环境 / Environment
+      placeholder: "DSH 与插件版本、本机/远端系统、Web 或 Desktop、模型名称（不要填写 Key）"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 任务与最小复现 / Task and reproduction
+      description: 提供脱敏任务和最小项目，不要提交实际凭据或私有源码。
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: 期望、实际结果与退出码 / Expected, actual and exit code
+      description: 说明发生在远端还是本地镜像，附上相关工具步骤或诊断。
+    validations:
+      required: true
+  - type: checkboxes
+    id: redaction
+    attributes:
+      label: 发布前 / Before posting
+      options:
+        - label: 已移除密码、Key、私钥和登录令牌 / Credentials and tokens removed
+          required: true

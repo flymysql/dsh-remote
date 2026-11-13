@@ -53,7 +53,7 @@ function routesFor(sftp, binding) {
 test('native resource addresses are session-scoped', () => {
   assert.match(src, /dsh-resource:\/\/dsh-remote\/' \+ encodeURIComponent\(sessionId\)/)
   assert.match(src, /withSessionBody\(\{ path, content: draft/)
-  assert.match(src, /expectedMtime: data && data.mtime/)
+  assert.match(src, /expectedMtime: draftRecord \? draftRecord.baseMtime : data && data.mtime/)
   assert.match(src, /withSessionQuery\('\/dsh-remote\/ls\?path='/)
   assert.match(src, /withSessionQuery\('\/dsh-remote\/status'/)
   assert.match(src, /scope: \{ sessionId: props\.sessionId \}/)

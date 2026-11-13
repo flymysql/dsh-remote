@@ -54,3 +54,10 @@ Please **do not** open a public issue for a vulnerability. See [SECURITY.md](./S
 ## License
 
 By contributing, you agree your contribution is licensed under the MIT License (see [LICENSE](./LICENSE)).
+
+
+## Agent and workspace changes
+
+A direct tool-handler test does not prove the Agent loop or conversation UI. For Agent execution changes, run the opt-in real-host harness and Web acceptance described in [docs/testing.md](docs/testing.md), and distinguish scripted-model results from live-model results. Include native/PTC mode, diagnostics, cancellation and file navigation where relevant. Test fixtures must isolate DSH_HOME and SSH configuration and must never write to the contributor's real SSH config.
+
+Start with a minimal reproduction, a small regression test, a documentation fix or a focused patch. Support channels and reporting guidance are listed in [SUPPORT.md](SUPPORT.md). Discussion forms in `.github/DISCUSSION_TEMPLATE` apply to matching enabled category slugs; adding files alone does not configure categories on GitHub.

@@ -158,16 +158,16 @@ test('the machine list shows the badges a user needs to tell machines apart', as
   } finally { ui.dispose() }
 })
 
-test('every saved machine offers 连接 and 选目录 (issue #73: the list IS the primary path)', async () => {
+test('saved hosts expose configuration actions without workspace or global-target controls', async () => {
   const machines = [{ ...MACHINE, id: 'm-1', name: 'first' }, { ...MACHINE, id: 'm-2', name: 'second' }]
   const ui = mountClient({ fetch: stubFetch({ machines, currentId: 'm-1' }).fetch })
   try {
     const tree = await ui.settle()
     const labels = ui.buttons(tree).map((b) => b.label)
-    // Issue #73 replaced 「设为当前」 with 「连接」 (activate + probe in one click) and
-    // added 「选目录」 (the second half of the VSCode-shaped flow).
-    assert.equal(labels.filter((l) => /^连接$/.test(l)).length, 2, `expected a 连接 action per machine, got: ${labels.join(' | ')}`)
-    assert.equal(labels.filter((l) => /^选目录$/.test(l)).length, 2, `expected a 选目录 action per machine, got: ${labels.join(' | ')}`)
+    assert.equal(labels.filter(label => /^编辑$/.test(label)).length, 2)
+    assert.equal(labels.filter(label => /^删除$/.test(label)).length, 2)
+    assert.equal(labels.some(label => /^(连接|打开项目|默认目录|选目录|设为当前|清除默认目标)$/.test(label)), false)
+    assert.equal(ui.elements(tree).filter(element => element.props.className === 'dsh-rw-settings-probe').length, 2)
     // A disabled control must still explain itself.
     const mute = ui.buttons(tree).filter((b) => b.disabled && !b.title)
     assert.deepEqual(mute.map((b) => b.label), [],
@@ -175,7 +175,7 @@ test('every saved machine offers 连接 and 选目录 (issue #73: the list IS th
   } finally { ui.dispose() }
 })
 
-test('the ~/.ssh/config hosts are listed with a one-click 连接, and saved ones are not duplicated', async () => {
+test('SSH config hosts have a connectivity indicator and saved aliases are not duplicated', async () => {
   const machines = [{ ...MACHINE, id: 'm-1', name: 'saved-box', host: 'saved-box', useSshConfig: true }]
   const entries = [
     { host: 'saved-box', alias: 'saved-box', hostName: '10.0.0.7', user: 'root', port: 22 },
@@ -194,9 +194,8 @@ test('the ~/.ssh/config hosts are listed with a one-click 连接, and saved ones
     // second one for the same alias.
     const aliasSpans = ui.elements(tree).filter((el) => el.type === 'span' && ui.textOf(el).trim() === 'saved-box')
     assert.equal(aliasSpans.length, 1, `saved-box must be listed exactly once, got ${aliasSpans.length}`)
-    // Exactly one 连接 for the discovered host, plus one for the saved machine.
-    const connects = ui.buttons(tree).filter((b) => /^连接$/.test(b.label))
-    assert.equal(connects.length, 2, `expected 2 连接 buttons (1 discovered + 1 saved), got ${connects.length}`)
+    const probes = ui.elements(tree).filter(element => element.props.className === 'dsh-rw-settings-probe')
+    assert.equal(probes.length, 2, 'one independent connectivity result per host')
   } finally { ui.dispose() }
 })
 
@@ -205,8 +204,9 @@ test('an empty registry explains itself instead of showing a blank panel', async
   try {
     const tree = await ui.settle()
     const text = ui.text(tree)
-    assert.match(text, /还没有|没有保存|no machines/i, 'an empty machine list must say so')
-    assert.match(text, /当前没有活动远程机/, 'and explain that nothing is active')
+    assert.match(text, /暂无主机|no hosts/i, 'an empty machine list must say so')
+    assert.match(text, /新建远程工作区/, 'directory selection belongs to workspace creation')
+    assert.doesNotMatch(text, /当前远程机|默认目标/)
   } finally { ui.dispose() }
 })
 
@@ -217,9 +217,9 @@ test('there is no add-machine form; editing a saved machine still opens one (iss
     let tree = await ui.settle()
     const before = ui.text(tree)
     assert.doesNotMatch(before, /手动添加|添加机器|填表/, 'the add-machine form the reporter circled is gone')
-    assert.match(before, /打开配置文件/, 'new hosts are added by opening ~/.ssh/config')
+    assert.match(before, /编辑 SSH 配置/, 'new hosts are added by opening ~/.ssh/config')
     assert.doesNotMatch(before, /HostKey 模式/, 'the edit form is not on screen until 编辑')
-    ui.button(tree, /打开配置文件/).el.props.onClick()
+    ui.button(tree, /编辑 SSH 配置/).el.props.onClick()
     await ui.tick()
     assert.ok(stub.calls.some((c) => c.url.includes('/dsh-remote/ssh-config') && c.body && c.body.action === 'open'),
       '打开配置文件 must ask the host to open the ssh config, not a form')

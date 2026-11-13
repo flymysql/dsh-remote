@@ -9,6 +9,7 @@
 //      工具名写了 4 个不存在的（rw_workspace/rw_list/rw_read/rw_write），
 //      auditLog 的默认值写成 false（真源是 true）。这些正是用户照着做的内容。
 import { test } from 'node:test'
+import { DEFAULT_EXCLUDED_DIRECTORIES } from '../lib/file-reference.js'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -64,8 +65,8 @@ test('the language switcher only rewrites leaf nodes', () => {
   // data-* 属性一起抹掉 —— 实测表现为"点一次 EN 后标题永久卡在英文"。
   for (const p of PAGES) {
     const html = read(p)
-    const fn = html.slice(html.indexOf('function applyLang'), html.indexOf('let LANG'))
-    assert.match(fn, /if \(el\.querySelector\('\[data-zh\]\[data-en\]'\)\) continue/,
+    const fn = html.slice(html.indexOf(p === 'docs/index.html' ? 'function setLang' : 'function applyLang'))
+    assert.match(fn, /if\s*\(el\.querySelector\('\[data-zh\]\[data-en\]'\)\)\s*continue/,
       `${p}: applyLang must skip containers that hold their own data-zh children`)
   }
 })
@@ -74,8 +75,8 @@ test('Chinese is the default when there is no stored preference', () => {
   for (const p of PAGES) {
     const html = read(p)
     // 默认值必须是 'zh'：只有显式存过 'en' 才用英文
-    assert.match(html, /let LANG = 'zh'/, `${p}: the default language variable must be 'zh'`)
-    assert.match(html, /=== 'en' \? 'en' : 'zh'/, `${p}: only an explicit stored 'en' may switch to English`)
+    assert.match(html, /let (?:LANG|lang)\s*=\s*'zh'/, `${p}: the default language variable must be 'zh'`)
+    assert.match(html, /===\s*'en'\s*\?\s*'en'\s*:\s*'zh'/, `${p}: only an explicit stored 'en' may switch to English`)
   }
 })
 
@@ -86,8 +87,8 @@ test('documented rw_* tool names all exist in the plugin', () => {
   const real = new Set([...indexSrc.matchAll(/name:\s*'(rw_[a-z_]+)'/g)].map((m) => m[1]))
 
   const documented = new Set()
-  for (const p of PAGES) {
-    for (const m of read(p).matchAll(/<code>(rw_[a-z_]+)<\/code>/g)) documented.add(m[1])
+  for (const p of [...PAGES, 'README.md']) {
+    for (const m of read(p).matchAll(/(?:<code>|`)(rw_[a-z_]+)(?:<\/code>|`)/g)) documented.add(m[1])
     // 正文里的 `N 个 rw_* 工具` / `N rw_* tools` 也是要维护的断言，而且比工具
     // 列表更容易漏改（列了工具却没改数字，读者会以为少了工具）。所以把页面里
     // 出现的每个计数都拿来跟真实数量比对，而不是在这里硬编码一个数字 ——
@@ -117,7 +118,7 @@ test('the DAU figure never silently skips a day that has data', () => {
   // 判据要精确到"把 day!==todayKey 当作**唯一**取值来源"这个坏模式。
   // 只写 /day !== todayKey/ 会误伤正确实现 —— 新逻辑里它作为**从属**判断
   // （取最近有数据的日；若它就是今天就标注"进行中"）仍在出现，实测假红过一次。
-  for (const p of PAGES) {
+  for (const p of ['docs/stats/index.html']) {
     const html = read(p)
     // 坏模式：用 slice(0,-1).reverse().find(... !== todayKey) 之类把"今天"整个剔除
     assert.doesNotMatch(html, /slice\(0,\s*-1\)[\s\S]{0,80}!==\s*todayKey/,
@@ -134,25 +135,12 @@ test('the homepage reads live numbers from the snapshot first', () => {
   // registry.npmjs.org 在浏览器里可能被拦（实测 Failed to fetch，版本号显示 "—"）。
   // 因此同源快照必须是主路径，直连只能是兜底。
   const home = read('docs/index.html')
-  const fn = home.slice(home.indexOf('async function loadNumbers'))
-
-  // ★ 断言前先剥掉注释行：注释里也会出现 registry.npmjs.org（我解释为何改），
-  // 用它定位会得出错误结论 —— 实测踩过两次：
-  //   ① 未剥注释时 firstRegAt 落在注释里 ⇒ 假红；
-  //   ② 用 /\/\/[^\n]*/ 粗暴剥离会把 "https://..." 的 // 也当注释删掉，
-  //      把真实 URL 截断成 "https:" ⇒ 又假红。所以只按"行首可选的空白 + //"剥。
-  const code = fn.replace(/^[ \t]*\/\/.*$/gm, '')
-
-  const snapAt = code.indexOf("'./data/stats.json'")
-  const fallbackAt = code.indexOf('const missing =')
-  const regAt = code.indexOf('registry.npmjs.org')
-
+  const snapAt = home.indexOf("fetch('./data/stats.json')")
+  const regAt = home.indexOf("fetch('https://registry.npmjs.org/dsh-remote/latest')")
   assert.ok(snapAt > -1, 'homepage must read the same-origin snapshot')
-  assert.ok(fallbackAt > -1, 'homepage should keep a fallback path for missing fields')
-  assert.ok(regAt > -1, 'homepage should keep a direct-registry fallback')
-  assert.ok(snapAt < fallbackAt, 'the snapshot read must come before the fallback block')
-  assert.ok(regAt > fallbackAt,
-    'a direct registry fetch may only appear inside the fallback block, after the snapshot')
+  assert.ok(regAt > snapAt, 'registry refresh follows the snapshot and may not delay the initial value')
+  assert.match(home, /if\(snapshot\.npm\?\.latest\)version\.textContent=snapshot\.npm\.latest/)
+
 })
 
 test('the snapshot generator records npm.latest', () => {
@@ -171,11 +159,11 @@ test('config defaults shown on the site match the schema', () => {
     declared[m[1]] = m[2].trim()
   }
 
-  const home = read('docs/index.html')
-  const rows = [...home.matchAll(/<tr><td><code>([a-zA-Z][a-zA-Z0-9]*)<\/code><\/td><td><code>([^<]*)<\/code><\/td>/g)]
-    .map((m) => [m[1], m[2]])
+  const home = read('README.md')
+  const rows = [...home.matchAll(/^\| `([a-zA-Z][a-zA-Z0-9]*)` \| [^|]+ \| (?:`([^`]+)`|([^|]+)) \|/gm)]
+    .map((m) => [m[1], (m[2] ?? m[3]).trim().replace(/（[^）]*）/g, '')])
 
-  assert.ok(rows.length >= 5, `expected the homepage config table to have rows, found ${rows.length}`)
+  assert.ok(rows.length >= 5, `expected the README config table to have rows, found ${rows.length}`)
 
   // 有些默认值是常量引用（updateMode → DEFAULT_UPDATE_MODE），要解析到真实值，
   // 否则测试会误报"文档写了 auto 而 schema 是 DEFAULT_UPDATE_MODE"。
@@ -183,12 +171,13 @@ test('config defaults shown on the site match the schema', () => {
   for (const m of schema.matchAll(/export const ([A-Z_]+) = '([^']*)'/g)) consts[m[1]] = m[2]
 
   for (const [key, shown] of rows) {
+    if (shown === '—') continue // no scalar default (for example the proxy object)
     if (!(key in declared)) continue // 只校验确实存在于 schema 的键
     const norm = (s) => String(s).replace(/['"]/g, '').trim()
     const raw = norm(declared[key])
-    const resolved = consts[raw] ?? raw
+    const resolved = raw === "[...DEFAULT_EXCLUDED_DIRECTORIES]" ? "[" + DEFAULT_EXCLUDED_DIRECTORIES.join(", ") + "]" : consts[raw] ?? raw
     // 站点对 6h / 200000 这类做了人类可读化，允许这两种等价写法
-    const equivalents = { '6 * 3600 * 1000': '6h', '200000': '200000' }
+    const equivalents = { '6 * 3600 * 1000': '21600000', '200000': '200000' }
     const expected = equivalents[resolved] ?? resolved
     assert.equal(norm(shown), expected,
       `docs/index.html shows ${key}=${shown} but the schema default resolves to ${expected}`)

@@ -49,8 +49,8 @@ const tools = (src) => {
 
 test('both READMEs exist with the expected bilingual pairing', () => {
   // 语言切换行必须互指，且指向真实存在的文件
-  assert.match(zh, /\[English\]\(\.\/README\.en\.md\)/, 'Chinese README must link to README.en.md')
-  assert.match(en, /\[中文\]\(\.\/README\.md\)/, 'English README must link to README.md')
+  assert.match(zh, /\[English\]\((?:\.\/|https:\/\/github\.com\/flymysql\/dsh-remote\/blob\/main\/)README\.en\.md\)/, 'Chinese README must link to README.en.md')
+  assert.match(en, /\[中文\]\((?:\.\/|https:\/\/github\.com\/flymysql\/dsh-remote\/blob\/main\/)README\.md\)/, 'English README must link to README.md')
   // 防止有人把语言切回旧文件名
   assert.doesNotMatch(zh, /\(\.\/README\.zh\.md\)/)
 })
@@ -72,6 +72,7 @@ test('each section is paired by position, not merely equal in count', () => {
   // 读者却会看到中英结构错位。这里按位置显式声明配对，任何新增/删除/换序都要
   // 在这里同步更新，从而无法悄悄漂移。
   const PAIRS = [
+    ['1.0 工作区体验', '1.0 workspace experience'],
     ['界面预览', 'Screen previews'],
     ['功能', 'Features'],
     ['安装', 'Install'],

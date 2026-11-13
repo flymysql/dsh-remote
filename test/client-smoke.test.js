@@ -101,10 +101,10 @@ test('lib/client.js registers through the module loader and its apply() runs', (
     // Issue #73: the first screen is the ~/.ssh/config host list, so these are the
     // strings the primary path depends on. The old import-panel keys
     // (sshImport/sshUseAlias/sshCopyFields/sshAliasHint) are gone with that panel —
-    // the list is always visible now and each row has one 连接 action.
+    // each row reports independent connectivity without selecting a workspace.
     'settings.pickHost', 'settings.hostListSource', 'settings.hostListRefresh',
-    'settings.hostListEmpty', 'settings.hostConnect', 'settings.hostConnected',
-    'settings.openSshConfig', 'settings.sshConfigOpened', 'settings.openWorkspace', 'settings.workspaceOpened',
+    'settings.hostListEmpty', 'settings.reachable', 'settings.unreachable', 'settings.latencyHint',
+    'settings.openSshConfig', 'settings.sshConfigOpened', 'settings.probeDetails',
     // The alias/ssh-config semantics the list still relies on.
     'settings.useSshConfig', 'settings.useSshConfigHint', 'settings.sshResolvedTo',
     'settings.sshResolvedNone', 'settings.sshResolvedWarn', 'settings.badgeSshConfig',
