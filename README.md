@@ -7,7 +7,7 @@
 [![npm version](https://img.shields.io/npm/v/dsh-remote)](https://www.npmjs.com/package/dsh-remote)
 [![downloads](https://img.shields.io/npm/dw/dsh-remote)](https://www.npmjs.com/package/dsh-remote)
 [![downloads](https://img.shields.io/npm/dm/dsh-remote)](https://www.npmjs.com/package/dsh-remote)
-[![license](https://img.shields.io/github/license/flymysql/dsh-remote)](LICENSE)
+[![license](https://img.shields.io/github/license/flymysql/dsh-remote)](https://github.com/flymysql/dsh-remote/blob/main/LICENSE)
 [![dsh-plugin](https://img.shields.io/badge/topic-dsh--plugin-7a3ef3)](https://github.com/topics/dsh-plugin)
 
 由 [@flymysql](https://github.com/flymysql) 维护 · [主页](https://flymysql.github.io/dsh-remote/) · [用量统计](https://flymysql.github.io/dsh-remote/stats/) · [博客](https://gitpull.cn) · [讨论区](https://github.com/flymysql/dsh-remote/discussions) · [Issue](https://github.com/flymysql/dsh-remote/issues) · [English](https://github.com/flymysql/dsh-remote/blob/main/README.en.md)
@@ -326,7 +326,7 @@ MIT
 使用交流与缺陷反馈见 [SUPPORT.md](https://github.com/flymysql/dsh-remote/blob/main/SUPPORT.md)，迁移说明见 [1.0 升级指南](https://github.com/flymysql/dsh-remote/blob/main/docs/migration-1.0.md)。
 
 
-欢迎贡献，请先阅读 [CONTRIBUTING.md](./CONTRIBUTING.md)。使用问题、环境配置、「支持 XX 吗」这类讨论请走 [讨论区](https://github.com/flymysql/dsh-remote/discussions)；可复现的缺陷请提 [Issue](https://github.com/flymysql/dsh-remote/issues)。
+欢迎贡献，请先阅读 [CONTRIBUTING.md](https://github.com/flymysql/dsh-remote/blob/main/CONTRIBUTING.md)。使用问题、环境配置、「支持 XX 吗」这类讨论请走 [讨论区](https://github.com/flymysql/dsh-remote/discussions)；可复现的缺陷请提 [Issue](https://github.com/flymysql/dsh-remote/issues)。
 
 
 感谢每一位让这个项目更好的朋友（头像可点进主页；按提交数排序，机器人不计）：
@@ -380,4 +380,4 @@ MIT
 
 ## 变更记录
 
-见 [CHANGELOG.md](./CHANGELOG.md)。
+见 [CHANGELOG.md](https://github.com/flymysql/dsh-remote/blob/main/CHANGELOG.md)。

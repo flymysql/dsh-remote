@@ -7,7 +7,7 @@
 [![npm version](https://img.shields.io/npm/v/dsh-remote)](https://www.npmjs.com/package/dsh-remote)
 [![downloads](https://img.shields.io/npm/dw/dsh-remote)](https://www.npmjs.com/package/dsh-remote)
 [![downloads](https://img.shields.io/npm/dm/dsh-remote)](https://www.npmjs.com/package/dsh-remote)
-[![license](https://img.shields.io/github/license/flymysql/dsh-remote)](LICENSE)
+[![license](https://img.shields.io/github/license/flymysql/dsh-remote)](https://github.com/flymysql/dsh-remote/blob/main/LICENSE)
 [![dsh-plugin](https://img.shields.io/badge/topic-dsh--plugin-7a3ef3)](https://github.com/topics/dsh-plugin)
 
 Maintained by [@flymysql](https://github.com/flymysql) · [Homepage](https://flymysql.github.io/dsh-remote/) · [Usage stats](https://flymysql.github.io/dsh-remote/stats/) · [Blog](https://gitpull.cn) · [Discussions](https://github.com/flymysql/dsh-remote/discussions) · [Issues](https://github.com/flymysql/dsh-remote/issues) · [中文说明](https://github.com/flymysql/dsh-remote/blob/main/README.md)
@@ -350,7 +350,7 @@ MIT
 See [SUPPORT.md](https://github.com/flymysql/dsh-remote/blob/main/SUPPORT.md) for help and reporting, and the [1.0 upgrade guide](https://github.com/flymysql/dsh-remote/blob/main/docs/migration-1.0.md) for migration details.
 
 
-Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md). Questions, setups and "is this supported?" go to [Discussions](https://github.com/flymysql/dsh-remote/discussions); reproducible bugs go to [Issues](https://github.com/flymysql/dsh-remote/issues).
+Contributions are welcome — see [CONTRIBUTING.md](https://github.com/flymysql/dsh-remote/blob/main/CONTRIBUTING.md). Questions, setups and "is this supported?" go to [Discussions](https://github.com/flymysql/dsh-remote/discussions); reproducible bugs go to [Issues](https://github.com/flymysql/dsh-remote/issues).
 
 
 Thanks to everyone who makes this project better (avatars link to profiles; bots excluded):
@@ -402,4 +402,4 @@ The older hand-kept roll of merged PRs (with their numbers):
 
 ## Changelog
 
-See [CHANGELOG.md](./CHANGELOG.md).
+See [CHANGELOG.md](https://github.com/flymysql/dsh-remote/blob/main/CHANGELOG.md).

@@ -344,7 +344,9 @@ export async function startFakeSsh(opts = {}) {
     server.listen(0, '127.0.0.1', resolve)
   })
   const port = server.address().port
-  server.on('connection', (socket) => {
+  // ssh2.Server emits an SSH Client here, not a net.Socket. Track the actual
+  // TCP listener so teardown also destroys pre-handshake and half-open sockets.
+  server._srv.on('connection', (socket) => {
     sockets.add(socket)
     socket.on('close', () => sockets.delete(socket))
   })
