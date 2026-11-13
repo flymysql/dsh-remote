@@ -212,3 +212,20 @@ IT_BROWSER_MODULES=/path/to/browser-tools/node_modules \
 ```
 
 脚本检查中英文、1440px 与 390px 布局、图片加载、键盘切图、安装命令复制和语言持久化；从真实 HTML 重渲染 `docs/cover.png` 与 `docs/shots/features.png`。工作区配图来自实际 DSH 会话，不能用概念图代替实测截图。默认产物在 `/tmp/dsh-site-artifacts`，可用 `IT_SITE_ARTIFACTS` 调整。
+
+
+## 8. 主机设置与独立工作区
+
+设置页只管理主机、凭据和连接配置。进入页面自动对已保存主机和 SSH 配置条目检测连通性，最多三个并行；离开时取消排队和晚到结果。刷新可重新检测，注册表轮询不重复连接；检测不调用 `/current`、`/mirror` 或打开工作区。显示的毫秒数是 SSH 建连与命令探测总耗时，不是 ICMP ping。目录选择只属于新建远程工作区，各工作区独立绑定主机。
+
+`issue73-connect-flow.test.js` 验证自动检测、隔离、延时、失败、并发上限与取消；`settings-workbench.test.js` 验证草稿、标签切换、保存及晚到编辑探测。真实浏览器验收（独立 DSH_HOME 和回环 SSH，不读取用户配置）：
+
+```sh
+IT_DSH_MODULES=/path/to/host/node_modules \
+IT_BROWSER_MODULES=/path/to/playwright/node_modules \
+CHROMIUM_PATH=/path/to/chromium \
+IT_SETTINGS_ARTIFACTS=/tmp/dsh-settings-artifacts \
+node scripts/manual/settings-web-e2e.mjs
+```
+
+检查主机结果列与编辑表单对齐、远程主机图标、键盘标签导航、菜单关闭、草稿、测试与保存，以及 1440px / 390px 布局。此项接入最新宿主的原生 Agent CI，并上传截图。

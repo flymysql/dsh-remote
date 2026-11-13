@@ -67,6 +67,9 @@ jobs:
           export CHROMIUM_PATH="$(node -e 'console.log(require(process.env.IT_BROWSER_MODULES + "/playwright").chromium.executablePath())')"
           if [ "$TOOL_MODE" = ptc ]; then export IT_AGENT_PTC=1; fi
           node scripts/manual/agent-web-e2e.mjs
+          if [ "$TOOL_MODE" = native ] && [ "${{ matrix.dsh }}" = 0.2.2-rc.1 ]; then
+            node scripts/manual/settings-web-e2e.mjs
+          fi
       - uses: actions/upload-artifact@v6
         if: always()
         with:

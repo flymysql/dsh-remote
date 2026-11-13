@@ -44,6 +44,10 @@ DSH 的 Web 界面刻意只监听 `127.0.0.1`（CLI 为安全拒绝 `--host 0.0.
 
 <img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-terminal.png" alt="DSH 原生远程终端实际输入与命令输出" width="1000"/>
 
+**主机设置** —— 自动检测连通性与耗时，配置和工作区操作分开：
+
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/settings-panel.png" alt="远程主机设置：独立连接检测与耗时，编辑和删除主机，无全局当前主机或目录选择" width="1000"/>
+
 ## 功能
 
 ![1.0 核心能力：最近项目、文件、Agent 结果、远程终端、镜像同步与恢复](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/features.png)
@@ -95,7 +99,7 @@ caret 在 `0.x` 上会锁死小版本线（`^0.1.x` 容不下 `0.2.x`，反之�
 dsh plugin add dsh-remote
 ```
 
-自 **v0.8.18** 起只安装并挂载自身；Web 侧边栏（[dsh-better-sidebar](https://www.npmjs.com/package/dsh-better-sidebar)）改为可选。需要 Web 版远程文件浏览/编辑时再单独装它；不装时 `rw_*` 工具、设置页、同步、审计与转发均照常工作。
+插件只安装并挂载自身。DSH Web 的原生侧栏支持远程文件浏览、编辑和终端；[dsh-better-sidebar](https://www.npmjs.com/package/dsh-better-sidebar) 为可选集成，无需安装即可使用工作区与 Agent 工具。
 
 > **从 0.7.2–0.8.17 升级：** 内嵌侧边栏会消失，旧 profile 里 `id: dsh-remote-sidebar` 的覆盖可以删除。
 
@@ -103,12 +107,8 @@ dsh plugin add dsh-remote
 
 ## 快速上手
 
-1. **连接一台机器** —— 设置 → 远程工作区：页面**直接列出 `~/.ssh/config` 里的主机**（像 VSCode Remote-SSH），点「连接」即可（= 采用 + 设为当前 + 实测延迟，结果显示在这一行上）。
-   要加一台配置里没有的机器，点「打开配置文件」写一个 Host 段，再点「刷新」。已保存的机器仍可「编辑」（密码、OpenSSH 后端、远端 dsh 命令这些 ssh 配置存不下的项）。
-   > **保存 ≠ 激活**：保存只是备用连接；只有「连接」（或 Agent 调 `rw_connect`）才进入会话的 remote context。
-2. **选工作区** —— 连上之后会自动弹出目录选择（也可以点机器行的「选目录」）：
-   - **远程** → 浏览到远程目录（或输入 `/path`）→ 「设为远程工作区」⇒ 创建并收养本地镜像工作区。
-   - **本机** → 系统文件夹选择（或手输路径）→ 本地工作区。宿主没有可用系统对话框时改用插件内置浏览器。
+1. **配置主机** —— 设置 → 远程工作区：列出 `~/.ssh/config` 与已保存的主机，打开页面自动检测 SSH 连通性并显示耗时。检测只验证连接，不选目录、不切换工作区，也不要求先“连接”。点「编辑 SSH 配置」添加 Host 段，再「刷新」；已保存主机的更多菜单可编辑密码、认证方式等配置。
+2. **新建远程工作区** —— 从侧栏「添加工作区」进入远程项目选择器，选择主机与远程目录，或直接打开最近项目。确认后创建/复用本地镜像并由宿主打开工作区。每个工作区独立绑定主机，可同时在多台远程主机上工作，设置页没有“当前远程机”。本机项目仍可通过系统文件夹选择或内置目录浏览器打开。
 3. **让 Agent 工作** —— 当作普通工作区使用，例如 `rw_read_file` / `rw_write_file` / `rw_edit` / `rw_exec` / `rw_search` / `rw_sync` / `rw_push` / `rw_forward`（完整列表见上文）。
 
 > **Remote context 是 session 级的**：只有当前 session 的工作区是某个远程镜像时，system prompt 才注入「Remote workspace」段落；普通本地 session 不受影响，模型也不会主动调 `rw_*`。

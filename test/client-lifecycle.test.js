@@ -423,7 +423,7 @@ test('settings register at order 40 without sessions, workspace, or better-sideb
   const settings = host.registrations.get(SETTINGS)
   assert.equal(settings.meta.id, 'dsh-remote')
   assert.equal(settings.meta.order, 40)
-  assert.equal(settings.meta.label(), host.dictionaries.get('dsh-remote').en['settings.title'])
+  assert.equal(settings.meta.label(), host.dictionaries.get('dsh-remote').en['settings.pageTitle'])
   assert.equal(typeof settings.render().type, 'function', 'settings exposes a renderable component')
   assert.ok(host.injections.some((names) => names.length === 1 && names[0] === 'sessions'))
   assert.ok(host.injections.some((names) => names.length === 1 && names[0] === 'betterSidebar'))

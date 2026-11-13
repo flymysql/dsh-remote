@@ -34,6 +34,7 @@ try {
  await page.route('https://registry.npmjs.org/dsh-remote/latest',route=>route.fulfill({json:{version:'1.0.0'}}))
  const layout=async()=>{
   await page.evaluate(()=>document.fonts.ready)
+  await page.locator('img:visible').evaluateAll(images=>Promise.all(images.map(image=>{image.loading='eager';return image.decode()})))
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'page must not scroll horizontally')
   assert.deepEqual(await page.locator('img:visible').evaluateAll(images=>images.filter(image=>!image.complete || image.naturalWidth===0).map(image=>image.src)),[],'visible images must load')
  }

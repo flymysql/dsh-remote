@@ -240,7 +240,7 @@ test('editing a machine shows its saved password as dots instead of an empty box
       `a saved password must render as dots, got placeholder: ${pwd[0].props.placeholder}`)
     assert.equal(pwd[0].props.value, '', 'the secret itself must NOT be put into the DOM')
     // …and the page says, in words, what an empty box will do.
-    const hint = elements(tree).some((el) => /留空保存 = 沿用已保存的密码/.test(textOf(el)))
+    const hint = elements(tree).some((el) => /留空可保留.*输入新密码.*替换/.test(textOf(el)))
     assert.ok(hint, 'the saved-password hint must be visible under the field')
   } finally { dispose() }
 })

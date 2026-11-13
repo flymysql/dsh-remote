@@ -60,9 +60,9 @@ The image above is the overview. What follows is only what the image does not ma
 - The path field autocompletes live; on Windows hosts the root shows a multi-drive view; the floating browser fills the field without committing.
 - On confirm a **real local mirror** is created and adopted by the harness, kept in sync over SFTP; the choice persists on the machine.
 
-**Settings** (hosts from `~/.ssh/config`, port forwarding, audit log, update mode):
+**Settings** — independent host connectivity checks and connection-test duration, with host configuration separate from workspace creation:
 
-<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/settings-panel.png" alt="dsh-remote settings: host list, connect, pick folder, remote DSH Web UI, port forwarding, audit log, update" width="612"/>
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/settings-panel.png" alt="Remote host settings with independent connectivity checks, duration and host configuration; no global active host or folder picker" width="1000"/>
 
 The rest:
 
@@ -116,11 +116,8 @@ Since **v0.8.18** it installs and mounts only itself; the Web sidebar ([dsh-bett
 
 ## Quick start
 
-1. **Connect a machine** — Settings → 远程工作区: the page **lists the hosts from your `~/.ssh/config`** (like VSCode Remote-SSH). Click **Connect** — it adopts the host, makes it current and probes it, with the result shown on that row. A machine that is *not* in your ssh config is added by **Open config** (edit a Host block, then Refresh). **Edit** on a saved machine is only for what ssh config cannot store (a password, the OpenSSH backend, the remote dsh command).
-   > **Saved ≠ active:** a saved machine is only a standby connection; only Connect (or the agent's `rw_connect`) puts it into the session's remote context.
-2. **Open a workspace** — the folder picker opens right after a successful connect (or click **选目录** on any saved machine):
-   - **Remote** → browse to a remote directory (or type `/path`) → "设为远程工作区" ⇒ a local mirror workspace is created and adopted.
-   - **Local** → system folder chooser (or type a path) → local workspace. Falls back to the in-app browser when no OS dialog exists.
+1. **Configure hosts** — Settings → Remote workspaces lists SSH config entries and saved hosts. Opening the page automatically checks SSH connectivity and shows connection-test duration. Checks do not select a host, open a folder or change any workspace. Add Host blocks with **Edit SSH config**, then **Refresh**. Saved hosts provide credential and connection editing through their actions menu.
+2. **Create a remote workspace** — use the sidebar Add workspace flow, choose a host and remote folder, or reopen a recent project. Confirmation creates or reuses the local mirror and opens it through the host. Each workspace binds its own host, so multiple remote hosts work in parallel; settings have no global active-host selector. Local projects use the system folder chooser or built-in browser.
 3. **Work with the agent** — treat it like any workspace: `rw_read_file` / `rw_write_file` / `rw_edit` / `rw_exec` / `rw_search` / `rw_sync` / `rw_push` / `rw_forward` (full list above).
 
 > **Remote context is session-scoped:** the "Remote workspace" system-prompt section appears only when the current session's workspace is a remote mirror; local sessions are unaffected and the model will not call `rw_*` on its own.
