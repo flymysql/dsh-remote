@@ -125,6 +125,25 @@ dsh plugin add dsh-remote
   要连远端进程一起停，用「断开并停止远端」——它只会结束**本次由插件启动**的那个进程。
 - 若远端已经在跑一个界面（比如你自己在终端里起的），可以选机器后把它的
   `http://127.0.0.1:<端口>/?token=…` 粘进输入框，点「连接已有实例」，插件不会再去启第二个。
+- 如果远端有**开机自启 / 常驻的 DSH**，不必每次手工粘贴：在机器卡片 →「高级」→「常驻实例发现命令」
+  配置 `webAttachDiscoverCommand`（仅按机器设置，留空则保持原来的总是新启行为）。点「连接并打开」时，
+  插件先在远端执行这条命令，取 stdout 中最后一个带端口和 token 的 `http(s)://…` 地址；探活成功就复用
+  常驻实例，不启动第二个进程，断开时也绝不会停掉它。无输出、命令失败或超过 8 秒、地址探活失败，
+  都会回退到原来的新启流程，并在界面上说明原因。发现命令的原始输出和 token 不写入审计日志。
+
+  让常驻实例的启动脚本把启动地址保存到 `$HOME/.dsh-web-url`（Windows 为 `%USERPROFILE%\.dsh-web-url`），
+  文件内容就是一行 `http://127.0.0.1:<端口>/?token=…`，然后按远端平台配置：
+
+  ```bash
+  # Linux / macOS（sh / bash）
+  cat "$HOME/.dsh-web-url" 2>/dev/null
+
+  # Windows 远端（PowerShell；cmd 或 PowerShell 作为默认 SSH shell 均可）
+  powershell -NoProfile -Command "Get-Content $env:USERPROFILE\.dsh-web-url -ErrorAction SilentlyContinue"
+  ```
+
+  发现命令按远端的**登录 shell** 原样执行，不由插件改写成 POSIX 命令，因此 Windows 远端可以直接用
+  PowerShell；文件不存在时 PowerShell 安静返回空输出，插件随即新启一个实例。
 - 远端 `dsh` 不在 SSH 登录 PATH 时，用 `webAttachCommand` 指向它的绝对路径；
   想让它别污染远端用户自己的会话/设置，用 `webAttachDshHome` 指一个临时目录。
   **按机器设**：设置 → 远程工作区 → 机器卡片 → 展开「高级」→「远端 dsh 命令」，

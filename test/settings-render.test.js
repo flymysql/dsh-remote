@@ -275,6 +275,43 @@ test('issue #119: storage get/set errors fall back safely and still POST the hos
   assert.equal(JSON.parse(write.init.body).enabled, false)
 })
 
+test('issue #125: the per-machine discover command renders in advanced settings', () => {
+  const { Page } = mountClient()
+  const hookState = []
+  const setters = []
+  let hookIndex = 0
+  installTestDispatcher(React, {
+    useState(init) { const i = hookIndex++; if (hookState[i] === undefined) hookState[i] = typeof init === 'function' ? init() : init; if (!setters[i]) setters[i] = (v) => { hookState[i] = typeof v === 'function' ? v(hookState[i]) : v }; return [hookState[i], setters[i]] },
+    useEffect() {}, useLayoutEffect() {}, useInsertionEffect() {},
+    useMemo(fn) { return fn() }, useCallback(fn) { return fn },
+    useRef(v) { return { current: v } }, useContext() { return {} },
+    useReducer(_r, init) { return [init, () => {}] },
+    useDebugValue() {}, useId() { return 'id' },
+    useTransition() { return [false, (f) => f && f()] }, useDeferredValue(v) { return v },
+    useImperativeHandle() {},
+  })
+  const render = () => { hookIndex = 0; return Page({}) }
+  let tree = render()
+  assert.equal(findAll(tree, (el) => el.props && el.props['data-testid'] === 'web-attach-discover-command').length, 0,
+    'the edit form is closed on a fresh page')
+  // The form only exists while editing a saved machine (issue #73). Drive the
+  // REAL form state into that mode rather than mocking the component output.
+  const formIndex = hookState.findIndex((v) => v && typeof v === 'object' && 'host' in v && 'passwordSet' in v)
+  assert.ok(formIndex >= 0, 'found the real machine-form state')
+  setters[formIndex]({ ...hookState[formIndex], id: 'm125', host: '10.0.0.5', webAttachDiscoverCommand: 'cat /tmp/dsh-url' })
+  // Expand every collapsed section, including the machine form's advanced area.
+  for (const i of hookState.map((v, j) => (v === false ? j : -1)).filter((j) => j >= 0)) setters[i](true)
+  tree = render()
+  const inputs = findAll(tree, (el) => el.props && el.props['data-testid'] === 'web-attach-discover-command')
+  assert.equal(inputs.length, 1, 'the discover command input is really mounted')
+  assert.equal(inputs[0].props.value, 'cat /tmp/dsh-url')
+  assert.match(inputs[0].props.placeholder, /留空 = 总是新起一个远端 dsh web/)
+  inputs[0].props.onChange({ target: { value: 'powershell -NoProfile -Command "Get-Content $env:USERPROFILE\\.dsh-web-url"' } })
+  tree = render()
+  const changed = findAll(tree, (el) => el.props && el.props['data-testid'] === 'web-attach-discover-command')
+  assert.match(changed[0].props.value, /^powershell /, 'editing flows back into the real form state')
+})
+
 test('no backup i18n key survives the capability removal', () => {
   // The card is gone; nothing backup-shaped may render in ANY section state.
   // This test owns its hook state: the first test's arrays belong to ITS render

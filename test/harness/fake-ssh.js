@@ -176,7 +176,9 @@ const DEFAULT_TREE = {
  * @param {string} [opts.platform] - 'posix' (default) or 'windows' (cmd/ver answers).
  * @param {object} [opts.fs] - initial tree `{ '/path': 'content' }`.
  * @param {string} [opts.cwd] - default working directory for relative paths.
- * @param {Function} [opts.onExec] - `(cmd, { username }) => { stdout?, stderr?, code? }`.
+ * @param {Function} [opts.onExec] - `(cmd, { username }) => { stdout?, stderr?, code?, delayMs? }`.
+ *   `delayMs` postpones the response so callers can exercise real client-side
+ *   exec deadlines (the issue #125 discover timeout needs this).
  * @param {boolean} [opts.silent] - do not print protocol errors to the console.
  */
 export async function startFakeSsh(opts = {}) {
@@ -288,10 +290,20 @@ export async function startFakeSsh(opts = {}) {
         session.on('exec', (acceptExec, rejectExec, info) => {
           const stream = acceptExec()
           const res = answerExec(info.command)
-          if (res.stdout) stream.write(res.stdout)
-          if (res.stderr) stream.stderr.write(res.stderr)
-          stream.exit(res.code || 0)
-          stream.end()
+          const respond = () => {
+            // A client-side deadline may close the channel before a delayed
+            // answer arrives; that is the expected race, not a server crash.
+            try {
+              if (res.stdout) stream.write(res.stdout)
+              if (res.stderr) stream.stderr.write(res.stderr)
+              stream.exit(res.code || 0)
+              stream.end()
+            } catch { /* channel already closed by the caller's deadline */ }
+          }
+          // A delayed answer exercises the REAL pool timeout path. Do not unref
+          // the timer: the test must wait for the delayed server-side write too.
+          if (Number(res.delayMs) > 0) setTimeout(respond, Number(res.delayMs))
+          else respond()
         })
         // PTY shells: echo whatever arrives, answer `exit` by closing the channel.
         session.on('pty', (acceptPty) => { try { acceptPty() } catch { /* optional */ } })

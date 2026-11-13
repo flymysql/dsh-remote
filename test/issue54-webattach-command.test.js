@@ -160,3 +160,39 @@ test('surrounding whitespace is trimmed, so a pasted path cannot break the launc
     assert.equal(rec.webAttachCommand, '/usr/bin/node /opt/dsh/bin.js')
   })
 })
+
+// Issue #125: the discover command is a sibling machine field, with the same
+// persistence and merge semantics as webAttachCommand.
+test('issue125: a discover command round-trips through the real registry and settings read', async () => {
+  const saved = 'cat "$HOME/.dsh-web-url" 2>/dev/null'
+  await withPlugin({ list: [{ id: 'm1', name: 'devbox', host: '10.0.0.5', port: 22, username: 'dev', webAttachDiscoverCommand: saved }], currentId: '' }, async ({ routes, machinesFile }) => {
+    const listed = await call(routes, '/dsh-remote/machines', { method: 'GET' })
+    assert.equal(listed.json.machines[0].webAttachDiscoverCommand, saved)
+
+    await call(routes, '/dsh-remote/machines', {
+      body: { action: 'update', id: 'm1', name: 'renamed', host: '10.0.0.5', username: 'dev' },
+    })
+    const kept = JSON.parse(readFileSync(machinesFile, 'utf8')).list.find((m) => m.id === 'm1')
+    assert.equal(kept.webAttachDiscoverCommand, saved, 'an omitted discover field must not wipe it')
+
+    await call(routes, '/dsh-remote/machines', {
+      body: { action: 'update', id: 'm1', name: 'renamed', host: '10.0.0.5', username: 'dev', webAttachDiscoverCommand: '' },
+    })
+    const cleared = JSON.parse(readFileSync(machinesFile, 'utf8')).list.find((m) => m.id === 'm1')
+    assert.equal(cleared.webAttachDiscoverCommand, '', 'an explicit empty value really disables discovery')
+  })
+})
+
+test('issue125: a new machine without discovery persists an empty command and trims supplied values', async () => {
+  await withPlugin(null, async ({ routes, machinesFile }) => {
+    await call(routes, '/dsh-remote/machines', {
+      body: { action: 'add', name: 'plain', host: '10.0.0.9', username: 'root' },
+    })
+    await call(routes, '/dsh-remote/machines', {
+      body: { action: 'add', name: 'discover', host: '10.0.0.10', username: 'root', webAttachDiscoverCommand: '  cat /tmp/url  ' },
+    })
+    const list = JSON.parse(readFileSync(machinesFile, 'utf8')).list
+    assert.equal(list.find((m) => m.host === '10.0.0.9').webAttachDiscoverCommand, '')
+    assert.equal(list.find((m) => m.host === '10.0.0.10').webAttachDiscoverCommand, 'cat /tmp/url')
+  })
+})
