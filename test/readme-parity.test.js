@@ -8,12 +8,12 @@
 //
 // 需要一致的三类东西：
 //   1) 章节骨架（`##` 标题的**数量**与顺序位置）——防止一边漏了一整节；
-//   2) 配置表的键集合——两个表的行数/键必须完全相同；
-//   3) 工具清单——`rw_*` 名字集合必须相同。
+//   2) 详细参考中的配置表键集合——两个表的行数/键必须完全相同；
+//   3) 详细参考中的工具清单——`rw_*` 名字集合必须相同。
 // 刻意**不**检查正文措辞（中英表达本就不同），那会逼出为了过测而写的僵硬文案。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -21,6 +21,8 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..')
 const zh = readFileSync(path.join(root, 'README.md'), 'utf8')
 const en = readFileSync(path.join(root, 'README.en.md'), 'utf8')
+const referenceZh = readFileSync(path.join(root, 'docs/reference.zh.md'), 'utf8')
+const referenceEn = readFileSync(path.join(root, 'docs/reference.en.md'), 'utf8')
 
 /** 提取所有二级标题的文本（去掉尾部空白）。 */
 const h2 = (src) => src.split('\n').filter((l) => l.startsWith('## ')).map((l) => l.trim())
@@ -71,7 +73,15 @@ test('each section is paired by position, not merely equal in count', () => {
   // 只用数量相等是不够的：把某个小节的内容整体搬到另一节，两个文件仍然"各 14 节"，
   // 读者却会看到中英结构错位。这里按位置显式声明配对，任何新增/删除/换序都要
   // 在这里同步更新，从而无法悄悄漂移。
-  const PAIRS = [
+  const PAIRS = [['安装', 'Install'], ['3 步开始', 'Start in 3 steps'], ['日常开发', 'Everyday development'], ['兼容与边界', 'Compatibility and limits'], ['文档与社区', 'Documentation and community']]
+  const a = h2(zh).map((s) => s.replace(/^##\s+/, ''))
+  const b = h2(en).map((s) => s.replace(/^##\s+/, ''))
+  assert.deepEqual(a, PAIRS.map((p) => p[0]), 'Chinese section order changed — update PAIRS deliberately')
+  assert.deepEqual(b, PAIRS.map((p) => p[1]), 'English section order changed — update PAIRS deliberately')
+})
+
+test('the full reference retains the paired detailed sections', () => {
+  const REFERENCE_PAIRS = [
     ['1.0 工作区体验', '1.0 workspace experience'],
     ['界面预览', 'Screen previews'],
     ['功能', 'Features'],
@@ -90,17 +100,15 @@ test('each section is paired by position, not merely equal in count', () => {
     ['参与贡献与致谢', 'Contributing & credits'],
     ['变更记录', 'Changelog'],
   ]
-  const a = h2(zh).map((s) => s.replace(/^##\s+/, ''))
-  const b = h2(en).map((s) => s.replace(/^##\s+/, ''))
-  assert.deepEqual(a, PAIRS.map((p) => p[0]), 'Chinese section order changed — update PAIRS deliberately')
-  assert.deepEqual(b, PAIRS.map((p) => p[1]), 'English section order changed — update PAIRS deliberately')
+  assert.deepEqual(h2(referenceZh).map(s => s.slice(3)), REFERENCE_PAIRS.map(p => p[0]))
+  assert.deepEqual(h2(referenceEn).map(s => s.slice(3)), REFERENCE_PAIRS.map(p => p[1]))
 })
 
 test('the configuration tables declare the same keys', () => {
-  const a = tableKeys(zh)
-  const b = tableKeys(en)
+  const a = tableKeys(referenceZh)
+  const b = tableKeys(referenceEn)
   assert.ok(a.length > 20, `config table looks empty (zh=${a.length})`)
-  assert.deepEqual(a, b, 'config keys must match between README.md and README.en.md')
+  assert.deepEqual(a, b, 'config keys must match between the detailed references')
 })
 
 test('every config key documented in the table exists in the schema', () => {
@@ -109,28 +117,28 @@ test('every config key documented in the table exists in the schema', () => {
   const start = schema.indexOf('export const Config')
   const block = schema.slice(start, schema.indexOf('\n})', start))
   const declared = new Set([...block.matchAll(/^\s{2}([a-zA-Z][a-zA-Z0-9]*):\s*z\./gm)].map((m) => m[1]))
-  const documented = new Set(tableKeys(zh))
+  const documented = new Set(tableKeys(referenceZh))
   const ghosts = [...documented].filter((k) => !declared.has(k))
   assert.deepEqual(ghosts, [], `documented but not in the Config schema: ${ghosts.join(', ')}`)
 })
 
-test('both READMEs list the same rw_* tools', () => {
-  assert.deepEqual(tools(zh), tools(en), 'tool lists must agree')
+test('both detailed references list the same rw_* tools', () => {
+  assert.deepEqual(tools(referenceZh), tools(referenceEn), 'tool lists must agree')
   // Compare against the PLUGIN, not a hardcoded number. A literal here only
   // proves the author updated the test when it bothered them; comparing to the
   // registered tools proves the docs are actually right.
   const src = readFileSync(path.join(root, 'lib', 'index.js'), 'utf8')
   const real = [...new Set([...src.matchAll(/name:\s*'(rw_[a-z_]+)'/g)].map((m) => m[1]))].sort()
-  assert.deepEqual([...tools(zh)].sort(), real,
-    'the README tool list must match the tools the plugin registers')
+  assert.deepEqual([...tools(referenceZh)].sort(), real,
+    'the reference tool list must match the tools the plugin registers')
 })
 
 test('the DSH compatibility section is present in both', () => {
   // 0.8.29 修的正是"整包被丢弃"，这是用户最容易困惑的故障，必须双语都有。
-  assert.match(zh, /DSH 版本兼容性/)
-  assert.match(en, /DSH version compatibility/)
-  assert.match(zh, /0\.8\.29/)
-  assert.match(en, /0\.8\.29/)
+  assert.match(referenceZh, /DSH 版本兼容性/)
+  assert.match(referenceEn, /DSH version compatibility/)
+  assert.match(referenceZh, /0\.8\.29/)
+  assert.match(referenceEn, /0\.8\.29/)
 })
 
 test('the READMEs carry no telemetry section', () => {
@@ -149,7 +157,7 @@ test('the READMEs carry no telemetry section', () => {
   }
 })
 
-test('the English README has no untranslated Chinese prose', () => {
+test('the English overview and reference have no untranslated Chinese prose', () => {
   // 回归：上一轮精简时，英文版「FAQ / troubleshooting」的**正文**整段还是中文
   // （标题已英文化，所以只查标题的守卫抓不到）。这条按行扫描正文，
   // 超过阈值的中文即视为漏译。
@@ -162,7 +170,7 @@ test('the English README has no untranslated Chinese prose', () => {
   const CJK_RUN = /[\u4e00-\u9fa5]{4,}/g
 
   const offenders = []
-  en.split('\n').forEach((line, i) => {
+  ;(en + '\n' + referenceEn).split('\n').forEach((line, i) => {
     // 跳过代码块里的中文（示例命令、配置注释）与纯链接
     if (/^\s*[`|]/.test(line)) return
     for (const m of line.match(CJK_RUN) || []) {
@@ -172,4 +180,22 @@ test('the English README has no untranslated Chinese prose', () => {
   })
   assert.deepEqual(offenders, [],
     `untranslated Chinese prose in README.en.md (translate it, or add the label to ALLOWED_UI_LABELS if it is a real UI string):\n  ${offenders.join('\n  ')}`)
+})
+
+
+test('overview and migrated reference links resolve to repository files and headings', () => {
+  const slug = text => text.toLowerCase().replace(/[^\p{L}\p{N}_\- ]/gu, '').replace(/ /g, '-')
+  for (const [file, text] of [['README.md', zh], ['README.en.md', en], ['docs/reference.zh.md', referenceZh], ['docs/reference.en.md', referenceEn]]) {
+    for (const match of text.matchAll(/\]\(([^)\s]+)\)/g)) {
+      let target = match[1].replace('https://github.com/flymysql/dsh-remote/blob/main/', '/').replace('https://raw.githubusercontent.com/flymysql/dsh-remote/main/', '/')
+      if (/^[a-z]+:/i.test(target)) continue
+      const [name, fragment] = target.split('#')
+      const resolved = name ? name.startsWith('/') ? path.join(root, name.slice(1)) : path.resolve(root, path.dirname(file), name) : path.join(root, file)
+      assert.ok(existsSync(resolved), file + ': missing link ' + target)
+      if (fragment && /\.md$/.test(resolved)) {
+        const headings = readFileSync(resolved, 'utf8').split('\n').filter(line => /^#{1,6} /.test(line)).map(line => slug(line.replace(/^#+ /, '')))
+        assert.ok(headings.includes(decodeURIComponent(fragment)), file + ': missing heading ' + target)
+      }
+    }
+  }
 })

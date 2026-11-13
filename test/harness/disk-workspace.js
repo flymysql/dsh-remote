@@ -6,10 +6,17 @@ import { spawn } from 'node:child_process'
 import { startFakeSsh } from './fake-ssh.js'
 
 class DiskFs {
-  constructor(root) { this.root = path.resolve(root) }
+  constructor(root) {
+    this.root = path.resolve(root)
+    // Git and shells may canonicalize a workspace reached through an alias:
+    // macOS temp directories commonly have /var and /private/var spellings.
+    // Both names identify this fixture's disk; neither permits sibling paths.
+    this.realRoot = fs.realpathSync(this.root)
+  }
   resolve(raw) {
     const target = path.resolve(raw)
-    if (target !== this.root && !target.startsWith(this.root + path.sep)) throw new Error('outside disposable workspace')
+    const within = root => target === root || target.startsWith(root + path.sep)
+    if (!within(this.root) && !within(this.realRoot)) throw new Error('outside disposable workspace')
     return target
   }
   _norm(raw) { return this.resolve(raw) }
@@ -38,14 +45,15 @@ class DiskFs {
 }
 
 /** Only for trusted test commands: shell processes have the test runner's OS permissions. */
-export async function startDiskWorkspace(root) {
+export async function startDiskWorkspace(root, options = {}) {
   const children = new Set()
   const commands = []
   const filesystem = new DiskFs(root)
   const server = await startFakeSsh({
     users: { root: { password: 'test-only' } }, cwd: root, filesystem,
-    onPtyExec(command, stream) {
+    onPtyExec(command, stream, session) {
       commands.push(command)
+      if (options.onPtyExec?.(command, stream, session)) return true
       const child = spawn('/bin/sh', ['-c', command], { cwd: root, detached: true, stdio: ['pipe', 'pipe', 'pipe'] })
       children.add(child)
       const kill = () => { if (child.exitCode === null) { try { process.kill(-child.pid, 'SIGKILL') } catch { /* exited */ } } }

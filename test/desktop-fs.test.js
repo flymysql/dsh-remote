@@ -52,7 +52,11 @@ function routesFor(sftp, binding) {
 
 test('native resource addresses are session-scoped', () => {
   assert.match(src, /dsh-resource:\/\/dsh-remote\/' \+ encodeURIComponent\(sessionId\)/)
-  assert.match(src, /withSessionBody\(\{ path, content: draft/)
+  const saveCall = src.split('\n').find(line => line.includes("apiRaw('POST', '/dsh-remote/write'"))
+  assert.ok(saveCall, 'native editor must save through the remote file route')
+  assert.match(saveCall, /withSessionBody\(\{.*\}, fileSessionId\)/, 'save must keep its originating session')
+  assert.match(saveCall, /expectedRevision:/, 'save must send the captured raw-byte revision')
+  assert.match(saveCall, /draftRecord\.baseRevision/, 'unsaved drafts retain their own baseline revision')
   assert.match(src, /expectedMtime: draftRecord \? draftRecord.baseMtime : data && data.mtime/)
   assert.match(src, /withSessionQuery\('\/dsh-remote\/ls\?path='/)
   assert.match(src, /withSessionQuery\('\/dsh-remote\/status'/)
@@ -63,12 +67,21 @@ test('sidebar write 409 on mtime mismatch, then save after re-read (Desktop edit
   const fs = new MemFs()
   seed(fs, { 'proj/a.txt': 'v1' })
   const sftp = makeSftp(fs)
+  // The editor now stages and atomically replaces files. This Desktop fixture
+  // needs the same overwrite-rename/attribute surface as real SSH backends.
+  sftp.renameOverwrite = sftp.rename
+  sftp.setstat = async (path, attrs) => {
+    const entry = fs.root.get(path)
+    if (!entry) throw Object.assign(new Error('no such file'), { code: 'ENOENT' })
+    Object.assign(entry, attrs)
+  }
   const binding = { ws: '/proj', host: '10.0.0.1', username: 'dev', port: 22, bound: true, mirrorDir: '/tmp/m' }
   const routes = routesFor(sftp, binding)
 
   const first = await call(routes['/dsh-remote/read'], { body: { path: '/proj/a.txt', sessionId: 's1' } })
   assert.equal(first.status, 200)
   assert.equal(first.json.content, 'v1')
+  assert.match(first.json.revision, /^[a-f0-9]{64}$/)
   const mtime = first.json.mtime
 
   fs.writeFileSync('/proj/a.txt', 'v2-remote')
@@ -80,10 +93,12 @@ test('sidebar write 409 on mtime mismatch, then save after re-read (Desktop edit
 
   const reread = await call(routes['/dsh-remote/read'], { body: { path: '/proj/a.txt', sessionId: 's1' } })
   const saved = await call(routes['/dsh-remote/write'], {
-    body: { path: '/proj/a.txt', content: 'merged', expectedMtime: reread.json.mtime, sessionId: 's1' },
+    body: { path: '/proj/a.txt', content: 'merged', expectedMtime: reread.json.mtime, expectedRevision: reread.json.revision, sessionId: 's1' },
   })
   assert.equal(saved.status, 200)
   assert.equal(fs.readFileSync('/proj/a.txt').toString(), 'merged')
+  assert.match(saved.json.revision, /^[a-f0-9]{64}$/)
+  assert.notEqual(saved.json.revision, reread.json.revision)
 })
 
 test('sidebar /ls returns session-bound listing from the resolved pool', async () => {

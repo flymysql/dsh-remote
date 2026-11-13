@@ -69,6 +69,7 @@ jobs:
           IT_BROWSER_MODULES: ${{ runner.temp }}/agent-browser/node_modules
           IT_AGENT_ARTIFACTS: ${{ runner.temp }}/agent-artifacts
           TOOL_MODE: ${{ matrix.mode }}
+          IT_AGENT_APPLIED_DIFF: 1
         run: |
           export CHROMIUM_PATH="$(node -e 'console.log(require(process.env.IT_BROWSER_MODULES + "/playwright").chromium.executablePath())')"
           if [ "$TOOL_MODE" = ptc ]; then export IT_AGENT_PTC=1; fi
@@ -80,6 +81,16 @@ jobs:
           if [ "$TOOL_MODE" = native ] && [ "${{ matrix.dsh }}" != 0.2.0-rc.2 ]; then
             export IT_SETTINGS_LEGACY_CSS=1
             node scripts/manual/settings-web-e2e.mjs
+            export IT_PICKER_ARTIFACTS="$IT_AGENT_ARTIFACTS/picker"
+            export IT_SEARCH_ARTIFACTS="$IT_AGENT_ARTIFACTS/search"
+            export IT_GIT_ARTIFACTS="$IT_AGENT_ARTIFACTS/git"
+            export IT_IDE_ARTIFACTS="$IT_AGENT_ARTIFACTS/ide"
+            export IT_TERMINAL_ARTIFACTS="$IT_AGENT_ARTIFACTS/terminal"
+            node scripts/manual/directory-picker-web-e2e.mjs
+            node scripts/manual/search-web-e2e.mjs
+            node scripts/manual/git-web-e2e.mjs
+            node scripts/manual/ide-web-e2e.mjs
+            node scripts/manual/terminal-web-e2e.mjs
           fi
       - uses: actions/upload-artifact@v6
         if: always()

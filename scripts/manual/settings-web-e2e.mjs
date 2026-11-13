@@ -22,8 +22,8 @@ fs.writeFileSync(home+'/profiles/web/package.json',JSON.stringify({name:'setting
 fs.symlinkSync(modules,home+'/profiles/web/node_modules')
 fs.writeFileSync(home+'/ssh_config',`Host dev-remote\n  HostName 127.0.0.1\n  Port ${server.port}\n  User root\nHost build-agent\n  HostName 127.0.0.1\n  Port 2\n  User ubuntu\n`)
 fs.writeFileSync(home+'/remote-workspaces/machines.json',JSON.stringify({list:[{id:'dev',name:'开发环境',host:'127.0.0.1',port:server.port,username:'root',password:'fixture-only',hostKeyMode:'off',backend:'native',workspace:'/project',recentWorkspaces:['/project'],lastConnectedAt:new Date().toISOString()},{id:'staging',name:'预发布环境',host:'127.0.0.2',port:1,username:'ubuntu',password:'fixture-only',hostKeyMode:'off',backend:'native'}],currentId:'dev'}))
-fs.writeFileSync(home+'/patch.yml',`- insert:\n    - id: dsh-remote\n      name: dsh-remote\n      config:\n        telemetry: false\n        updateMode: off\n`)
-const child=spawn(process.execPath,[path.join(path.dirname(hostRequire.resolve('@deepseek-ai/dsh/package.json')),'lib/bin.js'),'web','--patch',home+'/patch.yml','--host','127.0.0.1','--port',port,'--no-open'],{env:{...process.env,DSH_HOME:home,DSH_REMOTE_SSH_CONFIG:home+'/ssh_config'},stdio:['ignore','pipe','pipe']})
+fs.writeFileSync(home+'/patch.yml',`- insert:\n    - id: dsh-remote\n      name: ${JSON.stringify(path.join(path.resolve(modules), 'dsh-remote/lib/boot.js'))}\n      config:\n        telemetry: false\n        updateMode: off\n`)
+const child=spawn(process.execPath,[path.join(path.dirname(hostRequire.resolve('@deepseek-ai/dsh/package.json')),'lib/bin.js'),'web','--patch',home+'/patch.yml','--host','127.0.0.1','--port',port,'--no-open'],{cwd:home+'/profiles/web',env:{...process.env,DSH_HOME:home,DSH_REMOTE_SSH_CONFIG:home+'/ssh_config'},stdio:['ignore','pipe','pipe']})
 let log='',browser;child.stdout.on('data',d=>log+=d);child.stderr.on('data',d=>log+=d)
 try{
  for(let i=0;i<150&&!log.includes('dsh web:');i++)await new Promise(r=>setTimeout(r,100))

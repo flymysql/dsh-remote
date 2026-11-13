@@ -81,3 +81,24 @@ test('previewRemoteFile reads an image whole past the text cap (issue #66), and 
   assert.equal(r2.image, undefined)
   assert.equal(r2.truncated, true)
 })
+
+test('complete text previews report original EOL style while exposing normalized editor text', async () => {
+  const fs = new MemFs(), sftp = makeSftp(fs)
+  for (const [content, expected] of [
+    ['first\r\nsecond\r\n', 'crlf'], ['first\nsecond\n', 'lf'],
+    ['first\r\nsecond\n', 'mixed'], ['first\rsecond\r', 'mixed'],
+    ['no newline', 'lf'], ['', 'lf'],
+  ]) {
+    fs.writeFileSync('/proj/eol.txt', Buffer.from(content))
+    const result = await previewRemoteFile(sftp, '/proj/eol.txt')
+    assert.equal(result.eol, expected, JSON.stringify(content))
+    assert.equal(result.content, content.replace(/\r\n/g, '\n'))
+  }
+})
+
+test('partial previews never infer whole-file EOL style from the visible prefix', async () => {
+  const fs = new MemFs(), sftp = makeSftp(fs)
+  fs.writeFileSync('/proj/mixed.txt', Buffer.from('first\r\n' + 'a'.repeat(1500) + '\nlast\n'))
+  const result = await previewRemoteFile(sftp, '/proj/mixed.txt', { maxBytes: 1024 })
+  assert.equal(result.truncated, true); assert.equal(result.eol, undefined); assert.equal(result.revision, undefined)
+})

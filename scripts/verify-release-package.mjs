@@ -9,7 +9,7 @@ export function auditPackagePaths(paths) {
   // ssh2's published package includes public protocol-test keys. These are
   // upstream fixtures, not user credentials; do not reject the locked bundle.
   const publicFixtures = new Set(['id_rsa', 'https_cert.pem', 'https_key.pem'].map((name) => 'package/node_modules/ssh2/test/fixtures/' + name))
-  const required = ['package/package.json', 'package/cordis.patch.yml', 'package/lib/boot.js', 'package/lib/client.js', 'package/lib/index.js', 'package/lib/sync-status.js', 'package/lib/auto-update.js']
+  const required = ['package/package.json', 'package/cordis.patch.yml', 'package/lib/boot.js', 'package/lib/client.js', 'package/lib/index.js', 'package/lib/sync-status.js', 'package/lib/auto-update.js', 'package/lib/file-changes.js', 'package/lib/remote-write.js', 'package/lib/workspace-search.js', 'package/lib/remote-git.js', 'package/lib/vendor/jsdiff/patch/create.js', 'package/lib/vendor/jsdiff/diff/base.js', 'package/lib/vendor/jsdiff/diff/line.js', 'package/lib/vendor/jsdiff/util/params.js', 'package/lib/vendor/jsdiff/LICENSE', 'package/lib/vendor/jsdiff/SOURCE.md']
   const missing = required.filter((name) => !paths.includes(name))
   const forbidden = paths.filter((name) => !name.startsWith('package/') || name.split('/').includes('..')
     || /\.node$/i.test(name) || !publicFixtures.has(name) && (/\.(?:pem|key)$/i.test(name) || /(?:^|\/)(?:\.env(?:\.[^/]*)?|\.git|\.ssh|machines\.json|id_rsa|id_ed25519)(?:\/|$)/.test(name))

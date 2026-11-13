@@ -29,7 +29,7 @@ for (const file of ['cordis.yml', 'cordis.patch.yml']) fs.writeFileSync(home + '
 fs.writeFileSync(home + '/profiles/web/package.json', JSON.stringify({ name: 'auto-update-test', private: true, dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] } } }))
 fs.symlinkSync(home + '/node_modules', home + '/profiles/web/node_modules')
 fs.writeFileSync(home + '/ssh_config', '')
-fs.writeFileSync(home + '/patch.yml', '- insert:\n    - id: dsh-remote\n      name: dsh-remote\n      config:\n        telemetry: false\n        updateMode: manual\n')
+fs.writeFileSync(home + '/patch.yml', `- insert:\n    - id: dsh-remote\n      name: ${JSON.stringify(path.join(installed, 'lib/boot.js'))}\n      config:\n        telemetry: false\n        updateMode: manual\n`)
 fs.writeFileSync(home + '/registry.mjs', `import {readFileSync,appendFileSync} from 'node:fs';
 const original=globalThis.fetch;
 globalThis.fetch=async(input,init)=>{
@@ -39,7 +39,7 @@ if(url===${JSON.stringify('https://registry.npmjs.org/dsh-remote/-/dsh-remote-' 
 appendFileSync(${JSON.stringify(home + '/downloads')},'download\\n');return new Response(readFileSync(${JSON.stringify(path.resolve(archive))}));}
 return original(input,init);};`)
 const port = String(Number(process.env.IT_UPDATE_PORT || 50651))
-const child = spawn(process.execPath, ['--import', home + '/registry.mjs', path.join(path.dirname(req.resolve('@deepseek-ai/dsh/package.json')), 'lib/bin.js'), 'web', '--patch', home + '/patch.yml', '--host', '127.0.0.1', '--port', port, '--no-open'], { env: { ...process.env, DSH_HOME: home, DSH_REMOTE_SSH_CONFIG: home + '/ssh_config' }, stdio: ['ignore', 'pipe', 'pipe'] })
+const child = spawn(process.execPath, ['--import', home + '/registry.mjs', path.join(path.dirname(req.resolve('@deepseek-ai/dsh/package.json')), 'lib/bin.js'), 'web', '--patch', home + '/patch.yml', '--host', '127.0.0.1', '--port', port, '--no-open'], { cwd: home + '/profiles/web', env: { ...process.env, DSH_HOME: home, DSH_REMOTE_SSH_CONFIG: home + '/ssh_config' }, stdio: ['ignore', 'pipe', 'pipe'] })
 let log = '', browser
 child.stdout.on('data', d => log += d); child.stderr.on('data', d => log += d)
 try {

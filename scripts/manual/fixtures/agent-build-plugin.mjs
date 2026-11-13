@@ -12,7 +12,7 @@ export function apply(ctx){
  const guard=(req,res)=>{if(req.headers['x-dsh-agent-e2e']!==process.env.DSH_AGENT_E2E_NONCE){res.statusCode=403;res.end();return false}return true}
 
  const live=process.env.IT_AGENT_REAL_MODEL==='1'
- const adapter=live?null:createBuildAdapter(llm,{project:process.env.DSH_E2E_PROJECT})
+ const adapter=live?null:createBuildAdapter(llm,{project:process.env.DSH_E2E_PROJECT,reviewFailure:process.env.IT_AGENT_APPLIED_DIFF==='1'})
  if(adapter)ctx.llm.registerAdapter(['scripted-build-test'],adapter)
  let agent
  ctx.webServer.register({kind:'exact',path:'/agent-e2e/start',handler:async(req,res)=>{
@@ -30,6 +30,6 @@ export function apply(ctx){
  }})
  ctx.webServer.register({kind:'exact',path:'/agent-e2e/status',handler:(req,res)=>{
   if(!guard(req,res))return
-  res.setHeader('Content-Type','application/json');res.end(JSON.stringify({modelMode:live?'live':'scripted',step:adapter?.step??agent?.session.snapshotEvents().filter(e=>e.type==='step/start').length,status:agent?.status,events:agent?.session.snapshotEvents()}))
+  res.setHeader('Content-Type','application/json');res.end(JSON.stringify({modelMode:live?'live':'scripted',step:adapter?.step??agent?.session.snapshotEvents().filter(e=>e.type==='step/start').length,status:agent?.status,modelResults:adapter?.results,events:agent?.session.snapshotEvents()}))
  }})
 }

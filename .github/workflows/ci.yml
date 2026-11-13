@@ -23,6 +23,10 @@ jobs:
           # already missed binding.js, registry.js, update.js and (with PR #31)
           # http-transport.js, so a syntax error in a new file could reach main.
           for f in lib/*.js; do node --check "$f"; done
+      - name: Reproduce licensed diff sources
+        run: |
+          node scripts/vendor-diff.mjs
+          git diff --exit-code -- lib/vendor/jsdiff
       - name: Static framework gate
         run: node check.mjs
       - name: Unit tests
@@ -65,6 +69,10 @@ jobs:
         shell: bash
         run: |
           for f in lib/*.js; do node --check "$f"; done
+      - name: Reproduce licensed diff sources
+        run: |
+          node scripts/vendor-diff.mjs
+          git diff --exit-code -- lib/vendor/jsdiff
       - name: Static framework gate
         run: node check.mjs
       - name: Unit tests
@@ -85,6 +93,10 @@ jobs:
       - name: Syntax check
         run: |
           for f in lib/*.js; do node --check "$f"; done
+      - name: Reproduce licensed diff sources
+        run: |
+          node scripts/vendor-diff.mjs
+          git diff --exit-code -- lib/vendor/jsdiff
       - name: Static framework gate
         run: node check.mjs
       - name: Unit tests

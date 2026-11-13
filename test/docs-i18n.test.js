@@ -87,7 +87,7 @@ test('documented rw_* tool names all exist in the plugin', () => {
   const real = new Set([...indexSrc.matchAll(/name:\s*'(rw_[a-z_]+)'/g)].map((m) => m[1]))
 
   const documented = new Set()
-  for (const p of [...PAGES, 'README.md']) {
+  for (const p of [...PAGES, 'README.md', 'README.en.md', 'docs/reference.zh.md', 'docs/reference.en.md']) {
     for (const m of read(p).matchAll(/(?:<code>|`)(rw_[a-z_]+)(?:<\/code>|`)/g)) documented.add(m[1])
     // 正文里的 `N 个 rw_* 工具` / `N rw_* tools` 也是要维护的断言，而且比工具
     // 列表更容易漏改（列了工具却没改数字，读者会以为少了工具）。所以把页面里
@@ -159,11 +159,11 @@ test('config defaults shown on the site match the schema', () => {
     declared[m[1]] = m[2].trim()
   }
 
-  const home = read('README.md')
+  const home = read('docs/reference.zh.md')
   const rows = [...home.matchAll(/^\| `([a-zA-Z][a-zA-Z0-9]*)` \| [^|]+ \| (?:`([^`]+)`|([^|]+)) \|/gm)]
     .map((m) => [m[1], (m[2] ?? m[3]).trim().replace(/（[^）]*）/g, '')])
 
-  assert.ok(rows.length >= 5, `expected the README config table to have rows, found ${rows.length}`)
+  assert.ok(rows.length >= 5, `expected the reference config table to have rows, found ${rows.length}`)
 
   // 有些默认值是常量引用（updateMode → DEFAULT_UPDATE_MODE），要解析到真实值，
   // 否则测试会误报"文档写了 auto 而 schema 是 DEFAULT_UPDATE_MODE"。

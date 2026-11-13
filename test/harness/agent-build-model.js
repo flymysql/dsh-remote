@@ -18,7 +18,7 @@ export async function* reply(text, tool, ToolCallId, step, ptc = false) {
   yield { type: 'finish', reason: { kind: tool ? 'tool-calls' : 'stop' } }
 }
 
-export function createBuildAdapter({ LlmAdapter, ToolCallId }, { project }) {
+export function createBuildAdapter({ LlmAdapter, ToolCallId }, { project, reviewFailure = false }) {
   return new class extends LlmAdapter {
     async listModels(provider) { return [{ provider, id: 'deterministic', name: 'Scripted integration test' }] }
     step = 0
@@ -31,29 +31,41 @@ export function createBuildAdapter({ LlmAdapter, ToolCallId }, { project }) {
       if (last) this.results.push(last)
       const output = last?.content.map((b) => b.text || '').join('\n') || ''
       const step = this.step++
+      const phase = reviewFailure && step > 2 ? step - 1 : step
       const file = project + '/src/main.c'
       const build = { name: 'rw_exec', args: { command: 'mkdir -p dist && gcc -Wall -Werror src/main.c -o dist/app' } }
-      if (step === 0) {
+      if (phase === 0) {
         assert.match(JSON.stringify(options.messages), /Remote workspace/)
         assert.ok(ptc || options.tools.some((tool) => tool.name === 'rw_exec'))
         yield* reply('先读取远程源码，再实际编译。', { name: 'rw_read_file', args: { path: file } }, ToolCallId, step, ptc)
-      } else if (step === 1) {
+      } else if (phase === 1) {
         assert.match(output, /puts\("REMOTE_BUILD_OK"\)/)
         assert.doesNotMatch(output, /LOCAL_MIRROR_MUST_NOT_COMPILE/)
         yield* reply('在远端运行 GCC，检查实际诊断。', build, ToolCallId, step, ptc)
-      } else if (step === 2) {
-        assert.match(output, /error:/)
-        assert.match(output, /main\.c:3:/)
-        assert.match(output, /\[exit code: 1\]/)
+      } else if (phase === 2) {
+        if (reviewFailure && step === 3) {
+          assert.ok(last.isError, 'the intentionally mismatched edit must fail')
+          assert.match(output, /old text not found/)
+        } else {
+          assert.match(output, /error:/)
+          assert.match(output, /main\.c:3:/)
+          assert.match(output, /\[exit code: 1\]/)
+        }
+        if (reviewFailure && step === 2) {
+          yield* reply('先验证旧内容不匹配时安全拒绝写入。', { name: 'rw_edit', args: { path: file, old: '__MISSING_EDIT_BASELINE__', new: '__MUST_NOT_APPLY__' } }, ToolCallId, step, ptc)
+          return
+        }
         yield* reply('编译失败：第 3 行缺少分号，现在修复。', { name: 'rw_edit', args: { path: file, old: 'puts("REMOTE_BUILD_OK")', new: 'puts("REMOTE_BUILD_OK");' } }, ToolCallId, step, ptc)
-      } else if (step === 3) {
+      } else if (phase === 3) {
         assert.ok(!last.isError, output)
+        assert.match(output, /edited .*src\/main\.c: replaced 1 occurrence\(s\)/)
+        assert.doesNotMatch(output, /oldText|newText|dsh-remote\.change|\"diffs\"/)
         yield* reply('修改已写入远端，重新编译。', build, ToolCallId, step, ptc)
-      } else if (step === 4) {
+      } else if (phase === 4) {
         assert.ok(!last.isError, output)
         assert.doesNotMatch(output, /\[exit code: [1-9]/)
         yield* reply('编译成功，运行生成的程序。', { name: 'rw_exec', args: { command: './dist/app' } }, ToolCallId, step, ptc)
-      } else if (step === 5) {
+      } else if (phase === 5) {
         assert.match(output, /REMOTE_BUILD_OK/)
         assert.ok(!last.isError, output)
         assert.doesNotMatch(output, /\[exit code: [1-9]/)

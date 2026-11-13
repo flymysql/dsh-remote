@@ -240,3 +240,28 @@ node scripts/manual/settings-web-e2e.mjs
 Agent 浏览器验收新增原生“工作区文件”点击：在任务完成后创建只存在于远端、没有本地镜像副本的文件，通过原生入口列出并打开它。客户端路由测试还验证两个远程会话、本地会话、异步到达和插件卸载隔离。CI 覆盖 DSH 0.2.0、0.2.1-rc.5、0.2.2 三条宿主的 native/PTC 路径。
 
 - `test/auto-update.test.js` 和 `test/update-routes.test.js` 验证运行中启停、并发去重、失败退避、落盘未切换、卸载保护与无 registry 请求的状态轮询。`scripts/manual/auto-update-web-e2e.mjs` 在隔离的真实 DSH 进程中开启自动模式，用实际候选 tgz 完成下载和 Loader 热切换，整个过程不请求手动更新。Agent CI 的三个宿主原生路径均执行此验收。
+
+
+## 10. 日常开发与 IDE 布局
+
+下列脚本默认验证 `IT_DSH_MODULES` 中实际安装的候选包，使用独立临时 profile 和 loopback SSH，不读写用户项目。`IT_BROWSER_MODULES` 指向 Playwright，`CHROMIUM_PATH` 指向 Chromium；各脚本退出时回收其宿主及 SSH 服务。
+
+| 脚本 | 验收内容 | 截图目录变量 |
+| --- | --- | --- |
+| `scripts/manual/directory-picker-web-e2e.mjs` | 桌面、低高度、手机的列表可见行数、键盘选择和路径确认 | `IT_PICKER_ARTIFACTS` |
+| `scripts/manual/search-web-e2e.mjs` | 未展开目录内的文件/目录、实际扫描进度、内容行跳转、停止、空结果、手机布局 | `IT_SEARCH_ARTIFACTS` |
+| `scripts/manual/git-web-e2e.mjs` | 真实远端仓库、工作区与暂存区差异、行号打开真实远端文件 | `IT_GIT_ARTIFACTS` |
+| `scripts/manual/ide-web-e2e.mjs` | 三栏位置、原生节点与未保存草稿保留、运行中 GCC 任务、列宽、窄屏和多会话隔离 | `IT_IDE_ARTIFACTS` |
+| `scripts/manual/terminal-web-e2e.mjs` | 原生终端、像素鱼、真实 OpenSSH/PTY 输入输出及仅远端落盘 | `IT_TERMINAL_ARTIFACTS` |
+
+开发源码覆盖模式需显式设置相应 `IT_SEARCH_SOURCE=1`、`IT_GIT_SOURCE=1`、`IT_IDE_SOURCE=1` 或 `IT_TERMINAL_SOURCE=1`；正式候选验收不设置这些开关。不能将源码测试作为发布包已通过的证据。
+
+`workspace-search.test.js` 覆盖任务归属、边界、增量结果、取消与真实 SFTP 操作并发；`workspace-search-ui.test.js` 覆盖迟到响应和范围、会话切换隔离。取消不释放尚未结束的真实操作槽位，不关闭共享连接。
+
+`file-save-integrity.test.js`、`remote-write.test.js`、`editor-save-lifecycle.test.js` 验证同秒同大小外部修改、CRLF、符号链接/权限、写失败、保存期间继续输入与恢复原文。`file-change-tools.test.js` 和 Agent 集成测试核对实际应用差异元数据，模型可见结果仍保持简洁。
+
+`IT_AGENT_APPLIED_DIFF=1` 的 Agent 浏览器验收完整执行 7 步：读取 → 实际编译失败 → 拒绝不匹配编辑 → 成功编辑 → 编译 → 运行 → 汇报。DSH 0.2.0-rc.2 的工具运行器仅对顶层调用生成 `presentationMeta`，且不将其写入 `tool/ptc-dispatch`；这同时影响 PTC 的编辑和命令展示元数据。脚本按实际安装的 `@deepseek-ai/dsh-tools` 版本，仅对 **0.2.0-rc.2 + PTC** 验证真实执行结果、请求的前后替换片段、失败状态、没有虚假“已应用”标记以及模型消息不含 diff 元数据，并明确打印宿主限制；不跳过任务、不修补宿主、不把展示信息塞入模型输出。0.2.0 原生调用及已验收的 0.2.1-rc.5 / 0.2.2-rc.1 原生和 PTC 调用仍严格要求持久化的真实 diff、上下文和增删行数。没有元数据的记录只能回退为替换片段，不能据此推断完整已应用差异。
+
+`ide-mode.test.js` 验证列宽夹持、偏好持久化、可选宿主服务以及停靠后原始属性、inert 与 CSS 变量的完整恢复。IDE 通过兼容适配原生宿主面板，不复制会话 React 树；未来宿主标记变化可能需要更新适配。
+
+jsdiff 的最小源码集合保留原 BSD-3-Clause 许可；`node scripts/vendor-diff.mjs` 可从锁定的开发依赖重建，CI 比较结果。覆盖率门禁统计第一方代码，第三方源码不计入；整体与逐文件阈值保持不变。

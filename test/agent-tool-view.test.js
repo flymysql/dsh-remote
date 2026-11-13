@@ -81,3 +81,19 @@ test('preparing, tool failures and edit replacements retain honest states and th
   tree = await ui.settleComponent(ui.body('rw_edit'), { toolName: 'rw_edit', callId: 'edit', phase: 'result', block: { call: { argsRaw: JSON.stringify({ path: '/remote/a.c', old_string: 'before', new_string: 'after' }) }, content: [{ type: 'text', text: 'replaced' }] } })
   assert.match(ui.textOf(tree), /替换前before替换后after/)
 })
+
+test('successful mutation cards show recorded applied context, counts and canonical remote path', async t => {
+  const opened=[],ui=mountClient();t.after(()=>ui.dispose())
+  const change={kind:'dsh-remote.change',version:1,path:'/remote/project/file.c',operation:'edit',applied:true,additions:1,deletions:1,diffs:[{path:'/remote/project/file.c',oldText:'context\nbefore\ncontext',newText:'context\nafter\ncontext'}],truncated:false,unchanged:false}
+  const data={toolName:'rw_edit',callId:'edit-applied',phase:'result',openFile:(...args)=>opened.push(args),block:{call:{argsRaw:JSON.stringify({path:'file.c',old:'before',new:'after'})},content:[{type:'text',text:'edited'}],meta:change}}
+  const tree=await ui.settleComponent(ui.body('rw_edit'),data)
+  const component=ui.components(tree).find(c=>c.type.name==='AppliedChangeView')
+  assert.ok(component,'successful changes are expanded and use their persisted metadata')
+  const display=component.type(component.props)
+  assert.match(ui.textOf(display),/已应用到远端/);assert.match(ui.textOf(display),/\+1/);assert.match(ui.textOf(display),/context\nbefore/)
+  ui.buttons(tree).find(b=>b.label==='/remote/project/file.c').el.props.onClick()
+  assert.deepEqual(opened,[['/remote/project/file.c',undefined]])
+  ui.resetState()
+  const failed=await ui.settleComponent(ui.body('rw_edit'),{...data,block:{...data.block,isError:true}})
+  assert.equal(ui.components(failed).some(c=>c.type.name==='AppliedChangeView'),false,'failed requests are never shown as applied edits')
+})
