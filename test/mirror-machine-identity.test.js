@@ -134,7 +134,12 @@ test('/mirror without a machine id keeps the machine-scoped active-pool behaviou
     // it was NOT refused by the new identity check.
     const r = await call(routes, '/dsh-remote/mirror', { path: '/proj' })
     assert.equal(r.status, 400, 'the request must reach the directory probe')
-    assert.match(String(r.json.error || ''), /not a directory|unreachable|ECONNREFUSED/)
+    // macOS does not bind every 127/8 alias by default: the same closed-host
+    // probe may time out instead of receiving Linux's immediate refusal.
+    assert.match(String(r.json.error || ''), /not a directory|unreachable|ECONNREFUSED|Timed out while waiting for handshake/)
+    const after = await status(routes)
+    assert.equal(after.json.currentId, 'm1')
+    assert.equal(after.json.host, M1.host)
   } finally { cleanup(home) }
 })
 
