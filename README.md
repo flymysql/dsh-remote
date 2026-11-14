@@ -12,9 +12,9 @@
 
 ![dsh-remote —— 远程项目，完整上下文](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workspace-overview.png)
 
-在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 中，把 SSH 主机变成日常开发工作区：浏览远程文件、编辑代码、运行终端，让 Agent 在同一远端完成任务。多个工作区可并行连接不同主机。
+在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 中，把 SSH 主机变成日常开发工作区：管理多主机项目，浏览和编辑远程文件、递归搜索文件与内容、使用终端并查看 Git 差异；让 Agent 在所属远程工作区中读写文件、执行命令、构建和测试。多个工作区可独立并行。
 
-**IDE 模式：左侧文件，中间编辑器，右侧原生 Agent 会话。** 可调整栏宽；窄屏切换文件、编辑器与会话。切回普通布局保留任务和未保存编辑。
+可按习惯使用普通布局，或切换 **IDE 三栏布局**，并排查看远程文件、编辑器与原生 Agent 会话；切换时保留任务和未保存编辑。
 
 <img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-ide.png" alt="DSH 远程工作区 IDE 模式：远程文件树、代码编辑器和原生 Agent 会话三栏" width="1200"/>
 

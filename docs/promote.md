@@ -11,19 +11,23 @@ Maintainer reference, updated 2026-11-14. Stable release: [1.1.2](https://github
 - Runtime evidence: [`package.json`](../package.json), [`cordis.patch.yml`](../cordis.patch.yml), [`lib/index.js`](../lib/index.js), [testing and scope](testing.md).
 - Screenshot feed: [`screenshots.json`](../screenshots.json). Images live in this repository; the original promotional cover stays first, followed by the actual IDE and workflow screenshots.
 
+## Positioning
+
+The core product is an SSH remote workspace for people and Agents to work on the same remote project. Describe host and project management, files, search, terminals, Git and remote Agent operations first. The optional IDE layout is a presentation choice within that workspace.
+
 ## Short descriptions
 
 English:
 
-> SSH remote workspaces with an optional three-column IDE, highlighted editing, recursive search, terminals, Git diffs, and Agent tools for remote edits and builds.
+> SSH remote workspaces for DSH with parallel projects across hosts, file browsing and editing, recursive search, terminals, Git diffs, and Agent tools to edit, build and test remotely. Optional IDE layout.
 
 中文：
 
-> SSH 远程开发工作区，支持可选三栏 IDE、高亮编辑、递归搜索、远程终端、Git 差异及 Agent 远程编辑与构建。
+> DSH 的 SSH 远程工作区：多主机项目并行、文件浏览与编辑、递归搜索、终端、Git 差异，以及 Agent 远程编辑、构建与测试；可选 IDE 布局。
 
 GitHub About draft:
 
-> Remote SSH development for DeepSeek Harness (DSH): optional three-column IDE, editable files with syntax highlighting, recursive search, SSH terminals, Git diffs, and session-bound Agent tools for editing and building on remote hosts.
+> SSH remote workspaces for DeepSeek Harness: parallel projects across hosts, remote file browsing and editing, recursive search, terminals, Git diffs, and workspace-bound Agent tools to edit, build and test remotely. Optional IDE layout.
 
 Use the project homepage as the About website. Keep the existing `dsh-plugin`, `deepseek-harness`, `dsh`, SSH/SFTP and remote topics; describe the actual integration without relying on a tool count that can become stale.
 
