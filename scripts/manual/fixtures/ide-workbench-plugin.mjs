@@ -24,6 +24,23 @@ export function apply(ctx) {
     async listModels(provider) { return [{ provider, id: 'deterministic', name: 'IDE ready fixture', contextWindow: 65536 }] }
     async *stream() { yield* reply('IDE 原生会话已就绪。', null, llm.ToolCallId, -1) }
   }())
+  let artifactStep = 0
+  const generatedHtml = '<!doctype html>\n<html lang="zh-CN"><head><meta charset="utf-8"><title>Remote artifact</title></head><body><h1>GENERATED_ON_REMOTE_SFTP</h1></body></html>\n'
+  ctx.llm.registerAdapter(['ide-artifact-fixture'], new class extends llm.LlmAdapter {
+    async listModels(provider) { return [{ provider, id: 'deterministic', name: 'IDE generated artifact fixture', contextWindow: 65536 }] }
+    async *stream(options) {
+      if (options.purpose) { yield* reply('HTML 工作区产物验收', null, llm.ToolCallId, -1); return }
+      const step = artifactStep++
+      if (step === 0) {
+        if (!options.tools.some(tool => tool.name === 'rw_write_file')) throw new Error('The real remote write tool must be available')
+        yield* reply('使用远端文件工具创建页面。', { name: 'rw_write_file', args: { path: path.join(process.env.DSH_E2E_PROJECT, 'generated.html'), content: generatedHtml } }, llm.ToolCallId, 1000)
+      } else if (step === 1) {
+        const result = options.messages.filter(message => message.role === 'tool').at(-1)
+        if (!result || result.isError) throw new Error('Remote HTML creation must succeed before exposing its link')
+        yield* reply('新页面已写入远端：[generated.html](generated.html)。\n\n旧任务仅留下本地镜像副本，可显式恢复：[legacy-only.html](legacy-only.html)。', null, llm.ToolCallId, 1001)
+      } else throw new Error('Unexpected extra artifact model call')
+    }
+  }())
   const route = (name, action) => ctx.webServer.register({ kind: 'exact', path: '/ide-e2e/' + name, async handler(req, res) {
     if (req.headers['x-dsh-ide-e2e'] !== process.env.DSH_IDE_E2E_NONCE) { res.statusCode = 403; res.end(); return }
     try {
@@ -41,6 +58,15 @@ export function apply(ctx) {
       await ctx.sessionController.prompt({ sessionId: id, requestId: id + '-ready', mode: 'queue', content: [{ type: 'text', text: '准备 IDE 验收。' }] }, new AbortController().signal)
     }
   })
+  route('artifacts-start', async ({ mirror }) => {
+    if (!path.resolve(mirror).startsWith(path.join(process.env.DSH_HOME, 'remote-workspaces') + path.sep)) throw new Error('Expected disposable artifact mirror')
+    await ctx.sessionController.create({ sessionId: 'ide-artifacts', cwd: mirror })
+    await ctx.sessionController.selectModel({ sessionId: 'ide-artifacts', provider: 'ide-artifact-fixture', model: 'deterministic' })
+    await ctx.sessionController.prompt({ sessionId: 'ide-artifacts', requestId: 'ide-artifacts-generate', mode: 'queue', content: [{ type: 'text', text: '在远程工作区创建 generated.html 并给出文件链接，同时列出已有历史本地副本 legacy-only.html 的恢复链接。' }] }, new AbortController().signal)
+  })
+  route('artifacts-status', () => ({ step: artifactStep, status: ctx.agents.get('ide-artifacts')?.status }))
+  route('presentation-title', () => ctx.sessionController.rename({ sessionId: 'ide-primary', title: '修复远程构建' }))
+  route('stress-header', () => ctx.sessionController.rename({ sessionId: 'ide-primary', title: '超长远程开发会话标题 · 构建与目录搜索交互回归 · SSH 多工作区并行任务验证 · Native IDE header stress title' }))
   route('run', async () => {
     buildStarted = true
     await ctx.sessionController.prompt({ sessionId: 'ide-primary', requestId: 'ide-build', mode: 'queue', content: [{ type: 'text', text: '编译 src/main.c 并修复后运行。' }] }, new AbortController().signal)

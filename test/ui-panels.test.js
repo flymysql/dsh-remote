@@ -71,11 +71,11 @@ test('every slot the client registers renders without throwing and leaks no raw 
   } finally { ui.dispose() }
 })
 
-test('a remote .md link renders through the host MarkdownText, not a raw source wall (issue #74)', async () => {
+test('a remote .md opens editable source and explicitly previews through the host MarkdownText (issue #74)', async () => {
   // The built-in Markdown preview reads the LOCAL MIRROR and dies with ENOENT on an
-  // unsynced file. The remote-link editor claims the address now and RENDERS the
-  // remote content with the host's MarkdownText — this test proves the rendered
-  // branch is taken (the harness stub marks it with className "md-stub").
+  // unsynced file. The remote-link editor claims the address, opens source,
+  // and renders fetched remote content through the host MarkdownText when
+  // preview is requested (the harness stub marks it with className "md-stub").
   const md = '# Title\n\n- one\n- two\n'
   const ui = mountClient({
     fetch: stubFetch({
@@ -86,10 +86,17 @@ test('a remote .md link renders through the host MarkdownText, not a raw source 
   })
   try {
     const body = ui.body('dsh-remote/file')
-    const tree = await ui.settleComponent(body, {
+    const fileProps = {
       sessionId: 's-1',
       useTabInfo: () => ({ tab: { navigation: { address: 'dsh-resource://dsh-remote/file/' + encodeURIComponent('/srv/app/README.md') } } }),
-    })
+    }
+    let tree = await ui.settleComponent(body, fileProps)
+    const sourceEditor = ui.components(tree).find(c => c.type.name === 'HighlightedEditor')
+    assert.ok(sourceEditor, 'Markdown source is directly editable on open')
+    assert.equal(sourceEditor.props.value, md)
+    assert.equal(ui.elements(tree).some(el => el.type?.$$typeof === Symbol.for('react.memo') && el.props.text === md), false, 'preview requires an explicit action')
+    ui.button(tree, /^预览$/).el.props.onClick()
+    tree = await ui.settleComponent(body, fileProps)
     // Nested components are NOT executed by the tree walker, so the MarkdownText
     // stub appears as an element whose TYPE is the stub and whose props carry the
     // markdown text. The stub is a memo wrapper (the host's real shape), so this
@@ -100,6 +107,9 @@ test('a remote .md link renders through the host MarkdownText, not a raw source 
     assert.ok(mdEls.length > 0, `expected the MarkdownText branch to render, got: ${ui.text(tree).slice(0, 200)}`)
     assert.equal(mdEls[0].type && mdEls[0].type.$$typeof, Symbol.for('react.memo'), 'the memo-wrapped host MarkdownText must be rendered as-is')
     assert.match(ui.text(tree), /README\.md/)
+    ui.button(tree, /^源码$/).el.props.onClick()
+    tree = await ui.settleComponent(body, fileProps)
+    assert.equal(ui.components(tree).find(c => c.type.name === 'HighlightedEditor').props.value, md, 'leaving preview retains editable source')
   } finally { ui.dispose() }
 })
 
@@ -122,10 +132,13 @@ test('a remote .md with a code fence satisfies the host MarkdownText label contr
   })
   try {
     const body = ui.body('dsh-remote/file')
-    const tree = await ui.settleComponent(body, {
+    const fileProps = {
       sessionId: 's-1',
       useTabInfo: () => ({ tab: { navigation: { address: 'dsh-resource://dsh-remote/file/' + encodeURIComponent('/srv/app/README.md') } } }),
-    })
+    }
+    let tree = await ui.settleComponent(body, fileProps)
+    ui.button(tree, /^预览$/).el.props.onClick()
+    tree = await ui.settleComponent(body, fileProps)
     const mdEls = ui.elements(tree).filter((el) => el.props && el.props.text === md)
     assert.ok(mdEls.length > 0, `expected the rendered markdown branch, got: ${ui.text(tree).slice(0, 200)}`)
     const labels = mdEls[0].props.labels
@@ -285,20 +298,24 @@ test('the directory picker renders its path box and refuses to commit an empty p
   } finally { ui.dispose() }
 })
 
-test('the remote file tab opens READ-ONLY and only enables saving after an edit', async () => {
-  const ui = mountClient({
-    fetch: stubFetch({
-      overrides: { '/dsh-remote/read': () => ({ ok: true, binary: false, content: 'line1\nline2\n', truncated: false, size: 12, mtime: 1 }) },
-    }).fetch,
-  })
+test('the remote file tab is immediately editable and only enables saving after a change', async () => {
+  const content = 'line1\nline2\n'
+  const stub = stubFetch({ overrides: { '/dsh-remote/read': () => ({ ok: true, content, truncated: false, size: 12, mtime: 1 }) } })
+  const ui = mountClient({ fetch: stub.fetch })
   try {
-    const Tab = ui.component('conversation.session.header.utilities')
-    let tree = await ui.settleComponent(Tab, { tab: { path: '/home/user/README.md' }, scope: { sessionId: 's-1' } })
-    const save = ui.buttons(tree).find((b) => /保存到远程/.test(b.label))
-    if (save) {
-      assert.equal(save.disabled, true, 'saving must be impossible before an edit (read-only by default)')
-      assert.ok(save.title, 'a disabled save button must explain itself on hover')
-    }
+    const body = ui.body('dsh-remote/file')
+    const fileProps = { sessionId: 's-1', useTabInfo: () => ({ tab: { navigation: { address: 'dsh-resource://dsh-remote/s-1/' + encodeURIComponent('/home/user/main.js') } } }) }
+    let tree = await ui.settleComponent(body, fileProps)
+    const editor = ui.components(tree).find(c => c.type.name === 'HighlightedEditor')
+    assert.ok(editor, 'opening complete text must immediately expose the editor')
+    assert.equal(editor.props.value, content)
+    const save = ui.button(tree, /^保存到远程$/)
+    assert.equal(save.disabled, true, 'unchanged content must not be written')
+    assert.ok(save.title, 'a disabled save button must explain itself on hover')
+    editor.props.onChange({ target: { value: 'changed\n', selectionStart: 8 } })
+    tree = await ui.settleComponent(body, fileProps)
+    assert.equal(ui.button(tree, /^保存到远程$/).disabled, false)
+    assert.equal(stub.calls.some(call => call.url.includes('/write')), false, 'typing alone never writes remotely')
   } finally { ui.dispose() }
 })
 

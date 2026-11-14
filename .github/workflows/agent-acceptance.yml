@@ -74,6 +74,9 @@ jobs:
           export CHROMIUM_PATH="$(node -e 'console.log(require(process.env.IT_BROWSER_MODULES + "/playwright").chromium.executablePath())')"
           if [ "$TOOL_MODE" = ptc ]; then export IT_AGENT_PTC=1; fi
           node scripts/manual/agent-web-e2e.mjs
+          if [ "${{ matrix.dsh }}" != 0.2.0-rc.2 ]; then
+            IT_AGENT_ARTIFACTS="$IT_AGENT_ARTIFACTS/local-write" IT_AGENT_PORT=50605 node scripts/manual/agent-local-write-web-e2e.mjs
+          fi
           if [ "$TOOL_MODE" = native ]; then
             export IT_UPDATE_TARBALL="$RUNNER_TEMP/candidate/dsh-remote-$(node -p 'require("./package.json").version').tgz"
             node scripts/manual/auto-update-web-e2e.mjs
@@ -90,6 +93,8 @@ jobs:
             node scripts/manual/search-web-e2e.mjs
             node scripts/manual/git-web-e2e.mjs
             node scripts/manual/ide-web-e2e.mjs
+            export IT_EDITOR_ARTIFACTS="$IT_AGENT_ARTIFACTS/editor"
+            node scripts/manual/highlighted-editor-web-e2e.mjs
             node scripts/manual/terminal-web-e2e.mjs
           fi
       - uses: actions/upload-artifact@v6

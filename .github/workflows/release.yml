@@ -107,7 +107,7 @@ jobs:
         id: pub
         run: |
           VER="${GITHUB_REF_NAME#v}"
-          CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/dsh-remote/${VER}")
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/dsh-remote/${VER}?release=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}")
           if [ "$CODE" = 200 ]; then
             echo "already=true" >> "$GITHUB_OUTPUT"
             echo "dsh-remote@${VER} is already on npm — the publish step will skip"
@@ -169,13 +169,13 @@ jobs:
           NPM_CONFIG_USERCONFIG: /dev/null
         run: |
           export VER="${GITHUB_REF_NAME#v}"
-          for i in $(seq 1 30); do
-            CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/dsh-remote/-/dsh-remote-${VER}.tgz")
+          for i in $(seq 1 60); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/dsh-remote/-/dsh-remote-${VER}.tgz?release=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$i")
             [ "$CODE" = 200 ] && break
-            echo "tarball not on CDN yet (HTTP $CODE), waiting 10s ($i/30)"
+            echo "tarball not on CDN yet (HTTP $CODE), waiting 10s ($i/60)"
             sleep 10
           done
-          [ "$CODE" = 200 ] || { echo "tarball unavailable after 5min"; exit 1; }
+          [ "$CODE" = 200 ] || { echo "tarball unavailable after 10min"; exit 1; }
           TMP=$(mktemp -d) && cd "$TMP"
           npm init -y >/dev/null
           npm install "dsh-remote@${VER}" --prefer-online

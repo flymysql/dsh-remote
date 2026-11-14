@@ -63,6 +63,8 @@ const ROUTES = [
   { path: '/dsh-remote/read', allow: ['GET', 'POST'], body: true },
   { path: '/dsh-remote/write', allow: ['POST'], body: true },
   { path: '/dsh-remote/fs', allow: ['POST'], body: true },
+  { path: '/dsh-remote/local-copy/read', allow: ['POST'], body: true },
+  { path: '/dsh-remote/local-copy/publish', allow: ['POST'], body: true },
   // embedded terminal (lib/routes-term.js)
   { path: '/dsh-remote/term/open', allow: ['POST'], body: true },
   { path: '/dsh-remote/term/input', allow: ['POST'], body: true },

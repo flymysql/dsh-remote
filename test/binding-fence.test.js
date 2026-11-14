@@ -53,6 +53,7 @@ async function withTwoHosts(fn) {
 test('a session whose cwd is machine B\'s mirror reaches B, even though A is the active machine', async () => {
   await withTwoHosts(async ({ host, srvB, b }) => {
     const mirrorB = makeMirror(host.root, { host: '127.0.0.1', port: srvB.port, username: 'root', base: 'srv-b', remotePath: '/srv/b' })
+    host.provided.set('sessions', { get: id => id === 'sess-b' ? { header: { cwd: mirrorB } } : undefined })
     // Active machine is A; the session says B.
     const r = await host.call('/dsh-remote/ls', {
       method: 'GET',
@@ -80,6 +81,7 @@ test('a LOCAL session is refused instead of silently acting on the active machin
   await withTwoHosts(async ({ host, srvA }) => {
     const localDir = path.join(host.root, 'just-a-local-dir')
     mkdirSync(localDir, { recursive: true })
+    host.provided.set('sessions', { get: id => id === 'sess-local' ? { header: { cwd: localDir } } : undefined })
     for (const routePath of ['/dsh-remote/read', '/dsh-remote/write', '/dsh-remote/fs']) {
       const r = await host.call(routePath, {
         body: { path: '/srv/a/only-a.txt', content: 'x', op: 'mkdir', sessionId: 'sess-local', local: localDir },

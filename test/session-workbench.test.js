@@ -9,7 +9,7 @@ const action = (ui, tree, label) => {
   return item.props
 }
 
-test('file view offers find, wrap, path navigation and a session-scoped cached preview', async () => {
+test('the default editor offers find, wrap, path navigation and session-scoped view preferences', async () => {
   const ui = mountClient({ fetch: async () => response({ content: 'hello remote\nhello again', mtime: 1, size: 24 }) })
   const body = ui.body('dsh-remote/file')
   let tree = await ui.settleComponent(body, props())
@@ -24,7 +24,9 @@ test('file view offers find, wrap, path navigation and a session-scoped cached p
   action(ui, tree, '自动换行').onClick()
   tree = await ui.settleComponent(body, props())
   assert.equal(action(ui, tree, '自动换行').pressed, true)
-  const code = ui.components(tree).find((c) => c.type.name === 'CodeView')
+  const code = ui.components(tree).find((c) => c.type.name === 'HighlightedEditor')
+  assert.ok(code, 'complete text opens directly in the highlighted editor')
+  assert.equal(code.props.value, 'hello remote\nhello again')
   assert.equal(code.props.wrap, true)
   assert.deepEqual(code.props.matchingLines, [1, 2])
   assert.ok(action(ui, tree, '返回文件树'))
@@ -62,25 +64,20 @@ test('late terminal discovery never opens a terminal in the newly selected sessi
   assert.deepEqual(opened, [])
 })
 
-test('editor indents selected lines, outdents at column one and respects IME input', async () => {
+test('the default editor delegates selected-line indentation and keeps composing save shortcuts untouched', async () => {
   const ui = mountClient({ fetch: async () => response({ content: 'first\nsecond\nthird', mtime: 1 }) })
-  const body = ui.body('dsh-remote/file')
-  let tree = await ui.settleComponent(body, props())
-  ui.button(tree, /^编辑$/).el.props.onClick()
-  tree = await ui.settleComponent(body, props())
-  let editor = ui.elements(tree).find((e) => e.type === 'textarea').props
-  const node = { value: editor.value, selectionStart: 0, selectionEnd: 13, setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end } }
-  let prevented = 0
-  editor.onKeyDown({ key: 'Tab', currentTarget: node, preventDefault() { prevented++ } })
-  tree = await ui.settleComponent(body, props())
-  editor = ui.elements(tree).find((e) => e.type === 'textarea').props
-  assert.equal(editor.value, '  first\n  second\nthird', 'a selection ending at the next line must not indent that line')
-  assert.equal(prevented, 1)
-  node.value = editor.value; node.selectionStart = 0; node.selectionEnd = 0
-  editor.onKeyDown({ key: 'Tab', shiftKey: true, currentTarget: node, preventDefault() { prevented++ } })
-  tree = await ui.settleComponent(body, props())
-  editor = ui.elements(tree).find((e) => e.type === 'textarea').props
-  assert.equal(editor.value, 'first\n  second\nthird', 'Shift+Tab at column one outdents the whole current line')
-  editor.onKeyDown({ key: 'Tab', isComposing: true, currentTarget: node, preventDefault() { prevented++ } })
-  assert.equal(prevented, 2, 'IME keystrokes must not be intercepted')
+  try {
+    const tree = await ui.settleComponent(ui.body('dsh-remote/file'), props())
+    const editor = ui.components(tree).find(c => c.type.name === 'HighlightedEditor')
+    assert.ok(editor, 'no edit-mode toggle is required')
+    assert.equal(editor.props.value, 'first\nsecond\nthird')
+    assert.equal(typeof editor.props.indent, 'function', 'the visual editor uses the shared draft indentation transform')
+    const indented = editor.props.indent(editor.props.value, 0, 13, false)
+    assert.equal(indented.text, '  first\n  second\nthird', 'a selection ending at the next line must not indent that line')
+    const outdented = editor.props.indent(indented.text, 0, 0, true)
+    assert.equal(outdented.text, 'first\n  second\nthird', 'Shift+Tab at column one outdents the current line')
+    let prevented = 0
+    editor.props.onKeyDown({ key: 's', ctrlKey: true, isComposing: true, preventDefault() { prevented++ } })
+    assert.equal(prevented, 0, 'a composing keystroke must not be consumed by the parent save shortcut')
+  } finally { ui.dispose() }
 })

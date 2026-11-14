@@ -9,9 +9,9 @@
 //     line: the anchor is stripped before resolution (no file is ever looked up
 //     under the literal name "main.c:42") and the target row is flash-marked.
 //
-// Drives the REAL registered tab bodies through the render harness. CodeView is
+// Drives the REAL registered tab bodies through the render harness. The editor is
 // a nested component the tree walker does not mount, so each test mounts the
-// CodeView element it finds (by its distinctive {code, path} props) — one extra
+// editor element it finds (with native textarea plus highlighted paint) — one extra
 // call with the driver's dispatcher still installed.
 
 import { test } from 'node:test'
@@ -35,16 +35,33 @@ function fetchFor(content, calls) {
 
 const sessionsFor = (cwd) => ({ list: { getSnapshot: () => ({ byId: { 's-1': { cwd } } }) } })
 
-/** Find the CodeView element a RemoteFileTab-rendered tree contains, and mount it. */
-function mountCodeView(tree, ui) {
-  const el = ui.elements(tree).find((n) => n.props && typeof n.props.code === 'string' && typeof n.props.path === 'string')
-  assert.ok(el, 'the file tab must contain a CodeView element')
+/** Render the nested editor visual contract after the parent has settled.
+ * Editor keyboard/IME/undo lifecycles are exercised by its browser suite. */
+function mountTextView(tree, ui) {
+  const el = ui.components(tree).find((n) => n.type.name === 'HighlightedEditor')
+  assert.ok(el, 'complete text must open in the highlighted editor by default')
+  assert.equal(typeof el.props.value, 'string')
+  assert.equal(typeof el.props.onChange, 'function')
   return el.type(el.props)
 }
 
-/** Row elements carry data-line; the gutter is their first child. */
+/** Highlight-paint rows carry data-line; a separate gutter numbers the input. */
 function rows(cvTree, ui) {
   return ui.elements(cvTree).filter((n) => n.props && typeof n.props['data-line'] === 'number')
+}
+
+function assertPlainPaint(cvTree, ui, expected) {
+  const editor = ui.elements(cvTree).find(n => n.props['data-rw-editor-highlighted'] !== undefined)
+  const paint = ui.elements(cvTree).find(n => n.props['data-rw-editor-paint'] !== undefined)
+  const input = ui.elements(cvTree).find(n => n.type === 'textarea')
+  assert.equal(editor.props['data-rw-editor-highlighted'], 'false', 'plain text must not claim syntax highlighting')
+  assert.equal(input.props.value, expected, 'native input keeps the complete editable source')
+  assert.equal(paint.props.style.visibility, 'visible', 'unknown grammars still paint readable source and line markers')
+  assert.notEqual(paint.props.style.color, 'transparent', 'the visible paint must supply foreground text')
+  assert.notEqual(paint.props.style.display, 'none')
+  assert.deepEqual(rows(paint, ui).map(row => ui.textOf(row)), expected.split('\n').map(line => line || '\u200b'), 'plain paint matches every input line, including the trailing blank line')
+  assert.equal(ui.elements(paint).filter(n => n.props['data-rw-editor-token'] !== undefined).length, 0, 'unknown grammars cannot fabricate syntax tokens')
+  assert.equal(input.props.style.color, 'transparent', 'the input overlays the verified visible plain paint')
 }
 
 test('a text file renders line-numbered rows even with no host highlighter', async () => {
@@ -56,13 +73,16 @@ test('a text file renders line-numbered rows even with no host highlighter', asy
       sessionId: 's-1',
       useTabInfo: () => ({ tab: { navigation: { address: 'dsh-resource://dsh-remote/file/' + encodeURIComponent('/srv/app/main.c') } } }),
     })
-    const cv = mountCodeView(tree, ui)
+    const cv = mountTextView(tree, ui)
     const rs = rows(cv, ui)
     assert.equal(rs.length, 5, 'one row per source line (trailing newline included)')
     assert.deepEqual(rs.map((r) => r.props['data-line']), [1, 2, 3, 4, 5])
     // The gutter shows the numbers (right-aligned, non-selectable).
-    assert.equal(rs[0].props.children[0].props.children, '1')
-    assert.equal(rs[0].props.children[0].props.style.userSelect, 'none')
+    const gutter = ui.elements(cv).find(n => n.props['data-rw-editor-gutter'] !== undefined)
+    assert.ok(gutter, 'editable code retains a visible line gutter')
+    assert.equal(ui.textOf(gutter), '12345')
+    assert.equal(gutter.props.style.userSelect, 'none')
+    assertPlainPaint(cv, ui, CONTENT_3)
   } finally { ui.dispose() }
 })
 
@@ -75,7 +95,7 @@ test('a known grammar is highlighted through the host engine', async () => {
       sessionId: 's-1',
       useTabInfo: () => ({ tab: { navigation: { address: 'dsh-resource://dsh-remote/file/' + encodeURIComponent('/srv/app/main.c') } } }),
     })
-    const cv = mountCodeView(tree, ui)
+    const cv = mountTextView(tree, ui)
     const colored = ui.elements(cv).filter((n) => n.props && n.props.style && n.props.style.color === 'rgb(9,9,9)')
     assert.ok(colored.length >= 5, `expected stub-colored tokens on every line, got ${colored.length}`)
   } finally { ui.dispose() }
@@ -90,9 +110,10 @@ test('an unknown extension still gets line numbers (grammar-less fallback)', asy
       sessionId: 's-1',
       useTabInfo: () => ({ tab: { navigation: { address: 'dsh-resource://dsh-remote/file/' + encodeURIComponent('/srv/app/Makefile.weird') } } }),
     })
-    const cv = mountCodeView(tree, ui)
+    const cv = mountTextView(tree, ui)
     const rs = rows(cv, ui)
     assert.equal(rs.length, 5, 'line numbers are not hostage to grammar knowledge')
+    assertPlainPaint(cv, ui, CONTENT_3)
   } finally { ui.dispose() }
 })
 
@@ -110,7 +131,7 @@ test('a chat link with #L2 opens the file flash-marking line 2', async () => {
     const read = calls.find((c) => c.url.includes('/dsh-remote/read'))
     assert.ok(read, 'the link must trigger a remote read')
     assert.equal(read.body.path, '/srv/app/src/main.c', 'never look up a file literally named main.c#L2')
-    const cv = mountCodeView(tree, ui)
+    const cv = mountTextView(tree, ui)
     const target = rows(cv, ui).find((r) => r.props['data-line'] === 2)
     assert.ok(target, 'line 2 must exist in the rendered body')
     assert.match(String(target.props.className || ''), /dsh-rw-line-flash/, 'the jumped row is flash-marked')
@@ -130,7 +151,7 @@ test('a chat link with a :42 suffix strips it before resolving', async () => {
     })
     const read = calls.find((c) => c.url.includes('/dsh-remote/read'))
     assert.equal(read.body.path, '/srv/app/src/main.c', 'the :42 suffix is an anchor, not part of the name')
-    const cv = mountCodeView(tree, ui)
+    const cv = mountTextView(tree, ui)
     assert.ok(rows(cv, ui).find((r) => r.props['data-line'] === 42 && /dsh-rw-line-flash/.test(String(r.props.className || ''))), 'line 42 flashes')
   } finally { ui.dispose() }
 })
@@ -152,7 +173,7 @@ test('host navigation params preserve the line and same-tab navigation resolves 
       const read = calls.filter((c) => c.url.includes('/dsh-remote/read')).at(-1)
       assert.equal(read.body.path, '/Workspace/tb4-workspace/tb4-new/' + path)
       assert.equal(read.body.sessionId, 's-1', 'read must retain the address session, not a global machine')
-      const cv = mountCodeView(tree, ui)
+      const cv = mountTextView(tree, ui)
       assert.ok(rows(cv, ui).find((r) => r.props['data-line'] === line && /dsh-rw-line-flash/.test(String(r.props.className || ''))))
     }
   } finally { ui.dispose() }
@@ -171,7 +192,7 @@ test('explicit address anchors outrank params and invalid params never mask them
           address: 'dsh-resource://file/session/s-1/src/main.c#L2', params: { line: param },
         } } }),
       })
-      const cv = mountCodeView(tree, ui)
+      const cv = mountTextView(tree, ui)
       const flashed = rows(cv, ui).filter((r) => /dsh-rw-line-flash/.test(String(r.props.className || '')))
       assert.deepEqual(flashed.map((r) => r.props['data-line']), [2])
     } finally { ui.dispose() }
@@ -207,7 +228,7 @@ test('a plain link (no anchor) opens the file at its top, nothing flashing', asy
       sessionId: 's-1',
       useTabInfo: () => ({ tab: { navigation: { address: 'dsh-resource://file/session/s-1/src/main.c' } } }),
     })
-    const cv = mountCodeView(tree, ui)
+    const cv = mountTextView(tree, ui)
     assert.ok(!rows(cv, ui).some((r) => /dsh-rw-line-flash/.test(String(r.props.className || ''))), 'no anchor → no flash')
   } finally { ui.dispose() }
 })
@@ -234,7 +255,7 @@ test('the 0.2.x params channel drives the jump when the address carries no ancho
       sessionId: 's-1',
       useTabInfo: () => ({ tab: { navigation: { address: 'dsh-resource://file/session/s-1/src/main.c', params: { line: 7 } } } }),
     })
-    const cv = mountCodeView(tree, ui)
+    const cv = mountTextView(tree, ui)
     assert.ok(rows(cv, ui).find((r) => r.props['data-line'] === 7 && /dsh-rw-line-flash/.test(String(r.props.className || ''))),
       'params.line flashes the row even when the address is anchor-less (the 0.2.x channel)')
   } finally { ui.dispose() }
@@ -253,7 +274,7 @@ test('range anchors (#L24-L30 and :24-30) land on the START line and resolve the
       })
       const read = calls.find((c) => c.url.includes('/dsh-remote/read'))
       assert.equal(read.body.path, '/srv/app/src/main.c', `${suffix}: the range is stripped before resolving`)
-      const cv = mountCodeView(tree, ui)
+      const cv = mountTextView(tree, ui)
       assert.ok(rows(cv, ui).find((r) => r.props['data-line'] === want && /dsh-rw-line-flash/.test(String(r.props.className || ''))),
         `${suffix}: starts on line ${want}, never silently opens the top`)
     } finally { ui.dispose() }
