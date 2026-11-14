@@ -299,4 +299,6 @@ node scripts/manual/local-workspace-web-e2e.mjs
 
 该脚本使用脚本化模型决策，Agent、宿主原生 `write/edit/bash`、GCC、文件系统和本地 PTY 均真实执行；验证编译失败、修复、成功运行、生成文件链接、CRLF 保存、搜索和会话切换。证据包含截图、Agent 事件与 `verification.json`。不把脚本化模型称为真实模型验收。`ide-web-e2e.mjs` 同时回归两个 SSH 项目与本地项目切换。
 
+CI 的 0.2.1 / 0.2.2 native 流程设置 `IT_LOCAL_SOURCE=0`，对实际打包安装的候选包运行同一套本地浏览器验收；默认模式复制当前开发源码到隔离环境。
+
 当前实测浏览器环境为 Linux；Windows 使用原生路径与 Git argv 调用，不要求 Git Bash，但仍应在 Windows 宿主上补充实机验收。
