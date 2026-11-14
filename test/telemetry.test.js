@@ -12,6 +12,8 @@ import path from 'node:path'
 
 import {
   _deliverForTest,
+  _startHeartbeatLoopForTest,
+  startHeartbeat,
   _resetForTest,
   inTestProcess,
   hasPersistedId,
@@ -150,7 +152,7 @@ test('sendHeartbeat swallows a network failure and allows a retry', async () => 
     // 心跳是旁路：失败必须静默，绝不能打穿到插件加载路径。
     await assert.doesNotReject(() => _deliverForTest(home, '0.8.25', { delayMs: 0 }))
     assert.equal(await _deliverForTest(home, '0.8.25', { delayMs: 0 }), false)
-    // ★ 失败必须回滚节流，否则一次网络抖动会让这个身份静默 6 小时不再上报，
+    // ★ 失败必须回滚节流，否则一次网络抖动会让这个身份当天一直静默不再上报，
     //   把"网络不可达"错误地记成"用户当天没来"。
     assert.equal(calls, 2, 'a failed send must not consume the throttle window')
   } finally {
@@ -268,4 +270,104 @@ test('a corrupt opt file falls back to the config value instead of crashing', ()
   } finally {
     rmSync(home, { recursive: true, force: true })
   }
+})
+
+const flush = () => new Promise(resolve => setImmediate(resolve))
+
+test('day dedupe uses Shanghai midnight, not a six-hour window, and isolates homes', async (t) => {
+  const a = tempHome(), b = tempHome(), realFetch = globalThis.fetch
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-14T15:59:00Z') })
+  let calls = 0
+  try {
+    globalThis.fetch = async () => { calls++; return { ok: true } }
+    _resetForTest()
+    assert.equal(await _deliverForTest(a, '1.1.2', { delayMs: 0 }), true)
+    assert.equal(await _deliverForTest(b, '1.1.2', { delayMs: 0 }), true)
+    assert.equal(await _deliverForTest(a, '1.1.2', { delayMs: 0 }), false)
+    t.mock.timers.tick(2 * 60 * 1000)
+    assert.equal(await _deliverForTest(a, '1.1.2', { delayMs: 0 }), true)
+    assert.equal(calls, 3)
+  } finally { globalThis.fetch = realFetch; rmSync(a, { recursive: true, force: true }); rmSync(b, { recursive: true, force: true }) }
+})
+
+test('HTTP failures do not consume the daily success allowance', async () => {
+  const home = tempHome(), realFetch = globalThis.fetch
+  try {
+    _resetForTest()
+    for (const status of [429, 500, 503]) {
+      globalThis.fetch = async () => ({ ok: false, status })
+      assert.equal(await _deliverForTest(home, '1.1.2', { delayMs: 0 }), false)
+    }
+    globalThis.fetch = async () => ({ ok: true, status: 204 })
+    assert.equal(await _deliverForTest(home, '1.1.2', { delayMs: 0 }), true)
+    assert.equal(await _deliverForTest(home, '1.1.2', { delayMs: 0 }), false)
+  } finally { globalThis.fetch = realFetch; rmSync(home, { recursive: true, force: true }) }
+})
+
+test('concurrent requests share one pending allowance per home', async () => {
+  const home = tempHome(), realFetch = globalThis.fetch
+  let finish, calls = 0
+  try {
+    _resetForTest()
+    globalThis.fetch = () => { calls++; return new Promise(resolve => { finish = resolve }) }
+    const pending = _deliverForTest(home, '1.1.2', { delayMs: 0 })
+    assert.equal(await _deliverForTest(home, '1.1.2', { delayMs: 0 }), false)
+    finish({ ok: true })
+    assert.equal(await pending, true)
+    assert.equal(calls, 1)
+  } finally { globalThis.fetch = realFetch; rmSync(home, { recursive: true, force: true }) }
+})
+
+test('running loop retries an outage, crosses midnight and respects opt-out and disposal', async (t) => {
+  const home = tempHome(), realFetch = globalThis.fetch
+  t.mock.timers.enable({ apis: ['Date', 'setInterval'], now: Date.parse('2026-11-14T15:30:00Z') })
+  let calls = 0, stop
+  try {
+    _resetForTest()
+    globalThis.fetch = async () => ({ ok: ++calls > 1 })
+    stop = _startHeartbeatLoopForTest(home, '1.1.2', {
+      allowed: () => telemetryAllowed(home, true),
+      send: (h, v, opts) => _deliverForTest(h, v, { ...opts, delayMs: 0 }),
+    })
+    await flush(); assert.equal(calls, 1)
+    t.mock.timers.tick(15 * 60 * 1000); await flush(); assert.equal(calls, 2)
+    // 00:00 Shanghai: new-day report without restarting DSH.
+    t.mock.timers.tick(15 * 60 * 1000); await flush(); assert.equal(calls, 3)
+    t.mock.timers.tick(15 * 60 * 1000); await flush(); assert.equal(calls, 3)
+    persistTelemetryOpt(home, false)
+    t.mock.timers.tick(24 * 60 * 60 * 1000); await flush(); assert.equal(calls, 3)
+    persistTelemetryOpt(home, true)
+    t.mock.timers.tick(15 * 60 * 1000); await flush(); assert.equal(calls, 4)
+    stop()
+    t.mock.timers.tick(24 * 60 * 60 * 1000); await flush(); assert.equal(calls, 4)
+  } finally { stop?.(); globalThis.fetch = realFetch; rmSync(home, { recursive: true, force: true }) }
+})
+
+test('opt-out during startup delay prevents the pending request', async () => {
+  const home = tempHome(), realFetch = globalThis.fetch
+  let calls = 0
+  try {
+    _resetForTest()
+    globalThis.fetch = async () => { calls++; return { ok: true } }
+    const pending = _deliverForTest(home, '1.1.2', { delayMs: 25, allowed: () => telemetryAllowed(home, true) })
+    persistTelemetryOpt(home, false)
+    assert.equal(await pending, false)
+    assert.equal(calls, 0)
+  } finally { globalThis.fetch = realFetch; rmSync(home, { recursive: true, force: true }) }
+})
+
+test('disposing the loop aborts the pending send', async () => {
+  let signal, cancelled = false
+  const stop = _startHeartbeatLoopForTest('/unused', '1.1.2', {
+    send: async (_h, _v, opts) => { signal = opts.signal; signal.addEventListener('abort', () => { cancelled = true }, { once: true }) },
+  })
+  stop()
+  assert.equal(signal.aborted, true)
+  assert.equal(cancelled, true)
+})
+
+test('production loop is disabled in test processes', () => {
+  const stop = startHeartbeat('/unused', '1.1.2', { allowed: () => { throw new Error('test guard must prevent scheduling') } })
+  assert.equal(typeof stop, 'function')
+  stop()
 })

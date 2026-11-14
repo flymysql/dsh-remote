@@ -101,7 +101,7 @@ weighted line coverage: 80.3%   （全部 33 个 lib 文件加权；870+ 条测�
 
 三条线，都是踩过事故后加的：
 
-1. **心跳**：`apply()` 里 `void sendHeartbeat(...)`，跑一次 `npm test` 就真的往生产统计灌假机器。
+1. **心跳**：`apply()` 注册的启动及周期心跳，跑一次 `npm test` 就真的往生产统计灌假机器。
 2. **`~/.ssh/config`**：保存机器会 upsert `# dsh-remote: managed` Host 块 —— 测试里「保存一台假机器」
    真的改过开发机的 ssh 配置，留下 `Host 127.0.0.1 / Port 1`、`Host 10.9.9.6..9`，而
    `Host 127.0.0.1` 又**反过来劫持**后续要连 127.0.0.1 的测试。现在整轮测试指向临时文件

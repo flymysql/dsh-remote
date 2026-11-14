@@ -93,23 +93,23 @@
     <div class="hint t" data-zh="最近一个完整日" data-en="latest full day">最近一个完整日</div>
   </div>
   <div class="kpi"><div class="lab">WAU · 7d</div><div class="val" id="k-wau">—</div>
-    <div class="hint t" data-zh="去重装机" data-en="unique installs">去重装机</div></div>
+    <div class="hint t" data-zh="去重运行安装" data-en="unique running installs">去重运行安装</div></div>
   <div class="kpi"><div class="lab">MAU · 30d</div><div class="val" id="k-mau">—</div>
-    <div class="hint t" data-zh="去重装机" data-en="unique installs">去重装机</div></div>
-  <div class="kpi"><div class="lab t" data-zh="累计装机" data-en="Installs">累计装机</div>
+    <div class="hint t" data-zh="去重运行安装" data-en="unique running installs">去重运行安装</div></div>
+  <div class="kpi"><div class="lab t" data-zh="累计上报安装" data-en="Reporting installs">累计上报安装</div>
     <div class="val" id="k-inst">—</div>
     <div class="hint t" data-zh="曾上报过的安装" data-en="ever reported">曾上报过的安装</div></div>
 </div>
 
 <section>
-  <h2><span class="t" data-zh="日活" data-en="Daily active installs">日活</span></h2>
-  <p class="sub t" data-zh="每台安装每天最多一条心跳，按伪名去重。最后一根是「今天（尚未结束）」，刻意压暗。" data-en="One heartbeat per install per day, de-duplicated by pseudonym. The last bar is today, still incomplete, and is drawn dimmed.">每台安装每天最多一条心跳，按伪名去重。最后一根是「今天（尚未结束）」，刻意压暗。</p>
+  <h2><span class="t" data-zh="日活" data-en="Daily running installs">日活 · 运行安装</span></h2>
+  <p class="sub t" data-zh="按北京时间统计当天成功上报的运行安装，同一安装每日去重，包含后台持续运行，并非独立人数或实际操作人数。新版客户端运行期间每 15 分钟检查，成功后当天不再发送；历史旧版可能漏计跨日运行。今天尚未结束，最后一根柱刻意压暗。" data-en="Unique reporting installations per day in Asia/Shanghai, including background runtimes; not unique people or interactive usage. Updated clients check every 15 minutes and stop sending after success that day; older versions can miss long-running installs. Today is incomplete and dimmed.">按北京时间统计当天成功上报的运行安装，同一安装每日去重，包含后台持续运行，并非独立人数或实际操作人数。新版客户端运行期间每 15 分钟检查，成功后当天不再发送；历史旧版可能漏计跨日运行。今天尚未结束，最后一根柱刻意压暗。</p>
   <div class="box"><div id="chart-dau"></div></div>
 </section>
 
 <section>
   <h2><span class="t" data-zh="npm 下载量" data-en="npm downloads">npm 下载量</span><span class="t" data-zh="对照口径" data-en="for reference">对照口径</span></h2>
-  <p class="sub t" data-zh="下载量由「发版」驱动而非「装机」驱动，只作对照，不代表用户数。" data-en="Release-driven rather than usage-driven — kept only as a sanity check, not a user count.">下载量由「发版」驱动而非「装机」驱动，只作对照，不代表用户数。</p>
+  <p class="sub t" data-zh="npm 下载量包含安装、升级、重复下载和自动化流量，不代表新增用户或活跃用户。比较时应看同为 7 天的 WAU；关闭统计、网络失败、旧版漏报，以及 GitHub 安装包等不同安装渠道，都会造成两者差异。心跳与下载数据由定时快照更新，通常每 6 小时刷新，并非实时。" data-en="npm downloads include installs, upgrades, repeat downloads and automation, not new or active users. Compare the same seven-day window with WAU. Opt-outs, network failures, older clients and other installation channels such as GitHub archives also cause differences. Both metrics are refreshed by scheduled snapshots, normally every six hours, not in real time.">npm 下载量包含安装、升级、重复下载和自动化流量，不代表新增用户或活跃用户。比较时应看同为 7 天的 WAU；关闭统计、网络失败、旧版漏报，以及 GitHub 安装包等不同安装渠道，都会造成两者差异。心跳与下载数据由定时快照更新，通常每 6 小时刷新，并非实时。</p>
   <div class="box">
     <div id="chart-npm"></div>
     <div class="legend">
@@ -292,13 +292,8 @@ async function main () {
     ? new Date(hb.generatedAt).toLocaleDateString('en-CA', { timeZone: hb.tz || 'Asia/Shanghai' })
     : ''
 
-  // 取最近一个**有数据**的日，而不是机械地取"最近一个完整日"。
-  //
-  // 为什么：早先固定跳过"今天"是为了避免把半天读成暴跌，但当所有数据都在今天时
-  // （新项目很常见），这会让 DAU 显示 0 而累计装机显示 53 —— 自相矛盾且误导。
-  // 现在优先显示今天并**明确标注"进行中"**，既不隐藏信息也不假装是终值。
-  const lastWithData = daily.slice().reverse().find(d => (d.dau || 0) > 0)
-  const shown = lastWithData || daily.slice().reverse().find(d => d.day !== todayKey)
+  // 今天为零也如实显示，不能用历史非零日冒充当前日活。
+  const shown = daily.find(d => d.day === todayKey) || daily.at(-1)
   const isToday = shown?.day === todayKey
   $('k-dau').textContent = heartbeatUnavailable ? '—' : fmt(shown?.dau ?? 0)
   let dauHint
