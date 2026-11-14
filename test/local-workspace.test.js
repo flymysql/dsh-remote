@@ -47,9 +47,11 @@ test('shared local editor saves CRLF, rejects stale revisions and sees files cre
   assert.equal(saved.status, 200); assert.equal(await fs.readFile(file, 'utf8'), 'updated\r\n')
   await fs.writeFile(file, 'agent change\n')
   const conflict = await post('write', { path: file, content: 'stale', expectedRevision: saved.json.revision })
-  assert.equal(conflict.status, 409); assert.equal(await fs.readFile(file, 'utf8'), 'agent change\n')
+  assert.equal(conflict.status, 409); assert.match(conflict.json.error, /本地文件已变化/); assert.equal(await fs.readFile(file, 'utf8'), 'agent change\n')
   await fs.writeFile(path.join(a, 'generated.html'), '<h1>native generated</h1>')
   assert.equal((await get('read', { path: path.join(a, 'generated.html') })).json.content, '<h1>native generated</h1>')
+  const missing = await get('read', { path: path.join(a, 'missing.txt') })
+  assert.equal(missing.status, 404); assert.equal(missing.json.source, 'local'); assert.equal(missing.json.code, 'LOCAL_FILE_NOT_FOUND'); assert.equal(missing.json.localCopy, undefined)
 })
 
 test('cross-project paths, untrusted root hints, workspace deletion and symlink escapes fail closed', async t => {
