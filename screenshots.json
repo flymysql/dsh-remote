@@ -1,7 +1,10 @@
 [
-  "docs/cover.png",
-  "docs/shots/features.png",
-  "docs/shots/workbench-agent.png",
+  "docs/shots/workspace-overview.png",
+  "docs/shots/workbench-ide.png",
+  "docs/shots/workbench-ide-welcome.png",
   "docs/shots/workbench-file.png",
-  "docs/shots/workbench-terminal.png"
+  "docs/shots/workbench-search-results.png",
+  "docs/shots/workbench-git.png",
+  "docs/shots/workbench-terminal.png",
+  "docs/shots/settings-panel.png"
 ]
