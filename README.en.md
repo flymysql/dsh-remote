@@ -12,9 +12,9 @@ Maintained by [@flymysql](https://github.com/flymysql) · [Homepage](https://fly
 
 ![dsh-remote — remote projects, complete context](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workspace-overview.png)
 
-Turn SSH hosts into everyday development workspaces in [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): browse remote files, edit code, run terminals and let the agent work on the same remote project. Multiple workspaces can use different hosts in parallel.
+Turn SSH hosts into everyday development workspaces in [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): manage projects across hosts, browse and edit remote files, search names and contents, use terminals and inspect Git diffs. Agents read and write files, run commands, build and test in their assigned remote workspace. Multiple workspaces can run independently in parallel.
 
-**IDE mode: files on the left, editor in the center, native agent conversation on the right.** Resize columns or switch panes on narrow screens. Returning to the normal layout keeps tasks and unsaved edits.
+Use the normal layout or choose the optional **three-column IDE layout** to view remote files, the editor and the native Agent conversation side by side. Switching layouts retains tasks and unsaved edits.
 
 <img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-ide.png" alt="DSH remote IDE with file tree, native code editor and agent conversation" width="1200"/>
 
