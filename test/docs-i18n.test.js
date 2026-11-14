@@ -9,6 +9,7 @@
 //      工具名写了 4 个不存在的（rw_workspace/rw_list/rw_read/rw_write），
 //      auditLog 的默认值写成 false（真源是 true）。这些正是用户照着做的内容。
 import { test } from 'node:test'
+import { runInNewContext } from 'node:vm'
 import { DEFAULT_EXCLUDED_DIRECTORIES } from '../lib/file-reference.js'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -110,25 +111,16 @@ test('documented rw_* tool names all exist in the plugin', () => {
   assert.deepEqual(missing, [], `pages omit real rw_* tools: ${missing.join(', ')}`)
 })
 
-test('the DAU figure never silently skips a day that has data', () => {
-  // 回归（同类问题犯了两次，主页修了看板漏了）：两页都曾把 DAU 固定取
-  // "最近一个完整日"，于是当所有心跳都在今天时显示 0，与同屏的累计装机
-  // 自相矛盾（实测：DAU 0 / installs 53）。
-  //
-  // 判据要精确到"把 day!==todayKey 当作**唯一**取值来源"这个坏模式。
-  // 只写 /day !== todayKey/ 会误伤正确实现 —— 新逻辑里它作为**从属**判断
-  // （取最近有数据的日；若它就是今天就标注"进行中"）仍在出现，实测假红过一次。
-  for (const p of ['docs/stats/index.html']) {
-    const html = read(p)
-    // 坏模式：用 slice(0,-1).reverse().find(... !== todayKey) 之类把"今天"整个剔除
-    assert.doesNotMatch(html, /slice\(0,\s*-1\)[\s\S]{0,80}!==\s*todayKey/,
-      `${p}: must not exclude today wholesale when picking the DAU value`)
-    // 正确模式：必须存在"最近一个**有数据**的日"的取法
-    assert.match(html, /find\(d\s*=>\s*\(d\.dau\s*\|\|\s*0\)\s*>\s*0\)/,
-      `${p}: must pick the most recent day that actually has data`)
-  }
-  // 两页都要有"进行中"的标注能力，否则今天的数据会被当成终值
-  assert.match(read('docs/stats/index.html'), /进行中/, 'dashboard must label an in-progress day')
+test('dashboard shows current-day reports, including a real zero, without borrowing old nonzero data', () => {
+  const html = read('docs/stats/index.html')
+  const expression = html.match(/const shown = ([^\n]+)/)?.[1]
+  assert.ok(expression, 'DAU selection must exist')
+  const select = (daily) => runInNewContext(expression, { daily, todayKey: '2026-11-14' })
+  assert.equal(select([{ day: '2026-11-13', dau: 50 }, { day: '2026-11-14', dau: 0 }]).dau, 0)
+  assert.equal(select([{ day: '2026-11-14', dau: 12 }]).dau, 12)
+  assert.equal(select([{ day: '2026-11-12', dau: 50 }, { day: '2026-11-13', dau: 0 }]).day, '2026-11-13')
+  assert.equal(select([]), undefined)
+  assert.match(html, /进行中/, 'dashboard must label an in-progress day')
 })
 
 test('the homepage reads live numbers from the snapshot first', () => {
