@@ -21,6 +21,7 @@ import { createHost } from './harness/plugin-host.js'
 /** Every route the plugin is expected to register, with the methods it serves. */
 const ROUTES = [
   { path: '/dsh-remote/status', allow: ['GET'] },
+  { path: '/dsh-remote/workspace-context', allow: ['GET'] },
   { path: '/dsh-remote/resolve-mirror', allow: ['GET'] },
   { path: '/dsh-remote/bindings', allow: ['GET'] },
   { path: '/dsh-remote/connect', allow: ['POST'], body: true },

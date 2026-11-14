@@ -34,6 +34,12 @@ dsh plugin --profile web add dsh-remote
 
 <img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workspace-picker-browse.png" alt="选择远程目录：固定路径与确认栏，目录列表占据弹窗主要区域" width="720"/>
 
+## 本地工作区也能用
+
+打开普通本地项目后，点击 **IDE 模式** 或 **工作区文件**，即可使用同一套文件树、高亮编辑、递归搜索、Git 差异与本地终端。无需配置 SSH；Agent 继续使用宿主原生文件和命令工具，多个本地、远程项目可并行工作。
+
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-local.png" alt="本地工作区：文件搜索、高亮编辑和原生 Agent 会话，Agent 已实际完成本地构建" width="1200"/>
+
 ## 日常开发
 
 ### 搜索远端文件与内容

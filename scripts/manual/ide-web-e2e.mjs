@@ -272,8 +272,9 @@ try {
   const secondEditor = page.locator('[data-rw-ide-editor] textarea')
   await secondEditor.waitFor(); assert.equal(await secondEditor.inputValue(), 'SECOND_REMOTE_ONLY\n')
   await selectSession('ide-local')
-  assert.equal(await page.locator('[data-rw-ide-shell],[data-rw-ide-toggle]').count(), 0)
-  assert.equal(await page.locator('[data-rw-ide-chat],[data-rw-ide-editor]').count(), 0)
+  await page.locator('[data-rw-ide-shell="ide-local"]').waitFor()
+  await page.locator('[data-rw-ide-tree] [data-rw-tree-row]').filter({ hasText: 'notes.txt' }).waitFor()
+  assert.equal(await page.locator('[data-dsh-remote-chip]').count(), 0, 'local workspace never inherits an SSH chip')
   // Actual Agent-generated links must use the remote source. Explicitly seed
   // one legacy mirror-only artifact: this represents history from before the
   // native mutation gate, not a current Agent writing to the local filesystem.
@@ -327,9 +328,9 @@ try {
   fs.writeFileSync(path.join(artifacts, 'agent-artifact-verification.json'), JSON.stringify({ actualAgentSteps: artifactStatus.step, tool: 'rw_write_file', generatedRemoteBytesVerified: true, conflictingMirrorIgnored: true, structuredMissingCode: missing.code, localPreviewReadOnly: true, publicationRevisionChecked: true, publishedRemoteBytesVerified: true, coreLinksClicked: ['generated.html', 'legacy-only.html'] }, null, 2))
 
   assert.deepEqual(errors, []); assert.deepEqual(servedProblems, [])
-  fs.writeFileSync(path.join(artifacts, 'verification.json'), JSON.stringify({ dshVersion: require('@deepseek-ai/dsh/package.json').version, pluginVersion: JSON.parse(fs.readFileSync(path.join(modules, 'dsh-remote/package.json'), 'utf8')).version, packageMode: process.env.IT_IDE_SOURCE === '1' ? 'source-copy' : 'installed', modelMode: 'scripted model with actual SSH/SFTP and GCC process', actualAgentSteps: status.step, actualCompilerArtifact: true, initialAndLastClosedWelcome: true, responsiveHeaderWidths: [280,360,400], compactHeaderAndDisclosure: true, headerOverlapChecks: headerChecks.length, originalChatAndDraftRetained: true, widthAndNarrowPanes: true, remoteSessionIsolation: true, localFallback: true, menusAndDialogsOnTop: true, generatedCoreLinksAndLocalRecovery: true, pageErrors: errors }, null, 2))
+  fs.writeFileSync(path.join(artifacts, 'verification.json'), JSON.stringify({ dshVersion: require('@deepseek-ai/dsh/package.json').version, pluginVersion: JSON.parse(fs.readFileSync(path.join(modules, 'dsh-remote/package.json'), 'utf8')).version, packageMode: process.env.IT_IDE_SOURCE === '1' ? 'source-copy' : 'installed', modelMode: 'scripted model with actual SSH/SFTP and GCC process', actualAgentSteps: status.step, actualCompilerArtifact: true, initialAndLastClosedWelcome: true, responsiveHeaderWidths: [280,360,400], compactHeaderAndDisclosure: true, headerOverlapChecks: headerChecks.length, originalChatAndDraftRetained: true, widthAndNarrowPanes: true, remoteSessionIsolation: true, localWorkspace: true, menusAndDialogsOnTop: true, generatedCoreLinksAndLocalRecovery: true, pageErrors: errors }, null, 2))
   for (const obsolete of ['failure.png', 'ide-failure-state.json', 'ide-header-280.png', 'ide-header-360.png', 'ide-header-400.png']) fs.rmSync(path.join(artifacts, obsolete), { force: true })
-  console.log('PASS IDE: actual Agent/GCC task survives switches; one original chat; original native editor and unsaved draft preserved; 3 columns; keyboard/drag persisted width; narrow panes; remote-session identity; local fallback; native menus/settings/dialogs above the IDE; actual Agent core links and explicit local-mirror recovery.')
+  console.log('PASS IDE: actual Agent/GCC task survives switches; one original chat; original native editor and unsaved draft preserved; 3 columns; keyboard/drag persisted width; narrow panes; remote-session identity; local workspace; native menus/settings/dialogs above the IDE; actual Agent core links and explicit local-mirror recovery.')
   console.log('Artifacts:', artifacts)
 } catch (error) {
   if (browser) { const page = browser.contexts()[0]?.pages()[0]; if (page) { await page.screenshot({ path: path.join(artifacts, 'failure.png') }); fs.writeFileSync(path.join(artifacts, 'ide-failure-state.json'), JSON.stringify(await page.evaluate(() => ({ surface: window.__DSH_IDE_E2E__?.snapshot('ide-primary'), focus: document.activeElement?.outerHTML.slice(0,350), dialogs: [...document.querySelectorAll('[role=dialog]')].map(node=>node.textContent.slice(0,300)), files: [...document.querySelectorAll('[data-rw-file]')].map(node=>node.getAttribute('data-rw-file')) })), null, 2)); console.error((await page.locator('body').innerText()).slice(-2500)) } }

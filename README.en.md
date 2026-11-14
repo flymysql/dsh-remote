@@ -34,6 +34,12 @@ After installation or an upgrade, restart DSH Web and refresh the page. Check au
 
 <img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workspace-picker-browse.png" alt="Remote folder picker with fixed path and confirmation controls and a large directory list" width="720"/>
 
+## Local workspaces too
+
+Open a normal local project and choose **IDE mode** or **Workspace files** to use the same file tree, highlighted editor, recursive search, Git diffs and local terminal. No SSH setup is required. Agents keep using the host’s native file and command tools; local and remote projects can run in parallel.
+
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-local.png" alt="Local workspace with file search, highlighted editing and a native Agent conversation after an actual local build" width="1200"/>
+
 ## Everyday development
 
 ### Search remote names and contents

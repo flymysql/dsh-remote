@@ -73,7 +73,7 @@ test('each section is paired by position, not merely equal in count', () => {
   // 只用数量相等是不够的：把某个小节的内容整体搬到另一节，两个文件仍然"各 14 节"，
   // 读者却会看到中英结构错位。这里按位置显式声明配对，任何新增/删除/换序都要
   // 在这里同步更新，从而无法悄悄漂移。
-  const PAIRS = [['安装', 'Install'], ['3 步开始', 'Start in 3 steps'], ['日常开发', 'Everyday development'], ['兼容与边界', 'Compatibility and limits'], ['文档与社区', 'Documentation and community']]
+  const PAIRS = [['安装', 'Install'], ['3 步开始', 'Start in 3 steps'], ['本地工作区也能用', 'Local workspaces too'], ['日常开发', 'Everyday development'], ['兼容与边界', 'Compatibility and limits'], ['文档与社区', 'Documentation and community']]
   const a = h2(zh).map((s) => s.replace(/^##\s+/, ''))
   const b = h2(en).map((s) => s.replace(/^##\s+/, ''))
   assert.deepEqual(a, PAIRS.map((p) => p[0]), 'Chinese section order changed — update PAIRS deliberately')

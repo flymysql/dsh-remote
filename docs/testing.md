@@ -283,3 +283,20 @@ jsdiff 的最小源码集合保留原 BSD-3-Clause 许可；`node scripts/vendor
 `local-copy-recovery-ui.test.js` 检查显式来源、只读预览、上传冲突、草稿保留以及切会话/路径和刷新时的迟到请求，防止旧副本遮盖新读取的远端内容。
 
 `scripts/manual/agent-local-write-web-e2e.mjs` 验证真实 Agent 的完整纠正链路：确定性测试模型先调用普通 `write`，消费实际工具门禁的拒绝结果，再以相对路径调用 `rw_write_file` 保存 HTML，最后通过真实会话中的文件链接打开远端结果。模型决策固定；DSH Agent/ToolRuntime、native 或 PTC 执行器、loopback SSH/SFTP、磁盘文件和 Chromium 点击均真实运行。脚本还放置同名旧镜像副本，确认文件链接读取远端结果。默认读取 `IT_DSH_MODULES` 中实际安装的候选包；`IT_BROWSER_MODULES` 指向 Playwright，`IT_AGENT_ARTIFACTS` 指定事件和截图目录，`IT_AGENT_PORT` 可覆盖默认 50688 端口。设置 `IT_AGENT_PTC=1` 使用正式 PTC preset，保持宿主的 workspace-write 沙箱，要求其沙箱后端可运行；`IT_AGENT_SOURCE=1` 仅用于明确标记的临时源码覆盖验收。此脚本只使用测试模型，拒绝 `IT_AGENT_REAL_MODEL=1`。CI 在 0.2.1-rc.5 / 0.2.2-rc.1 的 native 与 PTC 组合中分别执行。
+
+
+## 本地与远程共享工作区验收
+
+- `test/local-workspace.test.js`：实际本地文件、CRLF、保存冲突、跨项目隔离、符号链接、根目录保护、搜索任务归属、真实 Git 和原生工具放行。
+- `test/local-workspace-client.test.js`：本地标签、显式访问上下文、高亮编辑、保存和本地 Shell 选择。
+- 实际浏览器验收（隔离 DSH 配置，不使用用户配置或模型 Key）：
+
+```bash
+IT_DSH_MODULES=/path/to/isolated/node_modules \
+IT_LOCAL_ARTIFACTS=/tmp/local-workspace-evidence \
+node scripts/manual/local-workspace-web-e2e.mjs
+```
+
+该脚本使用脚本化模型决策，Agent、宿主原生 `write/edit/bash`、GCC、文件系统和本地 PTY 均真实执行；验证编译失败、修复、成功运行、生成文件链接、CRLF 保存、搜索和会话切换。证据包含截图、Agent 事件与 `verification.json`。不把脚本化模型称为真实模型验收。`ide-web-e2e.mjs` 同时回归两个 SSH 项目与本地项目切换。
+
+当前实测浏览器环境为 Linux；Windows 使用原生路径与 Git argv 调用，不要求 Git Bash，但仍应在 Windows 宿主上补充实机验收。
