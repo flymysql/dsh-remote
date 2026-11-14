@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-14T17:58:52.245Z",
+  "generatedAt": "2026-11-14T22:21:24.086Z",
   "heartbeat": {
     "ok": true,
-    "generatedAt": "2026-11-14T17:58:51.878Z",
+    "generatedAt": "2026-11-14T22:21:23.799Z",
     "tz": "Asia/Shanghai",
     "daily": [
       {
@@ -123,12 +123,12 @@
       },
       {
         "day": "2026-11-15",
-        "dau": 131
+        "dau": 230
       }
     ],
-    "wau": 3019,
-    "mau": 3019,
-    "installs": 3019,
+    "wau": 3057,
+    "mau": 3057,
+    "installs": 3057,
     "byVersion": [
       {
         "version": "0.8.91",
@@ -136,7 +136,7 @@
       },
       {
         "version": "0.8.94",
-        "n": 851
+        "n": 853
       },
       {
         "version": "0.8.85",
@@ -144,15 +144,15 @@
       },
       {
         "version": "1.1.1",
-        "n": 358
-      },
-      {
-        "version": "0.8.90",
-        "n": 351
+        "n": 370
       },
       {
         "version": "1.1.2",
-        "n": 292
+        "n": 356
+      },
+      {
+        "version": "0.8.90",
+        "n": 352
       },
       {
         "version": "0.8.88",
@@ -182,15 +182,15 @@
     "byPlatform": [
       {
         "platform": "win32",
-        "n": 1821
+        "n": 1847
       },
       {
         "platform": "darwin",
-        "n": 680
+        "n": 684
       },
       {
         "platform": "linux",
-        "n": 504
+        "n": 512
       },
       {
         "platform": "android",
@@ -209,7 +209,7 @@
   "heartbeatError": null,
   "npm": {
     "package": "dsh-remote",
-    "checkedAt": "2026-11-14T17:58:51.912Z",
+    "checkedAt": "2026-11-14T22:21:23.830Z",
     "latest": "1.1.2",
     "lastWeek": 75584,
     "lastMonth": 145792,
@@ -344,8 +344,8 @@
   },
   "repo": {
     "stars": 288,
-    "forks": 49,
+    "forks": 50,
     "openIssues": 2,
-    "pushedAt": "2026-11-14T17:51:00Z"
+    "pushedAt": "2026-11-14T17:58:55Z"
   }
 }
