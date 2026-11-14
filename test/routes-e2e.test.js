@@ -114,7 +114,8 @@ test('/read returns text, flags truncation and binary content, and errors on a m
     assert.equal(bin.json.binary, true, 'a NUL-containing file must be reported as binary, not rendered')
 
     const gone = await host.call('/dsh-remote/read' + q('/home/user/absent.txt'), { method: 'GET' })
-    assert.equal(gone.status, 500)
+    assert.equal(gone.status, 404)
+    assert.equal(gone.json.code, 'REMOTE_FILE_NOT_FOUND')
     assert.equal(gone.json.ok, false)
     assert.ok(gone.json.error && gone.json.error.length > 0)
   })

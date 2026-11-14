@@ -30,7 +30,7 @@ dsh plugin --profile web add dsh-remote
 
 1. **配置主机**：设置 → 远程工作区，编辑 SSH 配置或保存主机凭据；打开设置会自动检查连通性，无需手动“连接”。
 2. **创建工作区**：添加工作区 → 远程，选择主机与目录。每个工作区独立绑定主机，设置页不选目录或“当前远程机”。
-3. **开始开发**：打开工作区文件或切换 IDE 模式，在远端编辑、搜索、运行命令并与 Agent 协作。
+3. **开始开发**：打开工作区文件或切换 IDE 模式，文件打开即可编辑并显示语法高亮，在远端搜索、运行命令并与 Agent 协作。
 
 <img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workspace-picker-browse.png" alt="选择远程目录：固定路径与确认栏，目录列表占据弹窗主要区域" width="720"/>
 

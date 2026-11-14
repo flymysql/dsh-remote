@@ -401,6 +401,7 @@ function serveSftp(sftp, tree, cwd) {
     const mode = flagsToString(flags) || ''
     const wantsWrite = /[wa+]/.test(mode) || (flags & OPEN_MODE.WRITE) || (flags & OPEN_MODE.CREAT)
     const existing = tree.get(target)
+    if (existing && (flags & OPEN_MODE.EXCL)) return fail(reqid, STATUS_CODE.FAILURE)
     if (!existing) {
       if (!wantsWrite) return noSuch(reqid)
       tree.write(target, '')

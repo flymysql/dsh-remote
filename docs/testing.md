@@ -265,3 +265,21 @@ Agent 浏览器验收新增原生“工作区文件”点击：在任务完成�
 `ide-mode.test.js` 验证列宽夹持、偏好持久化、可选宿主服务以及停靠后原始属性、inert 与 CSS 变量的完整恢复。IDE 通过兼容适配原生宿主面板，不复制会话 React 树；未来宿主标记变化可能需要更新适配。
 
 jsdiff 的最小源码集合保留原 BSD-3-Clause 许可；`node scripts/vendor-diff.mjs` 可从锁定的开发依赖重建，CI 比较结果。覆盖率门禁统计第一方代码，第三方源码不计入；整体与逐文件阈值保持不变。
+
+## IDE 欢迎与可编辑代码
+
+`ide-web-e2e.mjs` 检查无打开文件的初次进入、关闭最后一个文件后恢复欢迎页，以及 280/360/400px 会话栏的默认精简头部和“会话工具”展开态。几何与命中检查在同一浏览器帧中读取，验证标题、按钮、视图栏和第一条正文没有覆盖；运行中的 SSH/GCC 任务与原编辑节点、草稿继续保留。
+
+`scripts/manual/highlighted-editor-web-e2e.mjs` 从选定候选包中读取实际编辑组件，使用真实宿主 React、Shiki 与主题服务验证 C/JS/中文高亮、浅深色主题、字体/滚动/软换行行号对齐、选区、缩进、撤销重做、Chromium IME、诊断定位与大文件回退。默认测 `IT_DSH_MODULES` 中的安装包；源码验证需显式 `IT_EDITOR_SOURCE=1`，产物目录使用 `IT_EDITOR_ARTIFACTS`。不替换宿主文件或伪造 token。
+
+保留的原生文件页在重新显示时重查远端，后台不持续读取。未保存内容、revision/mtime 冲突、CRLF 和保存期间继续输入由 `editor-save-lifecycle.test.js`、`remote-draft-recovery.test.js` 验证；二进制、图片与截断预览不能被文本编辑器覆盖。
+
+### Agent 生成文件与本地副本恢复
+
+会话回复中的文件链接按会话绑定读取远端文件；不会静默将本地镜像内容当成远端文件。远端明确返回不存在且安全同名本地副本可用时，界面提供只读预览，再显式上传并打开。恢复上传要求本地版本一致，使用独占创建，远端已有同名文件时拒绝覆盖；权限错误、失效会话、越界和符号链接不进入此流程。
+
+普通文件修改工具在远程会话中提示改用 `rw_write_file`、`rw_edit` 或 `rw_exec`。原始 shell/Python/Node 文件 IO 仍可能生成本地文件，不能宣称工具检查能透明重定向所有操作。Agent 应在远端写入或显式上传、核验后提供远端文件链接。
+
+`local-copy-recovery-ui.test.js` 检查显式来源、只读预览、上传冲突、草稿保留以及切会话/路径和刷新时的迟到请求，防止旧副本遮盖新读取的远端内容。
+
+`scripts/manual/agent-local-write-web-e2e.mjs` 验证真实 Agent 的完整纠正链路：确定性测试模型先调用普通 `write`，消费实际工具门禁的拒绝结果，再以相对路径调用 `rw_write_file` 保存 HTML，最后通过真实会话中的文件链接打开远端结果。模型决策固定；DSH Agent/ToolRuntime、native 或 PTC 执行器、loopback SSH/SFTP、磁盘文件和 Chromium 点击均真实运行。脚本还放置同名旧镜像副本，确认文件链接读取远端结果。默认读取 `IT_DSH_MODULES` 中实际安装的候选包；`IT_BROWSER_MODULES` 指向 Playwright，`IT_AGENT_ARTIFACTS` 指定事件和截图目录，`IT_AGENT_PORT` 可覆盖默认 50688 端口。设置 `IT_AGENT_PTC=1` 使用正式 PTC preset，保持宿主的 workspace-write 沙箱，要求其沙箱后端可运行；`IT_AGENT_SOURCE=1` 仅用于明确标记的临时源码覆盖验收。此脚本只使用测试模型，拒绝 `IT_AGENT_REAL_MODEL=1`。CI 在 0.2.1-rc.5 / 0.2.2-rc.1 的 native 与 PTC 组合中分别执行。

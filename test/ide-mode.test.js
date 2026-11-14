@@ -114,3 +114,29 @@ test('IDE registration tolerates a replacement sidebar without the native sideba
   assert.ok(registrations.some(value => value.name === 'shell.overlay'))
   for (const dispose of effects) dispose()
 })
+
+test('IDE welcome replaces only an empty guide in the still-mounted session', () => {
+  const calls = []
+  let current = { id: 'empty-guide', kind: 'guide' }, mounted = 'remote-a'
+  const controller = {
+    mounted: { getSnapshot: () => mounted }, active: () => current,
+    openTabIn: (...args) => calls.push(['open', ...args]), closeIn: (...args) => calls.push(['close', ...args]),
+  }
+  const ensure = new Function('NATIVE_WELCOME', 'NATIVE_EXPLORER', section('    function ensureRemoteIdeWelcome(controller, sessionId)', '    function RemoteIdeShell()') + '\nreturn ensureRemoteIdeWelcome')('dsh-remote/welcome', 'dsh-remote/explorer')
+  assert.equal(ensure(controller, 'remote-a'), true)
+  assert.deepEqual(calls, [['open', 'remote-a', 'dsh-remote/welcome', { replaceTab: 'empty-guide' }], ['close', 'remote-a', 'empty-guide']])
+  for (const kind of ['dsh-remote/file', 'terminal', 'dsh-remote/changes', 'dsh-remote/welcome']) {
+    current = { id: 'keep', kind }; calls.length = 0
+    assert.equal(ensure(controller, 'remote-a'), false); assert.deepEqual(calls, [])
+  }
+  current = { id: 'auto-explorer', kind: 'dsh-remote/explorer' }; calls.length = 0
+  assert.equal(ensure(controller, 'remote-a'), true)
+  assert.deepEqual(calls[0], ['open', 'remote-a', 'dsh-remote/welcome', { replaceTab: 'auto-explorer' }])
+  calls.length = 0
+  current = undefined; calls.length = 0
+  assert.equal(ensure(controller, 'remote-a'), true)
+  assert.deepEqual(calls, [['open', 'remote-a', 'dsh-remote/welcome']])
+  calls.length = 0
+  current = { id: 'other-guide', kind: 'guide' }; mounted = 'remote-b'
+  assert.equal(ensure(controller, 'remote-a'), false); assert.deepEqual(calls, [])
+})

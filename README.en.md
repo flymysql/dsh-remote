@@ -30,7 +30,7 @@ After installation or an upgrade, restart DSH Web and refresh the page. Check au
 
 1. **Configure a host**: open Settings → Remote workspaces to edit SSH configuration or save credentials. Connectivity checks run automatically; no manual connection step is required.
 2. **Create a workspace**: Add workspace → Remote, then choose a host and folder. Each workspace binds its own host; settings have no folder selection or global active host.
-3. **Develop remotely**: open workspace files or enter IDE mode to edit, search, run commands and collaborate with the agent.
+3. **Develop remotely**: open workspace files or enter IDE mode to edit with syntax highlighting, search, run commands and collaborate with the agent. Files open ready to edit.
 
 <img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workspace-picker-browse.png" alt="Remote folder picker with fixed path and confirmation controls and a large directory list" width="720"/>
 
