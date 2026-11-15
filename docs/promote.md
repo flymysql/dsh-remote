@@ -1,6 +1,6 @@
 # Community listing kit
 
-Maintainer reference, updated 2026-11-14. Stable release: [1.1.2](https://github.com/flymysql/dsh-remote/releases/tag/v1.1.2), also available on [npm](https://www.npmjs.com/package/dsh-remote).
+Maintainer reference, updated 2026-11-16. Stable release: [1.2.0](https://github.com/flymysql/dsh-remote/releases/tag/v1.2.0), also available on [npm](https://www.npmjs.com/package/dsh-remote).
 
 ## Project links
 
