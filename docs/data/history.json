@@ -515,5 +515,16 @@
     "npmLastWeek": 79516,
     "stars": 290,
     "forks": 50
+  },
+  {
+    "day": "2026-11-16",
+    "at": "2026-11-16T06:24:05.637Z",
+    "dau": 1221,
+    "wau": 3567,
+    "mau": 3567,
+    "installs": 3567,
+    "npmLastWeek": 76796,
+    "stars": 293,
+    "forks": 51
   }
 ]

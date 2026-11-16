@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-15T18:49:21.500Z",
+  "generatedAt": "2026-11-16T06:24:05.637Z",
   "heartbeat": {
     "ok": true,
-    "generatedAt": "2026-11-15T18:49:21.234Z",
+    "generatedAt": "2026-11-16T06:24:05.288Z",
     "tz": "Asia/Shanghai",
     "daily": [
       {
@@ -123,24 +123,28 @@
       },
       {
         "day": "2026-11-16",
-        "dau": 327
+        "dau": 1221
       }
     ],
-    "wau": 3367,
-    "mau": 3367,
-    "installs": 3367,
+    "wau": 3567,
+    "mau": 3567,
+    "installs": 3567,
     "byVersion": [
       {
         "version": "0.8.91",
-        "n": 1766
-      },
-      {
-        "version": "0.8.94",
-        "n": 896
+        "n": 1774
       },
       {
         "version": "1.1.2",
-        "n": 882
+        "n": 975
+      },
+      {
+        "version": "0.8.94",
+        "n": 953
+      },
+      {
+        "version": "1.2.0",
+        "n": 718
       },
       {
         "version": "0.8.85",
@@ -148,15 +152,11 @@
       },
       {
         "version": "1.1.1",
-        "n": 389
+        "n": 403
       },
       {
         "version": "0.8.90",
-        "n": 353
-      },
-      {
-        "version": "1.2.0",
-        "n": 174
+        "n": 355
       },
       {
         "version": "0.8.88",
@@ -168,7 +168,7 @@
       },
       {
         "version": "1.0.1",
-        "n": 129
+        "n": 132
       },
       {
         "version": "0.8.84",
@@ -182,15 +182,15 @@
     "byPlatform": [
       {
         "platform": "win32",
-        "n": 2050
+        "n": 2177
       },
       {
         "platform": "darwin",
-        "n": 752
+        "n": 800
       },
       {
         "platform": "linux",
-        "n": 551
+        "n": 576
       },
       {
         "platform": "android",
@@ -209,15 +209,11 @@
   "heartbeatError": null,
   "npm": {
     "package": "dsh-remote",
-    "checkedAt": "2026-11-15T18:49:21.258Z",
+    "checkedAt": "2026-11-16T06:24:05.316Z",
     "latest": "1.2.0",
-    "lastWeek": 79516,
-    "lastMonth": 157507,
+    "lastWeek": 76796,
+    "lastMonth": 164617,
     "daily": [
-      {
-        "day": "2026-10-16",
-        "downloads": 1894
-      },
       {
         "day": "2026-10-17",
         "downloads": 840
@@ -333,6 +329,10 @@
       {
         "day": "2026-11-14",
         "downloads": 11715
+      },
+      {
+        "day": "2026-11-15",
+        "downloads": 9004
       }
     ],
     "zeroDays": [
@@ -342,9 +342,9 @@
     "note": "npm daily counts have reporting gaps; zero-value days are flagged and are not real zero usage."
   },
   "repo": {
-    "stars": 290,
-    "forks": 50,
+    "stars": 293,
+    "forks": 51,
     "openIssues": 1,
-    "pushedAt": "2026-11-15T18:26:18Z"
+    "pushedAt": "2026-11-15T18:49:23Z"
   }
 }
