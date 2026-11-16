@@ -287,6 +287,35 @@ test('autoStart restores a forward that was running when the connection dropped'
   } finally { fm.stopAll() }
 })
 
+test('autoStart restores after a socket that died without detach()', async () => {
+  // The common real-world drop is not a graceful pool.close(): the SSH socket
+  // just closes (network blip, keepalive timeout). The restore snapshot must be
+  // taken there too, otherwise 自动重连 restores nothing after the case it is
+  // for. The dead handle must also be dropped so the retry attaches the new one.
+  const conn1 = new EventEmitter()
+  const conn2 = new EventEmitter()
+  let fm
+  const pool = { connect: async () => fm.client || conn2 }
+  fm = new ForwardManager(pool, { file: null, currentMachine: () => 'm1' })
+  try {
+    const auto = fm.define({ listenPort: await freePort(), targetHost: '127.0.0.1', targetPort: 9, autoStart: true, machineId: 'm1' })
+    const active = () => fm.list().find((f) => f.id === auto.id).active
+
+    fm.attach(conn1)
+    await fm.start(auto)
+    assert.equal(active(), true)
+
+    conn1.emit('close') // abrupt drop: pool.detach() never runs
+    await settleStarts()
+    assert.equal(active(), false, 'the listener must go down with the socket')
+    assert.equal(fm.client, null, 'a dead client must not be reused')
+
+    fm.attach(conn2)
+    await settleStarts()
+    assert.equal(active(), true, 'a forward that was RUNNING must come back after an abrupt drop')
+  } finally { fm.stopAll() }
+})
+
 test('autoStart restore is scoped to the machine that reconnects', async () => {
   const connA = new EventEmitter()
   const connB = new EventEmitter()
