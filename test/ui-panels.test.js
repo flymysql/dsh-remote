@@ -415,6 +415,13 @@ test('each forward row exposes an editable 自动重连 checkbox that updates th
     assert.equal(ui.text(tree).includes('[auto]'), false, 'the static [auto] marker must be gone')
 
     findBox(tree).onChange({ target: { checked: true } })
+    tree = await ui.settle()
+    // The first check explains what 自动重连 means before anything is saved.
+    assert.match(ui.text(tree), /自动重连会做什么/, 'the first check must explain the semantics')
+    assert.equal(stub.calls.some((c) => c.method === 'POST' && c.body && c.body.action === 'update'), false,
+      'nothing may be persisted before the user confirms')
+
+    tree = await ui.click(tree, /^仍然勾选$/)
     // The update action goes through the same async path as start/stop; let its
     // promise chain settle before re-rendering.
     for (let i = 0; i < 4; i++) await new Promise((resolve) => setTimeout(resolve, 0))
@@ -424,5 +431,30 @@ test('each forward row exposes an editable 自动重连 checkbox that updates th
     assert.ok(call, 'toggling must call the update action')
     assert.equal(call.body.id, 'fwd-auto')
     assert.equal(call.body.autoStart, true)
+  } finally { ui.dispose() }
+})
+
+test('cancelling the auto-reconnect notice leaves the flag off and saves nothing', async () => {
+  const FWD = { id: 'fwd-cancel', direction: 'local', listenPort: 18083, targetHost: '127.0.0.1', targetPort: 80, autoStart: false, active: false }
+  const stub = stubFetch({
+    overrides: {
+      '/dsh-remote/forwards': ({ method, body }) => (method === 'POST' && body && body.action === 'update'
+        ? { ok: true, forward: { ...FWD, autoStart: !!body.autoStart }, forwards: [{ ...FWD, autoStart: !!body.autoStart }] }
+        : { forwards: [FWD] }),
+    },
+  })
+  const ui = mountClient({ fetch: stub.fetch })
+  const findBox = (tree) => ui.inputs(tree, 'checkbox').find((p) => p['aria-label'] === '自动重连')
+  try {
+    let tree = await ui.settle()
+    tree = await ui.click(tree, /端口转发/)
+    findBox(tree).onChange({ target: { checked: true } })
+    tree = await ui.settle()
+    assert.match(ui.text(tree), /自动重连会做什么/)
+    tree = await ui.click(tree, /^取消$/)
+    tree = await ui.settle()
+    assert.equal(findBox(tree).checked, false, 'cancel must leave the checkbox off')
+    assert.equal(ui.text(tree).includes('自动重连会做什么'), false, 'cancel must close the notice')
+    assert.equal(stub.calls.some((c) => c.method === 'POST' && c.body && c.body.action === 'update'), false)
   } finally { ui.dispose() }
 })

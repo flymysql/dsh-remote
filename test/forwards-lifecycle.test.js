@@ -10,6 +10,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import net from 'node:net'
 import { EventEmitter } from 'node:events'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { createHost, machine } from './harness/plugin-host.js'
 import { startFakeSsh } from './harness/fake-ssh.js'
 import { ForwardManager } from '../lib/forwards.js'
@@ -199,6 +202,70 @@ test('removing a RUNNING forward releases its listener instead of leaking it', a
       assert.equal(err, null, `the port must be free after removing a running forward, got: ${err && err.message}`)
     })
   } finally { await echo.close() }
+})
+
+test('starting through the route persists lastActive and Stop clears it', async () => {
+  await withForwards(async ({ host }) => {
+    const defined = await post(host, {
+      action: 'define', listenPort: await freePort(), targetHost: '127.0.0.1', targetPort: 22, autoStart: true,
+    })
+    const fwd = defined.json.forward
+    const started = await post(host, { action: 'start', id: fwd.id })
+    assert.equal(started.json.ok, true, started.json.error)
+    assert.equal(started.json.forwards.find((f) => f.id === fwd.id).lastActive, true,
+      'a successful start must be remembered for 自动重连 / the next boot')
+
+    const stopped = await post(host, { action: 'stop', id: fwd.id })
+    assert.equal(stopped.json.ok, true)
+    assert.equal(stopped.json.forwards.find((f) => f.id === fwd.id).lastActive, false,
+      'a user Stop must clear the persisted flag')
+  })
+})
+
+test('lastActive is persisted and restored by a fresh process after its first connect', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'dsh-fwd-persist-'))
+  const file = path.join(dir, 'forwards.json')
+  try {
+    const conn1 = new EventEmitter()
+    let fm = new ForwardManager({ connect: async () => conn1 }, { file, currentMachine: () => 'm1' })
+    const d = fm.define({ listenPort: await freePort(), targetHost: '127.0.0.1', targetPort: 9, autoStart: true, machineId: 'm1' })
+    assert.equal((await fm.start(d)).ok, true)
+    // A dropped connection / shutdown must NOT clear the persisted flag.
+    fm.stopAll()
+    assert.equal(JSON.parse(readFileSync(file, 'utf8')).defs.find((x) => x.id === d.id).lastActive, true,
+      'start() must persist lastActive')
+
+    // New process: same forwards.json, fresh manager, boot connect.
+    const conn = new EventEmitter()
+    fm = new ForwardManager({ connect: async () => conn }, { file, currentMachine: () => 'm1' })
+    assert.equal(fm.hasPendingRestore(), true, 'the persisted flag must be visible before connecting')
+    fm.attach(conn)
+    await settleStarts()
+    assert.equal(fm.list().find((f) => f.id === d.id).active, true,
+      'the previous session\'s running forward must come back on the first connect')
+    fm.stopAll()
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('a user stop clears lastActive, so it stays down on the next connect', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'dsh-fwd-forget-'))
+  const file = path.join(dir, 'forwards.json')
+  try {
+    const conn1 = new EventEmitter()
+    let fm = new ForwardManager({ connect: async () => conn1 }, { file, currentMachine: () => 'm1' })
+    const d = fm.define({ listenPort: await freePort(), targetHost: '127.0.0.1', targetPort: 9, autoStart: true, machineId: 'm1' })
+    await fm.start(d)
+    fm.stop(d.id, { forget: true }) // what the route's Stop button does
+    assert.equal(fm.list().find((f) => f.id === d.id).lastActive, false)
+
+    const conn = new EventEmitter()
+    fm = new ForwardManager({ connect: async () => conn }, { file, currentMachine: () => 'm1' })
+    assert.equal(fm.hasPendingRestore(), false)
+    fm.attach(conn)
+    await settleStarts()
+    assert.equal(fm.list().find((f) => f.id === d.id).active, false, 'a stopped forward must not be restored')
+    fm.stopAll()
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
 test('autoStart can be toggled on an existing definition and shows up in the list', async () => {
