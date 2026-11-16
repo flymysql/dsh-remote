@@ -267,10 +267,10 @@ test('the forwards panel starts collapsed and its add button stays disabled unti
     let tree = await ui.settle()
     // Collapsed by default: it sits below the host list and used to push the
     // update/audit cards far down the page for a feature most sessions never touch.
-    assert.equal(ui.buttons(tree).some((b) => /^添加转发$/.test(b.label)), false,
+    assert.equal(ui.buttons(tree).some((b) => /^添加$/.test(b.label)), false,
       'the forwards panel must start collapsed')
     tree = await ui.click(tree, /端口转发/)
-    const add = ui.buttons(tree).find((b) => /^添加转发$/.test(b.label))
+    const add = ui.buttons(tree).find((b) => /^添加$/.test(b.label))
     assert.ok(add, `the forwards panel must offer an add action, buttons: ${ui.buttons(tree).map((b) => b.label).join(' | ')}`)
     assert.equal(add.disabled, true, 'adding a forward without a listen port must be impossible')
   } finally { ui.dispose() }
@@ -418,6 +418,8 @@ test('each forward row exposes an editable 自动重连 checkbox that updates th
     tree = await ui.settle()
     // The first check explains what 自动重连 means before anything is saved.
     assert.match(ui.text(tree), /自动重连会做什么/, 'the first check must explain the semantics')
+    assert.equal(/反向/.test(ui.text(tree)), false,
+      'a LOCAL forward notice must not explain reverse forwards — it only concerns this row')
     assert.equal(stub.calls.some((c) => c.method === 'POST' && c.body && c.body.action === 'update'), false,
       'nothing may be persisted before the user confirms')
 
