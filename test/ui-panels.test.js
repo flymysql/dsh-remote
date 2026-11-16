@@ -458,3 +458,32 @@ test('cancelling the auto-reconnect notice leaves the flag off and saves nothing
     assert.equal(stub.calls.some((c) => c.method === 'POST' && c.body && c.body.action === 'update'), false)
   } finally { ui.dispose() }
 })
+
+test('the first check of a reverse forward warns about the remote listener', async () => {
+  const FWD = { id: 'fwd-rev', direction: 'reverse', listenPort: 18084, targetHost: '127.0.0.1', targetPort: 80, autoStart: false, active: false }
+  const stub = stubFetch({
+    overrides: {
+      '/dsh-remote/forwards': ({ method, body }) => (method === 'POST' && body && body.action === 'update'
+        ? { ok: true, forward: { ...FWD, autoStart: !!body.autoStart }, forwards: [{ ...FWD, autoStart: !!body.autoStart }] }
+        : { forwards: [FWD] }),
+    },
+  })
+  const ui = mountClient({ fetch: stub.fetch })
+  const findBox = (tree) => ui.inputs(tree, 'checkbox').find((p) => p['aria-label'] === '自动重连')
+  try {
+    let tree = await ui.settle()
+    tree = await ui.click(tree, /端口转发/)
+    findBox(tree).onChange({ target: { checked: true } })
+    tree = await ui.settle()
+    const text = ui.text(tree)
+    assert.match(text, /反向转发的自动重连会做什么/, 'a reverse forward must get the remote-listener warning')
+    assert.match(text, /远端/, 'the warning must name the remote listener')
+
+    tree = await ui.click(tree, /^仍然勾选$/)
+    for (let i = 0; i < 4; i++) await new Promise((resolve) => setTimeout(resolve, 0))
+    tree = await ui.settle()
+    assert.equal(findBox(tree).checked, true)
+    const call = stub.calls.find((c) => c.method === 'POST' && c.body && c.body.action === 'update')
+    assert.equal(call.body.autoStart, true)
+  } finally { ui.dispose() }
+})

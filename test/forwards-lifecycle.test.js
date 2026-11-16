@@ -408,6 +408,34 @@ test('autoStart restores after a socket that died without detach()', async () =>
   } finally { fm.stopAll() }
 })
 
+test('a reverse forward the user opted into is restored after the connection drops', async () => {
+  // Reverse tunnels re-open a listener on the REMOTE, so upstream deliberately
+  // never auto-restarted them. They are restored now only because the user
+  // explicitly checked 自动重连 (the UI shows a direction-specific warning first).
+  const conn1 = new EventEmitter()
+  conn1.forwardIn = (_host, _port, cb) => cb(null)
+  conn1.unforwardIn = () => {}
+  const conn2 = new EventEmitter()
+  conn2.forwardIn = (_host, _port, cb) => cb(null)
+  conn2.unforwardIn = () => {}
+  let fm
+  const pool = { connect: async () => fm.client || conn2 }
+  fm = new ForwardManager(pool, { file: null, currentMachine: () => 'm1' })
+  try {
+    const rev = fm.define({ direction: 'reverse', listenPort: await freePort(), targetHost: '127.0.0.1', targetPort: 22, autoStart: true, machineId: 'm1' })
+    const active = () => fm.list().find((f) => f.id === rev.id).active
+    fm.attach(conn1)
+    assert.equal((await fm.start(rev)).ok, true)
+    assert.equal(active(), true)
+
+    fm.detach()
+    assert.equal(active(), false, 'the remote listener dies with the connection')
+    fm.attach(conn2)
+    await settleStarts()
+    assert.equal(active(), true, 'an opted-in reverse forward must come back on reconnect')
+  } finally { fm.stopAll() }
+})
+
 test('autoStart restore is scoped to the machine that reconnects', async () => {
   const connA = new EventEmitter()
   const connB = new EventEmitter()
