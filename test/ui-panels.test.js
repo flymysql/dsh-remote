@@ -267,12 +267,12 @@ test('the forwards panel starts collapsed and its add button stays disabled unti
     let tree = await ui.settle()
     // Collapsed by default: it sits below the host list and used to push the
     // update/audit cards far down the page for a feature most sessions never touch.
-    assert.equal(ui.buttons(tree).some((b) => /^添加$/.test(b.label)), false,
+    assert.equal(ui.buttons(tree).some((b) => /^添加转发$/.test(b.label)), false,
       'the forwards panel must start collapsed')
     tree = await ui.click(tree, /端口转发/)
     assert.match(ui.text(tree), /监听口开在本机/, 'the panel must explain the -L/-R listener semantics')
     assert.match(ui.text(tree), /监听口开在本机，连接转发到远端目标/, 'the form must hint where the listener sits')
-    const add = ui.buttons(tree).find((b) => /^添加$/.test(b.label))
+    const add = ui.buttons(tree).find((b) => /^添加转发$/.test(b.label))
     assert.ok(add, `the forwards panel must offer an add action, buttons: ${ui.buttons(tree).map((b) => b.label).join(' | ')}`)
     assert.equal(add.disabled, true, 'adding a forward without a listen port must be impossible')
   } finally { ui.dispose() }
