@@ -126,6 +126,14 @@ const MACHINES = [
   // alias machine: the pool target is the ~/.ssh/config RESOLVED identity
   { id: 'm3', host: 'alias-x', port: 22, username: 'root', useSshConfig: true,
     sshConfigResolved: { host: '10.0.0.7', port: 2222, username: 'lucas' } },
+  // OpenSSH keeps the alias and lets ssh supply User/Port from the config.
+  { id: 'm4', host: 'alias-openssh', port: 22, username: 'root', useSshConfig: true, backend: 'openssh',
+    sshConfigResolved: { host: '10.0.0.8', port: 22, username: 'root' } },
+  { id: 'm5', host: 'alias-openssh-port', port: 2222, username: 'root', useSshConfig: true, backend: 'openssh',
+    sshConfigResolved: { host: '10.0.0.9', port: 2222, username: 'root' } },
+  // A literal host named by a Host block takes the same OpenSSH path (issue #50).
+  { id: 'm6', host: 'literal-openssh', port: 2222, username: 'root', backend: 'OpenSSH',
+    sshConfigResolved: { matched: true, host: '10.0.0.10', port: 2222, username: 'root' } },
 ]
 
 /** Evaluate the extracted shipped functions against mocked dependencies. */
@@ -322,6 +330,60 @@ test('B2: an alias machine matches on its resolved identity (no false mismatch)'
   await picker.fetchDirList('m3', '/proj')
   assert.equal(mock.posts().length, 1, 'the resolved identity must count as a match (no re-switch)')
   assert.equal(picker.lsCacheRef.current.size, 1, 'a matching listing is cached')
+})
+
+test('B2: an OpenSSH alias matches its alias-native transport identity', async () => {
+  const echo = { host: 'alias-openssh', port: 22, username: '' }
+  const mock = mockApi((method) => {
+    if (method === 'POST') return Promise.resolve({ ok: true })
+    return Promise.resolve(listing(['home/'], { machine: echo }))
+  })
+  const picker = makePicker(mock.api)
+
+  await picker.fetchDirList('m4', '/proj')
+  assert.equal(mock.posts().length, 1, 'the alias-native echo must match without a re-switch')
+  assert.equal(picker.lsCacheRef.current.size, 1)
+})
+
+test('B2: an OpenSSH alias with a non-default SSH Port still matches transport port 22', async () => {
+  // No -p is emitted for an alias: pool.config reports the fallback port 22,
+  // while ssh itself applies Port 2222 from ~/.ssh/config.
+  const echo = { host: 'alias-openssh-port', port: 22, username: '' }
+  const mock = mockApi((method) => {
+    if (method === 'POST') return Promise.resolve({ ok: true })
+    return Promise.resolve(listing(['home/'], { machine: echo }))
+  })
+  const picker = makePicker(mock.api)
+
+  await picker.fetchDirList('m5', '/proj')
+  assert.equal(mock.posts().length, 1)
+  assert.equal(picker.lsCacheRef.current.size, 1)
+})
+
+test('B2: a literal Host match on OpenSSH matches its original-name transport', async () => {
+  const echo = { host: 'literal-openssh', port: 22, username: '' }
+  const mock = mockApi((method) => {
+    if (method === 'POST') return Promise.resolve({ ok: true })
+    return Promise.resolve(listing(['home/'], { machine: echo }))
+  })
+  const picker = makePicker(mock.api)
+
+  await picker.fetchDirList('m6', '/proj')
+  assert.equal(mock.posts().length, 1)
+  assert.equal(picker.lsCacheRef.current.size, 1)
+})
+
+test('B2: an empty echo username is not a wildcard for an ordinary machine', async () => {
+  const wrongUser = { host: '10.0.0.1', port: 22, username: '' }
+  const mock = mockApi((method) => {
+    if (method === 'POST') return Promise.resolve({ ok: true })
+    return Promise.resolve(listing(['must-not-be-used/'], { machine: wrongUser }))
+  })
+  const picker = makePicker(mock.api)
+
+  await assert.rejects(picker.fetchDirList('m1', '/proj'), /project.machineChanged/)
+  assert.equal(mock.posts().length, 2, 'persistent identity mismatch retries once only')
+  assert.equal(picker.lsCacheRef.current.size, 0, 'an unknown user identity must not be cached')
 })
 
 // ── B5/B6: shared suggest pipeline, seq guard, fresh navigation ────────────
