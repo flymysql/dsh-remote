@@ -12,7 +12,7 @@ Maintained by [@flymysql](https://github.com/flymysql) · [Homepage](https://fly
 
 ![dsh-remote — remote projects, complete context](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workspace-overview.png)
 
-Turn SSH hosts into everyday development workspaces in [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): manage projects across hosts, browse and edit remote files, search names and contents, use terminals and inspect Git diffs. Agents read and write files, run commands, build and test in their assigned remote workspace. Multiple workspaces can run independently in parallel.
+Turn SSH hosts into everyday development workspaces in [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): manage projects across hosts, browse and edit remote files, search names and contents, use terminals, inspect Git diffs and open local/reverse port tunnels. Agents read and write files, run commands, build and test in their assigned remote workspace. Multiple workspaces can run independently in parallel.
 
 Use the normal layout or choose the optional **three-column IDE layout** to view remote files, the editor and the native Agent conversation side by side. Switching layouts retains tasks and unsaved edits.
 
@@ -59,6 +59,12 @@ Switch between working-tree and staged diffs, filter files and jump from a chang
 The terminal starts in the session's remote directory. A pixel fish welcomes you before the real SSH shell; saved credentials can answer authentication automatically, and multiple terminals can run together.
 
 <img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-terminal.png" alt="Native remote terminal with pixel fish and actual SSH command output" width="1000"/>
+
+### Port forwarding (SSH tunnels)
+
+Open the listener on the side that initiates the connection: a listener here is a local forward (`ssh -L`); one on the remote is a reverse forward (`ssh -R`). Run several at once, and tick auto reconnect per row to restore only the forwards that were running, scoped to their machine. Enabling it for a reverse forward first warns that the remote will listen again.
+
+<img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/port-forwards.png" alt="Port forwarding panel with local/reverse directions, per-row auto reconnect and the add form" width="900"/>
 
 ### Edit and build with the agent
 
