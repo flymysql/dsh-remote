@@ -391,3 +391,38 @@ test('the start button shows a pending label while the request is in flight', as
     assert.ok(ui.buttons(tree).some((b) => b.label === '停止'), 'the settled response must land on the row')
   } finally { ui.dispose() }
 })
+
+test('each forward row exposes an editable 自动重连 checkbox that updates the definition', async () => {
+  const FWD = { id: 'fwd-auto', direction: 'local', listenPort: 18082, targetHost: '127.0.0.1', targetPort: 80, autoStart: false, active: false }
+  const stub = stubFetch({
+    overrides: {
+      '/dsh-remote/forwards': ({ method, body }) => {
+        if (method === 'POST' && body && body.action === 'update') {
+          const updated = { ...FWD, autoStart: !!body.autoStart }
+          return { ok: true, forward: updated, forwards: [updated] }
+        }
+        return { forwards: [FWD] }
+      },
+    },
+  })
+  const ui = mountClient({ fetch: stub.fetch })
+  const findBox = (tree) => ui.inputs(tree, 'checkbox').find((p) => p['aria-label'] === '自动重连')
+  try {
+    let tree = await ui.settle()
+    tree = await ui.click(tree, /端口转发/)
+    assert.ok(findBox(tree), 'each row must offer an editable 自动重连 checkbox')
+    assert.equal(findBox(tree).checked, false, 'the checkbox must reflect the stored flag')
+    assert.equal(ui.text(tree).includes('[auto]'), false, 'the static [auto] marker must be gone')
+
+    findBox(tree).onChange({ target: { checked: true } })
+    // The update action goes through the same async path as start/stop; let its
+    // promise chain settle before re-rendering.
+    for (let i = 0; i < 4; i++) await new Promise((resolve) => setTimeout(resolve, 0))
+    tree = await ui.settle()
+    assert.equal(findBox(tree).checked, true, 'the checkbox must reflect the updated definition')
+    const call = stub.calls.find((c) => c.method === 'POST' && c.body && c.body.action === 'update')
+    assert.ok(call, 'toggling must call the update action')
+    assert.equal(call.body.id, 'fwd-auto')
+    assert.equal(call.body.autoStart, true)
+  } finally { ui.dispose() }
+})

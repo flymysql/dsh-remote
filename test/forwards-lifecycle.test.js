@@ -201,6 +201,31 @@ test('removing a RUNNING forward releases its listener instead of leaking it', a
   } finally { await echo.close() }
 })
 
+test('autoStart can be toggled on an existing definition and shows up in the list', async () => {
+  await withForwards(async ({ host }) => {
+    const defined = await post(host, {
+      action: 'define', listenPort: await freePort(), targetHost: '127.0.0.1', targetPort: 22, autoStart: false,
+    })
+    const fwd = defined.json.forward
+    assert.equal(fwd.autoStart, false)
+
+    const on = await post(host, { action: 'update', id: fwd.id, autoStart: true })
+    assert.equal(on.status, 200)
+    assert.equal(on.json.forward.autoStart, true)
+    assert.equal(on.json.forwards.find((f) => f.id === fwd.id).autoStart, true)
+
+    const off = await post(host, { action: 'update', id: fwd.id, autoStart: false })
+    assert.equal(off.json.forwards.find((f) => f.id === fwd.id).autoStart, false)
+    // And the change is what a later GET (and the next attach()) sees.
+    assert.equal((await host.call('/dsh-remote/forwards', { method: 'GET' })).json.forwards
+      .find((f) => f.id === fwd.id).autoStart, false)
+
+    assert.equal((await post(host, { action: 'update', id: 'nope', autoStart: true })).status, 404)
+    assert.equal((await post(host, { action: 'update', id: fwd.id, autoStart: 'yes' })).status, 400,
+      'a non-boolean must be refused instead of silently coercing')
+  })
+})
+
 test('unknown forward ids and actions are refused with 404/400 and a reason', async () => {
   await withForwards(async ({ host }) => {
     const start = await post(host, { action: 'start', id: 'nope' })
