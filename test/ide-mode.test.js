@@ -140,3 +140,26 @@ test('IDE welcome replaces only an empty guide in the still-mounted session', ()
   current = { id: 'other-guide', kind: 'guide' }; mounted = 'remote-b'
   assert.equal(ensure(controller, 'remote-a'), false); assert.deepEqual(calls, [])
 })
+
+test('IDE header lines up with the macOS window controls', () => {
+  // ui-layout publishes data-platform='darwin' on the root and keeps the native
+  // hiddenInset traffic lights in a 48px top strip whose chrome sits on the y=25
+  // centre line, with the band ending at x 68; its own fullscreen panels pad the
+  // first strip to 88px. The IDE shell covers that strip, so the header must take
+  // the same height and leading inset or the workspace title lands above and
+  // under the lights.
+  const css = section('const REMOTE_IDE_CSS = `', '\n    // Returns a disposer')
+  const base = /html\[data-platform='darwin'\] \[data-rw-ide-header\]\{([^}]*)\}/.exec(css)
+  assert.ok(base, 'darwin IDE header rules must be present')
+  assert.match(base[1], /height:48px;min-height:48px/, 'header must take the window strip height so its title is level with the lights')
+  assert.match(base[1], /padding-top:1px/, 'one pixel of top padding puts the title on the strip centre line')
+  assert.match(base[1], /padding-left:88px/, 'header must clear the lights by the host fullscreen-panel inset')
+  const fullscreen = /html\[data-platform='darwin'\]\[data-fullscreen\] \[data-rw-ide-header\]\{([^}]*)\}/.exec(css)
+  assert.ok(fullscreen, 'fullscreen hides the lights and must restore the ordinary header')
+  assert.match(fullscreen[1], /height:38px;min-height:38px/)
+  assert.match(fullscreen[1], /padding-top:0/)
+  assert.match(fullscreen[1], /padding-left:12px/)
+  assert.ok(base.index < fullscreen.index, 'the fullscreen override must follow the base rule')
+  const narrow = css.indexOf('@media(max-width:600px){[data-rw-ide-header]{gap:5px;padding:0 6px}')
+  assert.ok(narrow >= 0 && base.index > narrow, 'the darwin rule must out-specify the narrow-mode shorthand')
+})
