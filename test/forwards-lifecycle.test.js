@@ -9,8 +9,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import net from 'node:net'
+import { EventEmitter } from 'node:events'
 import { createHost, machine } from './harness/plugin-host.js'
 import { startFakeSsh } from './harness/fake-ssh.js'
+import { ForwardManager } from '../lib/forwards.js'
 
 /**
  * A free TCP port (also used to occupy one deliberately).
@@ -113,6 +115,11 @@ test('starting a forward on a port that is already taken fails with a reason, no
       assert.ok(String(started.json.error || '').length > 0, 'and must say why')
       assert.match(String(started.json.error), /EADDRINUSE|in use|占用|address/i,
         `the error must name the port conflict, got: ${started.json.error}`)
+      // The failure response carries the CURRENT list, so the UI can refresh the
+      // row instead of staying on 启动 (a tunnel may have come up despite the
+      // error when a concurrent autoStart pass won the port).
+      assert.ok(Array.isArray(started.json.forwards), 'a failed start must still return the forward list')
+      assert.equal(started.json.forwards.find((f) => f.id === fwd.id).active, false)
       // The definition survives the failed start, so the user can fix the port.
       const listed = await host.call('/dsh-remote/forwards', { method: 'GET' })
       const still = listed.json.forwards.find((f) => f.id === fwd.id)
@@ -218,4 +225,48 @@ test('unknown forward ids and actions are refused with 404/400 and a reason', as
     const tooBig = await post(host, { action: 'define', listenPort: 70000 })
     assert.equal(tooBig.status, 400)
   })
+})
+
+// ── concurrent starts ───────────────────────────────────────────────────────
+//
+// `attach()` restarts autoStart definitions from inside `pool.connect()`. On the
+// system-OpenSSH backend that callback runs BEFORE the connect promise resolves,
+// so a manual 启动 racing it used to bind the same port twice: the auto pass won,
+// the manual call returned "EADDRINUSE", and the UI (which only refreshes on
+// success) stayed on 启动 although the tunnel was listening. The second click
+// then short-circuited on `servers.has` and looked like the fix.
+
+test("a manual start racing attach()'s autoStart pass shares one attempt", async () => {
+  const listenPort = await freePort()
+  const conn = new EventEmitter()
+  let fm
+  // Mirrors SystemOpenSshPool._doConnect: onReady (attach) fires inside
+  // connect(), before the returned promise resolves.
+  const pool = { connect: async () => { fm.attach(conn); return conn } }
+  fm = new ForwardManager(pool, { file: null })
+  try {
+    const d = fm.define({ listenPort, targetHost: '127.0.0.1', targetPort: 9, autoStart: true })
+    const [first, second] = await Promise.all([fm.start(d), fm.start(d)])
+    assert.deepEqual(first, { ok: true, active: true }, 'the manual start must not lose the race')
+    assert.deepEqual(second, { ok: true, active: true })
+    assert.equal(fm.list().find((f) => f.id === d.id).active, true)
+    // The port is held by exactly one listener, not two.
+    const probe = net.createServer()
+    const err = await new Promise((resolve) => {
+      probe.once('error', resolve)
+      probe.listen(listenPort, '127.0.0.1', () => resolve(null))
+    })
+    assert.ok(err, 'the forward listener must still own the port')
+    await new Promise((resolve) => probe.close(resolve))
+  } finally {
+    fm.stopAll()
+  }
+  // And stopAll released it.
+  const probe = net.createServer()
+  const err = await new Promise((resolve) => {
+    probe.once('error', resolve)
+    probe.listen(listenPort, '127.0.0.1', () => resolve(null))
+  })
+  await new Promise((resolve) => probe.close(resolve))
+  assert.equal(err, null, `stopAll must free the port, got: ${err && err.message}`)
 })

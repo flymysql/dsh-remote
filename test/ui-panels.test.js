@@ -331,3 +331,63 @@ test('the settings page explains every disabled button on hover', async () => {
       `disabled buttons without a title explaining why: ${mute.map((b) => b.label).join(' | ')}`)
   } finally { ui.dispose() }
 })
+
+test('a failed start still applies the host list, so a tunnel that came up is not left on 启动', async () => {
+  // Regression: attach()'s autoStart pass can bind the listen port inside
+  // pool.connect(), so the manual start returns EADDRINUSE although the tunnel
+  // is up. The route now carries the current list on failure; the panel must
+  // apply it instead of leaving a stale 启动 button.
+  const FWD = { id: 'fwd-1', direction: 'local', listenPort: 18080, targetHost: '127.0.0.1', targetPort: 80, autoStart: true, active: false }
+  const stub = stubFetch({
+    overrides: {
+      '/dsh-remote/forwards': ({ method, body }) => (method === 'POST' && body && body.action === 'start'
+        ? { ok: false, error: '本地转发 18080 启动失败: listen EADDRINUSE', forwards: [{ ...FWD, active: true }] }
+        : { forwards: [FWD] }),
+    },
+  })
+  const ui = mountClient({ fetch: stub.fetch })
+  try {
+    let tree = await ui.settle()
+    tree = await ui.click(tree, /端口转发/)
+    tree = await ui.click(tree, /^启动$/)
+    tree = await ui.settle()
+    assert.ok(ui.buttons(tree).some((b) => b.label === '停止'),
+      `the row must reflect the ACTIVE forward even when start reported an error; buttons: ${ui.buttons(tree).map((b) => b.label).join(' | ')}`)
+    assert.match(ui.text(tree), /EADDRINUSE/)
+  } finally { ui.dispose() }
+})
+
+test('the start button shows a pending label while the request is in flight', async () => {
+  const FWD = { id: 'fwd-2', direction: 'local', listenPort: 18081, targetHost: '127.0.0.1', targetPort: 80, autoStart: false, active: false }
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  const fetch = async (url, init) => {
+    const method = (init && init.method) || 'GET'
+    const body = init && init.body ? JSON.parse(init.body) : null
+    const u = String(url)
+    const reply = (obj) => ({ ok: true, status: 200, json: async () => obj })
+    if (u.includes('/dsh-remote/forwards')) {
+      if (method === 'POST' && body && body.action === 'start') {
+        await gate
+        return reply({ ok: false, error: 'EADDRINUSE', forwards: [{ ...FWD, active: true }] })
+      }
+      return reply({ forwards: [FWD] })
+    }
+    return reply({ ok: true })
+  }
+  const ui = mountClient({ fetch })
+  try {
+    let tree = await ui.settle()
+    tree = await ui.click(tree, /端口转发/)
+    tree = await ui.click(tree, /^启动$/)
+    const busy = ui.buttons(tree).find((b) => /启动中/.test(b.label))
+    assert.ok(busy, `a pending start must say 启动中…; buttons: ${ui.buttons(tree).map((b) => b.label).join(' | ')}`)
+    assert.equal(busy.disabled, true, 'a pending start must not be clickable twice')
+    release()
+    // Let the fetch continuation + .then/.finally run before re-rendering: the
+    // hook driver renders synchronously, it does not await arbitrary promises.
+    for (let i = 0; i < 4; i++) await new Promise((resolve) => setTimeout(resolve, 0))
+    tree = await ui.settle()
+    assert.ok(ui.buttons(tree).some((b) => b.label === '停止'), 'the settled response must land on the row')
+  } finally { ui.dispose() }
+})
