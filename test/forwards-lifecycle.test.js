@@ -227,29 +227,118 @@ test('unknown forward ids and actions are refused with 404/400 and a reason', as
   })
 })
 
-// ── concurrent starts ───────────────────────────────────────────────────────
+// ── autoStart semantics + concurrent starts ────────────────────────────────
 //
-// `attach()` restarts autoStart definitions from inside `pool.connect()`. On the
-// system-OpenSSH backend that callback runs BEFORE the connect promise resolves,
-// so a manual 启动 racing it used to bind the same port twice: the auto pass won,
-// the manual call returned "EADDRINUSE", and the UI (which only refreshes on
-// success) stayed on 启动 although the tunnel was listening. The second click
-// then short-circuited on `servers.has` and looked like the fix.
+// 自动重连 means RESTORE: a forward that was running when the connection
+// dropped comes back. It must NOT mean "start every checked forward on any
+// connect": on a fresh session, clicking one forward established the connection
+// and lit up every other autoStart row. The old loop also ignored machineId, so
+// a connection to machine B could start machine A's forward through B.
+//
+// `attach()` restarts autoStart definitions from inside `pool.connect()`, which
+// is also where the manual 启动 promise is still pending — so one attempt per
+// definition (see start()) has to be shared, not bound twice.
 
-test("a manual start racing attach()'s autoStart pass shares one attempt", async () => {
-  const listenPort = await freePort()
+/** Let fire-and-forget restore starts (attach → start) settle. */
+async function settleStarts() { for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0)) }
+
+test('an autoStart forward does not start just because another forward connected', async () => {
   const conn = new EventEmitter()
+  let fm
+  const pool = { connect: async () => { fm.attach(conn); return conn } }
+  fm = new ForwardManager(pool, { file: null, currentMachine: () => 'm1' })
+  try {
+    const auto = fm.define({ listenPort: await freePort(), targetHost: '127.0.0.1', targetPort: 9, autoStart: true, machineId: 'm1' })
+    const manual = fm.define({ listenPort: await freePort(), targetHost: '127.0.0.1', targetPort: 9, autoStart: false, machineId: 'm1' })
+    const active = (id) => fm.list().find((f) => f.id === id).active
+
+    fm.attach(conn)
+    await settleStarts()
+    assert.equal(active(auto.id), false, 'the first connect must not auto-start anything')
+
+    const started = await fm.start(manual)
+    assert.equal(started.ok, true)
+    await settleStarts()
+    assert.equal(active(manual.id), true)
+    assert.equal(active(auto.id), false,
+      'starting the manual forward must not pull the autoStart one up (that was the reported "both turn green" bug)')
+  } finally { fm.stopAll() }
+})
+
+test('autoStart restores a forward that was running when the connection dropped', async () => {
+  const conn1 = new EventEmitter()
+  const conn2 = new EventEmitter()
+  let fm
+  const pool = { connect: async () => fm.client || conn2 }
+  fm = new ForwardManager(pool, { file: null, currentMachine: () => 'm1' })
+  try {
+    const auto = fm.define({ listenPort: await freePort(), targetHost: '127.0.0.1', targetPort: 9, autoStart: true, machineId: 'm1' })
+    const active = () => fm.list().find((f) => f.id === auto.id).active
+
+    fm.attach(conn1)
+    assert.equal((await fm.start(auto)).ok, true)
+    assert.equal(active(), true)
+
+    fm.detach()
+    assert.equal(active(), false, 'a dropped connection stops the listener')
+    fm.attach(conn2)
+    await settleStarts()
+    assert.equal(active(), true, 'a forward that was RUNNING must come back on reconnect')
+  } finally { fm.stopAll() }
+})
+
+test('autoStart restore is scoped to the machine that reconnects', async () => {
+  const connA = new EventEmitter()
+  const connB = new EventEmitter()
+  const connA2 = new EventEmitter()
+  let current = 'A'
+  let fm
+  const pool = { connect: async () => fm.client || (current === 'B' ? connB : connA2) }
+  fm = new ForwardManager(pool, { file: null, currentMachine: () => current })
+  try {
+    const autoA = fm.define({ listenPort: await freePort(), targetHost: '127.0.0.1', targetPort: 9, autoStart: true, machineId: 'A' })
+    const active = () => fm.list().find((f) => f.id === autoA.id).active
+
+    fm.attach(connA)
+    await fm.start(autoA)
+    assert.equal(active(), true)
+    fm.detach() // remembers A's running set
+
+    current = 'B'
+    fm.attach(connB)
+    await settleStarts()
+    assert.equal(active(), false, "machine B's connect must not restore machine A's forward")
+
+    current = 'A'
+    fm.attach(connA2)
+    await settleStarts()
+    assert.equal(active(), true, "A's forward must come back when A reconnects")
+  } finally { fm.stopAll() }
+})
+
+test("a manual start racing attach()'s restore shares one attempt", async () => {
+  const listenPort = await freePort()
+  const conn1 = new EventEmitter()
+  const conn2 = new EventEmitter()
+  let conn = conn1
   let fm
   // Mirrors SystemOpenSshPool._doConnect: onReady (attach) fires inside
   // connect(), before the returned promise resolves.
   const pool = { connect: async () => { fm.attach(conn); return conn } }
-  fm = new ForwardManager(pool, { file: null })
+  fm = new ForwardManager(pool, { file: null, currentMachine: () => 'm1' })
   try {
-    const d = fm.define({ listenPort, targetHost: '127.0.0.1', targetPort: 9, autoStart: true })
+    const d = fm.define({ listenPort, targetHost: '127.0.0.1', targetPort: 9, autoStart: true, machineId: 'm1' })
+    // Make it "was running before the drop" so the reconnect restores it.
+    fm.attach(conn1)
+    await fm.start(d)
+    fm.detach()
+
+    conn = conn2
     const [first, second] = await Promise.all([fm.start(d), fm.start(d)])
     assert.deepEqual(first, { ok: true, active: true }, 'the manual start must not lose the race')
     assert.deepEqual(second, { ok: true, active: true })
     assert.equal(fm.list().find((f) => f.id === d.id).active, true)
+
     // The port is held by exactly one listener, not two.
     const probe = net.createServer()
     const err = await new Promise((resolve) => {
