@@ -132,7 +132,7 @@ try{
  await page.screenshot({path:path.join(artifactDir,'mobile.png')})
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
  await back.click()
- console.log('SETTINGS_MACHINES_AFTER_BACK', await page.evaluate(async () => (await fetch('/dsh-remote/machines')).json()))
+ console.log('SETTINGS_RESOLVED_AFTER_BACK', await page.evaluate(async () => (await fetch('/dsh-remote/machines')).json().machines.map((m) => ({ id: m.id, resolved: m.sshConfigResolved }))))
  await dumpProbes('after-back')
  await waitForChecks()
  await aligned()
