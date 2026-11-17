@@ -49,7 +49,7 @@ try{
  await page.getByText('远程工作区',{exact:true}).first().click()
  const settings=page.locator('[data-rw-settings]')
  const errors=[];page.on('pageerror',error=>errors.push(error.message))
- const writes=[];page.on('request',request=>{if(request.method()==='POST'&&request.url().includes('/dsh-remote/'))writes.push(new URL(request.url()).pathname)})
+ const writes=[];page.on('request',request=>{if(request.method()==='POST'&&request.url().includes('/dsh-remote/'))writes.push(new URL(request.url()).pathname)});page.on('response',async response=>{if(response.url().includes('/test-connect'))console.log('PROBE_HTTP',response.status(),await response.text())})
  const waitForChecks=(expected)=>page.waitForFunction((count)=>document.querySelector('[data-rw-settings]').querySelectorAll('.dsh-rw-settings-probe').length===count && [...document.querySelector('[data-rw-settings]').querySelectorAll('.dsh-rw-settings-probe')].every(element=>!/连接中|检测中/.test(element.textContent)),expected,{timeout:20000})
  await waitForChecks(4)
  assert.match(await settings.innerText(),/可用 · \d+ ms/)
