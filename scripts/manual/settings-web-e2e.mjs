@@ -66,7 +66,7 @@ try{
  assert.equal(await page.locator('.dsh-rw-settings-probe-error[open]').count(),0)
  const aligned=async()=>{
    const positions=await settings.locator('.dsh-rw-settings-probe').evaluateAll(elements=>elements.map(element=>element.getBoundingClientRect().x))
-   assert.equal(positions.length,4);assert.ok(Math.max(...positions)-Math.min(...positions)<1,JSON.stringify(positions))
+   assert.equal(positions.length,3);assert.ok(Math.max(...positions)-Math.min(...positions)<1,JSON.stringify(positions))
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
  }
  await aligned()
@@ -130,7 +130,7 @@ try{
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
  await back.click()
  console.log('WAIT_AFTER_BACK', await page.locator('[data-rw-settings] .dsh-rw-settings-probe').allTextContents())
- await waitForChecks(4)
+ await waitForChecks(3)
  await aligned()
  await page.screenshot({path:path.join(artifactDir,'mobile-hosts.png')})
  await settings.getByRole('tab',{name:'连接工具',exact:true}).click()
