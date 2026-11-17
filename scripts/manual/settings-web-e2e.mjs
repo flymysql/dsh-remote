@@ -52,6 +52,8 @@ try{
  const writes=[];page.on('request',request=>{if(request.method()==='POST'&&request.url().includes('/dsh-remote/'))writes.push(new URL(request.url()).pathname)})
  const waitForChecks=()=>page.waitForFunction(()=>document.querySelectorAll('.dsh-rw-settings-probe').length===4 && [...document.querySelectorAll('.dsh-rw-settings-probe')].every(element=>!/连接中|检测中/.test(element.textContent)),null,{timeout:20000})
  const dumpProbes = async (label) => console.log('SETTINGS_PROBES', label, await page.evaluate(() => [...document.querySelectorAll('.dsh-rw-settings-probe')].map((element) => element.textContent)))
+ console.log('SETTINGS_MACHINES', await page.evaluate(async () => (await fetch('/dsh-remote/machines')).json()))
+ console.log('SETTINGS_SSH_CONFIG', await page.evaluate(async () => (await fetch('/dsh-remote/ssh-config')).json()))
  await waitForChecks()
  assert.match(await settings.innerText(),/可用 · \d+ ms/)
  assert.equal(await settings.getByRole('button',{name:/^(连接|打开项目|选目录|默认目录)$/}).count(),0)
