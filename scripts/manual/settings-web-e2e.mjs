@@ -48,7 +48,7 @@ try{
  await page.getByText('设置',{exact:true}).click()
  await page.getByText('远程工作区',{exact:true}).first().click()
  const settings=page.locator('[data-rw-settings]')
- const errors=[];page.on('pageerror',error=>errors.push(error.message))
+ const errors=[];page.on('pageerror',error=>errors.push(error.message));page.on('console', message => console.log('BROWSER', message.text()))
  const writes=[];page.on('request',request=>{if(request.method()==='POST'&&request.url().includes('/dsh-remote/'))writes.push(new URL(request.url()).pathname)})
  const waitForChecks=()=>page.waitForFunction(()=>document.querySelectorAll('.dsh-rw-settings-probe').length===4 && [...document.querySelectorAll('.dsh-rw-settings-probe')].every(element=>!/连接中|检测中/.test(element.textContent)),null,{timeout:20000})
  const dumpProbes = async (label) => console.log('SETTINGS_PROBES', label, await page.evaluate(() => [...document.querySelectorAll('.dsh-rw-settings-probe')].map((element) => element.textContent)))
