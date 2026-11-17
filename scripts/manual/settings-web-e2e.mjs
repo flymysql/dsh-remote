@@ -129,7 +129,7 @@ try{
  await page.screenshot({path:path.join(artifactDir,'mobile.png')})
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
  await back.click()
- await waitForChecks()
+ await waitForChecks(3)
  await aligned()
  await page.screenshot({path:path.join(artifactDir,'mobile-hosts.png')})
  await settings.getByRole('tab',{name:'连接工具',exact:true}).click()
