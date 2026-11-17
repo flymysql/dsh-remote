@@ -130,7 +130,7 @@ try{
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
  await back.click()
  console.log('WAIT_AFTER_BACK', await page.locator('[data-rw-settings] .dsh-rw-settings-probe').allTextContents())
- await waitForChecks(3)
+ await waitForChecks(4)
  await aligned()
  await page.screenshot({path:path.join(artifactDir,'mobile-hosts.png')})
  await settings.getByRole('tab',{name:'连接工具',exact:true}).click()
