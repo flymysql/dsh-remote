@@ -518,6 +518,144 @@ test("a manual start racing attach()'s restore shares one attempt", async () => 
 
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
+function controlledNet() {
+  const servers = []
+  return {
+    servers,
+    createServer() {
+      const server = new EventEmitter()
+      server.closed = false
+      server.listen = (port, host, cb) => {
+        server.complete = () => { if (!server.closed) cb() }
+        server.fail = (message) => { if (!server.closed) server.emit('error', new Error(message)) }
+        servers.push(server)
+      }
+      server.close = () => { server.closed = true }
+      return server
+    },
+    connect() { throw new Error('not used by these ownership tests') },
+  }
+}
+
+test('a late stale success cannot replace or orphan a restarted listener', async () => {
+  const conn = new EventEmitter()
+  const fakeNet = controlledNet()
+  const fm = new ForwardManager({ connect: async () => conn }, { file: null, net: fakeNet, currentMachine: () => 'A' })
+  const d = fm.define({ listenPort: 18080, targetHost: '127.0.0.1', targetPort: 22, autoStart: true, machineId: 'A' })
+  try {
+    const oldStart = fm.start(d)
+    await tick()
+    fm.stop(d.id, { forget: true })
+    const newStart = fm.start(d)
+    await tick()
+    assert.equal(fakeNet.servers.length, 2)
+    fakeNet.servers[1].complete()
+    assert.equal((await newStart).ok, true)
+    assert.equal(fm.servers.get(d.id).server, fakeNet.servers[1])
+
+    fakeNet.servers[0].complete()
+    const oldResult = await oldStart
+    assert.equal(oldResult.ok, false)
+    assert.equal(fakeNet.servers[0].closed, true, 'the stale attempt must close its own listener')
+    assert.equal(fakeNet.servers[1].closed, false, 'stale cleanup must not close the restarted listener')
+    assert.equal(fm.servers.get(d.id).server, fakeNet.servers[1], 'the restarted entry keeps ownership')
+    assert.equal(fm.list()[0].active, true)
+  } finally { fm.stopAll() }
+})
+
+test('a late stale error cannot close a restarted listener', async () => {
+  const conn = new EventEmitter()
+  const fakeNet = controlledNet()
+  const fm = new ForwardManager({ connect: async () => conn }, { file: null, net: fakeNet, currentMachine: () => 'A' })
+  const d = fm.define({ listenPort: 18081, targetHost: '127.0.0.1', targetPort: 22, autoStart: true, machineId: 'A' })
+  try {
+    const oldStart = fm.start(d)
+    await tick()
+    fm.stop(d.id, { forget: true })
+    const newStart = fm.start(d)
+    await tick()
+    fakeNet.servers[1].complete()
+    assert.equal((await newStart).ok, true)
+    fakeNet.servers[0].fail('old attempt failed late')
+    assert.equal((await oldStart).ok, false)
+    assert.equal(fakeNet.servers[1].closed, false, 'a stale error must not close the new listener')
+    assert.equal(fm.servers.get(d.id).server, fakeNet.servers[1])
+    assert.equal(fm.list()[0].active, true)
+  } finally { fm.stopAll() }
+})
+
+test('a late forwardIn success only unforwards its own attempt', async () => {
+  const conn = new EventEmitter()
+  const callbacks = []
+  const remoteListeners = new Set()
+  let unforwardCalls = 0
+  conn.forwardIn = (_host, port, cb) => callbacks.push((err) => { if (!err) remoteListeners.add(port); cb(err) })
+  conn.unforwardIn = (_host, port, cb) => { unforwardCalls++; remoteListeners.delete(port); cb() }
+  const fm = new ForwardManager({ connect: async () => conn }, { file: null, currentMachine: () => 'A' })
+  const d = fm.define({ direction: 'reverse', listenPort: 18082, targetHost: '127.0.0.1', targetPort: 22, machineId: 'A' })
+  try {
+    const oldStart = fm.start(d)
+    await tick()
+    fm.stop(d.id, { forget: true })
+    const newStart = fm.start(d)
+    await tick()
+    assert.equal(callbacks.length, 2)
+    callbacks[1](null)
+    assert.equal((await newStart).ok, true)
+    assert.equal(remoteListeners.has(d.listenPort), true)
+    callbacks[0](null)
+    assert.equal((await oldStart).ok, false)
+    assert.equal(unforwardCalls, 0, 'a newer owner on the same client must block stale unforwardIn')
+    assert.equal(remoteListeners.has(d.listenPort), true, 'the real restarted remote listener must survive')
+    assert.equal(fm.list()[0].active, true, 'the restarted reverse listener must remain active')
+  } finally { fm.stopAll() }
+})
+
+test('a stale forwardIn without a replacement still unforwards its own listener', async () => {
+  const conn = new EventEmitter()
+  const callbacks = []
+  const remoteListeners = new Set()
+  let unforwardCalls = 0
+  conn.forwardIn = (_host, port, cb) => callbacks.push((err) => { if (!err) remoteListeners.add(port); cb(err) })
+  conn.unforwardIn = (_host, port, cb) => { unforwardCalls++; remoteListeners.delete(port); cb() }
+  const fm = new ForwardManager({ connect: async () => conn }, { file: null, currentMachine: () => 'A' })
+  const d = fm.define({ direction: 'reverse', listenPort: 18084, targetHost: '127.0.0.1', targetPort: 22, machineId: 'A' })
+  try {
+    const pending = fm.start(d)
+    await tick()
+    fm.stop(d.id, { forget: true })
+    callbacks[0](null)
+    assert.equal((await pending).ok, false)
+    assert.equal(unforwardCalls, 1, 'without a replacement, stale cleanup must unforward its own listener')
+    assert.equal(remoteListeners.has(d.listenPort), false)
+    assert.equal(fm.list()[0].active, false)
+  } finally { fm.stopAll() }
+})
+
+test('a late OpenSSH reverse handle closes only its own attempt', async () => {
+  const conn = new EventEmitter()
+  const releases = []
+  const closed = { old: 0, new: 0 }
+  conn.reverseForward = () => new Promise((resolve) => releases.push(resolve))
+  const fm = new ForwardManager({ connect: async () => conn }, { file: null, currentMachine: () => 'A' })
+  const d = fm.define({ direction: 'reverse', listenPort: 18083, targetHost: '127.0.0.1', targetPort: 22, machineId: 'A' })
+  const oldHandle = { close() { closed.old++ } }
+  const newHandle = { close() { closed.new++ } }
+  try {
+    const oldStart = fm.start(d)
+    await tick()
+    fm.stop(d.id, { forget: true })
+    const newStart = fm.start(d)
+    await tick()
+    releases[1](newHandle)
+    assert.equal((await newStart).ok, true)
+    releases[0](oldHandle)
+    assert.equal((await oldStart).ok, false)
+    assert.deepEqual(closed, { old: 1, new: 0 }, 'stale cleanup must close old, not new')
+    assert.equal(fm.list()[0].active, true)
+  } finally { fm.stopAll() }
+})
+
 test('unknown identity is fail-closed and a foreign forward cannot be started', async () => {
   const conn = new EventEmitter()
   let fm
@@ -720,5 +858,47 @@ test('an ephemeral (save:false) connection does not restore or start the saved m
     await host.dispose()
     await srvA.close()
     await srvB.close()
+  }
+})
+
+test('rw_forward on an ephemeral connection uses its applied identity and carries bytes', async () => {
+  const echo = await echoServer()
+  const srvA = await startFakeSsh({ users: { root: { password: 'pw' } }, cwd: '/home/user' })
+  const srvB = await startFakeSsh({ users: { root: { password: 'pw' } }, cwd: '/home/user' })
+  const recA = machine({ name: 'A', host: '127.0.0.1', port: srvA.port, username: 'root', password: 'pw' })
+  const recB = machine({ name: 'B', host: '127.0.0.1', port: srvB.port, username: 'root', password: 'pw' })
+  const host = await createHost({ machines: [recA, recB] })
+  try {
+    assert.equal((await host.call('/dsh-remote/current', { body: { id: recA.id } })).json.ok, true)
+    await host.run('rw_connect', { host: '127.0.0.1', port: srvB.port, username: 'root', password: 'pw', save: false })
+    const listenPort = await freePort()
+    const started = await host.run('rw_forward', {
+      listenPort, targetHost: '127.0.0.1', targetPort: echo.port, autoStart: true,
+    })
+    assert.match(JSON.stringify(started), /forward active/)
+
+    const rows = (await host.call('/dsh-remote/forwards', { method: 'GET' })).json.forwards
+    const row = rows.find((f) => f.listenPort === listenPort)
+    assert.ok(row, 'rw_forward must persist its definition')
+    assert.ok(row.machineId, 'an ephemeral definition still needs a real applied identity')
+    assert.notEqual(row.machineId, recA.id, 'the definition must not be tagged as the saved old machine')
+    assert.equal(row.active, true)
+
+    const roundTrip = await new Promise((resolve) => {
+      const socket = net.connect(listenPort, '127.0.0.1')
+      let got = ''
+      const done = (value) => { try { socket.destroy() } catch {} resolve(value) }
+      socket.setTimeout(4000, () => done('timeout'))
+      socket.on('connect', () => socket.write('ping'))
+      socket.on('data', (chunk) => { got += chunk.toString(); if (got.includes('ping')) done(got) })
+      socket.on('error', (err) => done('error: ' + err.message))
+    })
+    assert.equal(roundTrip, 'ping')
+    await host.run('rw_forward', { listenPort, remove: true })
+  } finally {
+    await host.dispose()
+    await srvA.close()
+    await srvB.close()
+    await echo.close()
   }
 })
