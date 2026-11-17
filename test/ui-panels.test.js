@@ -188,6 +188,21 @@ test('saved hosts expose configuration actions without workspace or global-targe
   } finally { ui.dispose() }
 })
 
+test('saved GitHub records stay manageable without a shell probe', async () => {
+  const machines = [{ ...MACHINE, id: 'git', name: 'github-saved', host: 'github.com' }]
+  const stub = stubFetch({ machines })
+  const ui = mountClient({ fetch: stub.fetch })
+  try {
+    const tree = await ui.settle()
+    const text = ui.text(tree)
+    assert.match(text, /github-saved/, 'the explicit saved GitHub record must stay visible')
+    const labels = ui.buttons(tree).map((b) => b.label)
+    assert.equal(labels.filter(label => /^编辑$/.test(label)).length, 1)
+    assert.equal(labels.filter(label => /^删除$/.test(label)).length, 1)
+    assert.equal(stub.calls.filter((call) => call.url.includes('/dsh-remote/test-connect')).length, 0, 'a known shell-less endpoint must not be probed')
+  } finally { ui.dispose() }
+})
+
 test('SSH config hosts have a connectivity indicator and saved aliases are not duplicated', async () => {
   const machines = [{ ...MACHINE, id: 'm-1', name: 'saved-box', host: 'saved-box', useSshConfig: true }]
   const entries = [
