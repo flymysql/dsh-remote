@@ -98,7 +98,7 @@ jobs:
             node scripts/manual/terminal-web-e2e.mjs
             IT_LOCAL_SOURCE=0 IT_LOCAL_ARTIFACTS="$IT_AGENT_ARTIFACTS/local-workspace" node scripts/manual/local-workspace-web-e2e.mjs
           fi
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: agent-${{ matrix.dsh }}-${{ matrix.mode }}
