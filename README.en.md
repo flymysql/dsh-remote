@@ -64,6 +64,8 @@ The terminal starts in the session's remote directory. A pixel fish welcomes you
 
 Open the listener on the side that initiates the connection: a listener here is a local forward (`ssh -L`); one on the remote is a reverse forward (`ssh -R`). Run several at once, and tick auto reconnect per row to restore only the forwards that were running, scoped to their machine. Enabling it for a reverse forward first warns that the remote will listen again.
 
+Upgrading from an older version: auto-reconnect entries that predate `lastActive` are paused and marked "Re-confirm" in the row; tick them again to opt back in (reverse forwards also need the remote-listening warning acknowledged).
+
 <img src="docs/shots/port-forwards.png" alt="Port forwarding panel with local/reverse directions, per-row auto reconnect and the add form" width="900"/>
 
 ### Edit and build with the agent

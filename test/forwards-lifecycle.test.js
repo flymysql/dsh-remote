@@ -10,7 +10,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import net from 'node:net'
 import { EventEmitter } from 'node:events'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createHost, machine } from './harness/plugin-host.js'
@@ -507,4 +507,218 @@ test("a manual start racing attach()'s restore shares one attempt", async () => 
   })
   await new Promise((resolve) => probe.close(resolve))
   assert.equal(err, null, `stopAll must free the port, got: ${err && err.message}`)
+})
+
+// ── review follow-ups: identity, cancellation, migration, backend cleanup ──
+//
+// The maintainer's dynamic probes found these on the first head: an ephemeral
+// (save:false / persist:false) machine still restored the registry machine's
+// forwards, Stop/Remove could not cancel an in-flight start, and a disconnect
+// during the start window registered a dead client. These tests pin the fixes.
+
+const tick = () => new Promise((r) => setTimeout(r, 0))
+
+test('unknown identity is fail-closed and a foreign forward cannot be started', async () => {
+  const conn = new EventEmitter()
+  let fm
+  const pool = { connect: async () => conn }
+  // Provider returns null (ephemeral switched away / cleared): nothing may
+  // restore, even a definition whose machineId is also null.
+  fm = new ForwardManager(pool, { file: null, currentMachine: () => null })
+  const legacy = fm.define({ listenPort: await freePort(), targetHost: '127.0.0.1', targetPort: 9, autoStart: true })
+  legacy.lastActive = true
+  try {
+    fm.attach(conn)
+    await tick()
+    assert.equal(fm.list().find((f) => f.id === legacy.id).active, false, 'null identity must not match a null definition')
+    assert.equal(fm.hasPendingRestore(), false)
+
+    const foreign = fm.define({ listenPort: await freePort(), targetHost: '127.0.0.1', targetPort: 9, machineId: 'm-A' })
+    const refused = await fm.start(foreign)
+    assert.equal(refused.ok, false)
+    assert.match(String(refused.error), /另一台机器|身份未知/)
+  } finally { fm.stopAll() }
+})
+
+test('Stop during an in-flight start cancels it: no listener, no lastActive', async () => {
+  const listenPort = await freePort()
+  const conn = new EventEmitter()
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  let fm
+  const pool = { connect: async () => { await gate; return conn } }
+  fm = new ForwardManager(pool, { file: null })
+  try {
+    const d = fm.define({ listenPort, targetHost: '127.0.0.1', targetPort: 9, autoStart: true })
+    const pending = fm.start(d)
+    await tick()
+    fm.stop(d.id, { forget: true })
+    release()
+    const res = await pending
+    assert.equal(res.ok, false)
+    assert.equal(fm.list().find((f) => f.id === d.id).active, false)
+    assert.equal(fm.list().find((f) => f.id === d.id).lastActive, false)
+    const probe = net.createServer()
+    const err = await new Promise((resolve) => {
+      probe.once('error', resolve)
+      probe.listen(listenPort, '127.0.0.1', () => resolve(null))
+    })
+    await new Promise((resolve) => probe.close(resolve))
+    assert.equal(err, null, `a cancelled start must not leave a listener: ${err && err.message}`)
+  } finally { fm.stopAll() }
+})
+
+test('Remove during an in-flight start leaves no definition and no orphan listener', async () => {
+  const listenPort = await freePort()
+  const conn = new EventEmitter()
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  let fm
+  const pool = { connect: async () => { await gate; return conn } }
+  fm = new ForwardManager(pool, { file: null })
+  try {
+    const d = fm.define({ listenPort, targetHost: '127.0.0.1', targetPort: 9 })
+    const pending = fm.start(d)
+    await tick()
+    fm.remove(d.id)
+    release()
+    const res = await pending
+    assert.equal(res.ok, false)
+    assert.equal(fm.list().length, 0)
+    const probe = net.createServer()
+    const err = await new Promise((resolve) => {
+      probe.once('error', resolve)
+      probe.listen(listenPort, '127.0.0.1', () => resolve(null))
+    })
+    await new Promise((resolve) => probe.close(resolve))
+    assert.equal(err, null, `a removed in-flight start must close its listener: ${err && err.message}`)
+  } finally { fm.stopAll() }
+})
+
+test('a disconnect during the start window cannot register a dead client', async () => {
+  const conn1 = new EventEmitter()
+  const conn2 = new EventEmitter()
+  const pending = []
+  const fakeNet = {
+    createServer() {
+      const entry = { listenCb: null, closed: false }
+      pending.push(entry)
+      return {
+        on() {},
+        listen(_port, _host, cb) { entry.listenCb = cb },
+        close() { entry.closed = true },
+        address() { return { port: 0 } },
+      }
+    },
+    connect() { throw new Error('not used') },
+  }
+  let fm
+  const pool = { connect: async () => (fm.client === conn1 ? conn1 : conn2) }
+  fm = new ForwardManager(pool, { net: fakeNet, file: null })
+  try {
+    const d = fm.define({ listenPort: 12345, targetHost: '127.0.0.1', targetPort: 9 })
+    fm.attach(conn1)
+    const pendingStart = fm.start(d)
+    await tick()
+    conn1.emit('close') // drops the connection while listen() is still in flight
+    pending[0].listenCb()
+    const res = await pendingStart
+    assert.equal(res.ok, false)
+    assert.equal(fm.list().find((f) => f.id === d.id).active, false, 'the late listener must not be registered')
+    assert.equal(pending[0].closed, true, 'the late listener must be torn down')
+
+    // The new connection must be usable: servers.has() can no longer block it.
+    const retry = fm.start(d)
+    await tick()
+    pending[1].listenCb()
+    const retried = await retry
+    assert.equal(retried.ok, true, JSON.stringify(retried))
+    assert.equal(fm.servers.get(d.id).client, conn2)
+  } finally { fm.stopAll() }
+})
+
+test('legacy autoStart definitions are paused and require re-consent', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'dsh-fwd-legacy-'))
+  const file = path.join(dir, 'forwards.json')
+  try {
+    writeFileSync(file, JSON.stringify({
+      defs: [
+        { id: 'legacy-local', direction: 'local', listenPort: 15001, targetHost: '127.0.0.1', targetPort: 9, autoStart: true, machineId: 'm1' },
+        { id: 'legacy-reverse', direction: 'reverse', listenPort: 15002, targetHost: '127.0.0.1', targetPort: 9, autoStart: true, machineId: 'm1' },
+      ],
+    }))
+    const fm = new ForwardManager({}, { file, currentMachine: () => 'm1' })
+    for (const f of fm.list()) {
+      assert.equal(f.autoStart, false, `${f.id}: old autoStart must be paused`)
+      assert.equal(f.lastActive, false)
+      assert.equal(f.needsReconsent, true, `${f.id}: the row must ask for re-consent`)
+    }
+    const saved = JSON.parse(readFileSync(file, 'utf8'))
+    assert.equal(saved.defs.find((d) => d.id === 'legacy-local').autoStart, false, 'migration is persisted')
+
+    const updated = fm.update('legacy-local', { autoStart: true })
+    assert.equal(updated.autoStart, true)
+    assert.equal(fm.list().find((f) => f.id === 'legacy-local').needsReconsent, false)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('an OpenSSH reverse child exiting on its own clears the active row', async () => {
+  const { EventEmitter: EE } = await import('node:events')
+  const child = new EE()
+  const conn = new EE()
+  conn.reverseForward = async () => ({ child, close() {} })
+  let fm
+  const pool = { connect: async () => conn }
+  fm = new ForwardManager(pool, { file: null })
+  try {
+    const d = fm.define({ direction: 'reverse', listenPort: 15003, targetHost: '127.0.0.1', targetPort: 9 })
+    assert.equal((await fm.start(d)).ok, true)
+    assert.equal(fm.list().find((f) => f.id === d.id).active, true)
+    child.emit('close')
+    assert.equal(fm.list().find((f) => f.id === d.id).active, false, 'a died ssh -R child must not stay active')
+  } finally { fm.stopAll() }
+})
+
+test('an ephemeral (save:false) connection does not restore or start the saved machine forward', async () => {
+  // Production wiring: rw_connect(save:false) switches the pool to B while
+  // store.currentId still points at A. The manager must follow the pool's
+  // applied identity, not the registry.
+  const srvA = await startFakeSsh({ users: { root: { password: 'pw' } }, cwd: '/home/user' })
+  const srvB = await startFakeSsh({ users: { root: { password: 'pw' } }, cwd: '/home/user' })
+  const recA = machine({ name: 'A', host: '127.0.0.1', port: srvA.port, username: 'root', password: 'pw' })
+  const recB = machine({ name: 'B', host: '127.0.0.1', port: srvB.port, username: 'root', password: 'pw' })
+  const host = await createHost({ machines: [recA, recB] })
+  try {
+    assert.equal((await host.call('/dsh-remote/current', { body: { id: recA.id } })).json.ok, true)
+    const defined = await post(host, {
+      action: 'define', listenPort: await freePort(), targetHost: '127.0.0.1', targetPort: 22, autoStart: true,
+    })
+    const fwd = defined.json.forward
+    assert.equal(fwd.machineId, recA.id, 'a saved machine definition is tagged with the pool identity')
+    assert.equal((await post(host, { action: 'start', id: fwd.id })).json.ok, true)
+
+    const connected = await host.run('rw_connect', {
+      host: '127.0.0.1', port: srvB.port, username: 'root', password: 'pw', save: false,
+    })
+    assert.ok(connected, 'ephemeral connect must answer')
+    await tick()
+
+    const listed = (await host.call('/dsh-remote/forwards', { method: 'GET' })).json.forwards
+    assert.equal(listed.find((f) => f.id === fwd.id).active, false, 'A forward must not restore on the ephemeral B connection')
+
+    const retried = await post(host, { action: 'start', id: fwd.id })
+    assert.equal(retried.json.ok, false, 'A forward must not be startable while the pool talks to B')
+    assert.match(String(retried.json.error), /另一台机器|身份未知/)
+
+    const definedOnB = await post(host, {
+      action: 'define', listenPort: await freePort(), targetHost: '127.0.0.1', targetPort: 22, autoStart: false,
+    })
+    const bFwd = definedOnB.json.forward
+    assert.ok(bFwd.machineId, 'defining while ephemeral still records an applied identity')
+    assert.notEqual(bFwd.machineId, recA.id, 'the new definition must not be tagged as saved machine A')
+  } finally {
+    await host.dispose()
+    await srvA.close()
+    await srvB.close()
+  }
 })
