@@ -90,7 +90,7 @@ try{
  await page.getByRole('button',{name:'确认',exact:true}).last().click()
  await page.waitForFunction(()=>document.querySelector('[data-rw-ssh-editor] textarea')?.value.includes('External edit'))
  await settings.getByRole('button',{name:'取消编辑',exact:true}).click()
- await waitForChecks(3)
+ await waitForChecks(4)
  await page.waitForTimeout(2600)
  await page.screenshot({path:path.join(artifactDir,'overview.png')})
  await settings.getByRole('tab',{name:'主机',exact:true}).focus();await page.keyboard.press('ArrowRight')
