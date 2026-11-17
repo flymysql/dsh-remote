@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-16T21:59:05.468Z",
+  "generatedAt": "2026-11-17T07:51:57.331Z",
   "heartbeat": {
     "ok": true,
-    "generatedAt": "2026-11-16T21:59:04.965Z",
+    "generatedAt": "2026-11-17T07:51:57.037Z",
     "tz": "Asia/Shanghai",
     "daily": [
       {
@@ -123,36 +123,36 @@
       },
       {
         "day": "2026-11-17",
-        "dau": 1003
+        "dau": 1620
       }
     ],
-    "wau": 3782,
-    "mau": 3949,
-    "installs": 3949,
+    "wau": 4012,
+    "mau": 4174,
+    "installs": 4174,
     "byVersion": [
       {
-        "version": "0.8.91",
-        "n": 1786
+        "version": "1.2.0",
+        "n": 1810
       },
       {
-        "version": "1.2.0",
-        "n": 1425
+        "version": "0.8.91",
+        "n": 1792
       },
       {
         "version": "1.1.2",
-        "n": 1090
+        "n": 1102
       },
       {
         "version": "0.8.94",
-        "n": 982
+        "n": 1001
       },
       {
         "version": "0.8.85",
-        "n": 636
+        "n": 638
       },
       {
         "version": "1.1.1",
-        "n": 414
+        "n": 416
       },
       {
         "version": "0.8.90",
@@ -182,15 +182,15 @@
     "byPlatform": [
       {
         "platform": "win32",
-        "n": 2431
+        "n": 2589
       },
       {
         "platform": "darwin",
-        "n": 874
+        "n": 918
       },
       {
         "platform": "linux",
-        "n": 626
+        "n": 649
       },
       {
         "platform": "android",
@@ -209,7 +209,7 @@
   "heartbeatError": null,
   "npm": {
     "package": "dsh-remote",
-    "checkedAt": "2026-11-16T21:59:05.004Z",
+    "checkedAt": "2026-11-17T07:51:57.077Z",
     "latest": "1.2.0",
     "lastWeek": 76796,
     "lastMonth": 164617,
@@ -342,9 +342,9 @@
     "note": "npm daily counts have reporting gaps; zero-value days are flagged and are not real zero usage."
   },
   "repo": {
-    "stars": 298,
+    "stars": 303,
     "forks": 53,
-    "openIssues": 7,
-    "pushedAt": "2026-11-16T14:18:44Z"
+    "openIssues": 3,
+    "pushedAt": "2026-11-17T04:47:28Z"
   }
 }
