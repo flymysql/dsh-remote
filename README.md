@@ -12,7 +12,7 @@
 
 ![dsh-remote —— 远程项目，完整上下文](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workspace-overview.png)
 
-在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 中，把 SSH 主机变成日常开发工作区：管理多主机项目，浏览和编辑远程文件、递归搜索文件与内容、使用终端并查看 Git 差异；让 Agent 在所属远程工作区中读写文件、执行命令、构建和测试。多个工作区可独立并行。
+在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 中，把 SSH 主机变成日常开发工作区：管理多主机项目，浏览和编辑远程文件、递归搜索文件与内容、使用终端、查看 Git 差异、建立本地/反向端口隧道；让 Agent 在所属远程工作区中读写文件、执行命令、构建和测试。多个工作区可独立并行。
 
 可按习惯使用普通布局，或切换 **IDE 三栏布局**，并排查看远程文件、编辑器与原生 Agent 会话；切换时保留任务和未保存编辑。
 
@@ -59,6 +59,14 @@ dsh plugin --profile web add dsh-remote
 终端进入当前会话的远程目录；像素鱼欢迎图后接真实 SSH shell。已保存凭据可自动应答，支持多终端并行。
 
 <img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-terminal.png" alt="DSH 远程终端：像素鱼欢迎图与实际 SSH 命令输出" width="1000"/>
+
+### 端口转发（SSH 隧道）
+
+谁要发起访问，就在谁那边开监听口：监听口开在本机是本地转发（`ssh -L`），开在远端是远程转发（`ssh -R`）。可同时运行多条；每行能直接勾选「自动重连」——只恢复上次运行中的转发，且按机器隔离，反向转发首次勾选会提示远端监听风险。
+
+从旧版本升级：旧版没有 `lastActive` 的「自动重连」配置会暂停，行上显示「需重新确认」；重新勾选后才会参与自动恢复（反向转发需重新确认远端监听）。
+
+<img src="docs/shots/port-forwards.png" alt="端口转发面板：本地/反向方向、自动重连勾选框与添加转发表单" width="900"/>
 
 ### 与 Agent 一起修改和构建
 

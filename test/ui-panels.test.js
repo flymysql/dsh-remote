@@ -270,6 +270,8 @@ test('the forwards panel starts collapsed and its add button stays disabled unti
     assert.equal(ui.buttons(tree).some((b) => /^添加转发$/.test(b.label)), false,
       'the forwards panel must start collapsed')
     tree = await ui.click(tree, /端口转发/)
+    assert.match(ui.text(tree), /监听口开在本机/, 'the panel must explain the -L/-R listener semantics')
+    assert.match(ui.text(tree), /监听口开在本机，连接转发到远端目标/, 'the form must hint where the listener sits')
     const add = ui.buttons(tree).find((b) => /^添加转发$/.test(b.label))
     assert.ok(add, `the forwards panel must offer an add action, buttons: ${ui.buttons(tree).map((b) => b.label).join(' | ')}`)
     assert.equal(add.disabled, true, 'adding a forward without a listen port must be impossible')
@@ -329,5 +331,163 @@ test('the settings page explains every disabled button on hover', async () => {
     const mute = ui.buttons(tree).filter((b) => b.disabled && !b.title)
     assert.deepEqual(mute.map((b) => b.label), [],
       `disabled buttons without a title explaining why: ${mute.map((b) => b.label).join(' | ')}`)
+  } finally { ui.dispose() }
+})
+
+test('a failed start still applies the host list, so a tunnel that came up is not left on 启动', async () => {
+  // Regression: attach()'s autoStart pass can bind the listen port inside
+  // pool.connect(), so the manual start returns EADDRINUSE although the tunnel
+  // is up. The route now carries the current list on failure; the panel must
+  // apply it instead of leaving a stale 启动 button.
+  const FWD = { id: 'fwd-1', direction: 'local', listenPort: 18080, targetHost: '127.0.0.1', targetPort: 80, autoStart: true, active: false }
+  const stub = stubFetch({
+    overrides: {
+      '/dsh-remote/forwards': ({ method, body }) => (method === 'POST' && body && body.action === 'start'
+        ? { ok: false, error: '本地转发 18080 启动失败: listen EADDRINUSE', forwards: [{ ...FWD, active: true }] }
+        : { forwards: [FWD] }),
+    },
+  })
+  const ui = mountClient({ fetch: stub.fetch })
+  try {
+    let tree = await ui.settle()
+    tree = await ui.click(tree, /端口转发/)
+    tree = await ui.click(tree, /^启动$/)
+    tree = await ui.settle()
+    assert.ok(ui.buttons(tree).some((b) => b.label === '停止'),
+      `the row must reflect the ACTIVE forward even when start reported an error; buttons: ${ui.buttons(tree).map((b) => b.label).join(' | ')}`)
+    assert.match(ui.text(tree), /EADDRINUSE/)
+  } finally { ui.dispose() }
+})
+
+test('the start button shows a pending label while the request is in flight', async () => {
+  const FWD = { id: 'fwd-2', direction: 'local', listenPort: 18081, targetHost: '127.0.0.1', targetPort: 80, autoStart: false, active: false }
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  const fetch = async (url, init) => {
+    const method = (init && init.method) || 'GET'
+    const body = init && init.body ? JSON.parse(init.body) : null
+    const u = String(url)
+    const reply = (obj) => ({ ok: true, status: 200, json: async () => obj })
+    if (u.includes('/dsh-remote/forwards')) {
+      if (method === 'POST' && body && body.action === 'start') {
+        await gate
+        return reply({ ok: false, error: 'EADDRINUSE', forwards: [{ ...FWD, active: true }] })
+      }
+      return reply({ forwards: [FWD] })
+    }
+    return reply({ ok: true })
+  }
+  const ui = mountClient({ fetch })
+  try {
+    let tree = await ui.settle()
+    tree = await ui.click(tree, /端口转发/)
+    tree = await ui.click(tree, /^启动$/)
+    const busy = ui.buttons(tree).find((b) => /启动中/.test(b.label))
+    assert.ok(busy, `a pending start must say 启动中…; buttons: ${ui.buttons(tree).map((b) => b.label).join(' | ')}`)
+    assert.equal(busy.disabled, true, 'a pending start must not be clickable twice')
+    release()
+    // Let the fetch continuation + .then/.finally run before re-rendering: the
+    // hook driver renders synchronously, it does not await arbitrary promises.
+    for (let i = 0; i < 4; i++) await new Promise((resolve) => setTimeout(resolve, 0))
+    tree = await ui.settle()
+    assert.ok(ui.buttons(tree).some((b) => b.label === '停止'), 'the settled response must land on the row')
+  } finally { ui.dispose() }
+})
+
+test('each forward row exposes an editable 自动重连 checkbox that updates the definition', async () => {
+  const FWD = { id: 'fwd-auto', direction: 'local', listenPort: 18082, targetHost: '127.0.0.1', targetPort: 80, autoStart: false, active: false }
+  const stub = stubFetch({
+    overrides: {
+      '/dsh-remote/forwards': ({ method, body }) => {
+        if (method === 'POST' && body && body.action === 'update') {
+          const updated = { ...FWD, autoStart: !!body.autoStart }
+          return { ok: true, forward: updated, forwards: [updated] }
+        }
+        return { forwards: [FWD] }
+      },
+    },
+  })
+  const ui = mountClient({ fetch: stub.fetch })
+  const findBox = (tree) => ui.inputs(tree, 'checkbox').find((p) => p['aria-label'] === '自动重连')
+  try {
+    let tree = await ui.settle()
+    tree = await ui.click(tree, /端口转发/)
+    assert.ok(findBox(tree), 'each row must offer an editable 自动重连 checkbox')
+    assert.equal(findBox(tree).checked, false, 'the checkbox must reflect the stored flag')
+    assert.equal(ui.text(tree).includes('[auto]'), false, 'the static [auto] marker must be gone')
+
+    findBox(tree).onChange({ target: { checked: true } })
+    tree = await ui.settle()
+    // The first check explains what 自动重连 means before anything is saved.
+    assert.match(ui.text(tree), /自动重连会做什么/, 'the first check must explain the semantics')
+    assert.equal(/反向/.test(ui.text(tree)), false,
+      'a LOCAL forward notice must not explain reverse forwards — it only concerns this row')
+    assert.equal(stub.calls.some((c) => c.method === 'POST' && c.body && c.body.action === 'update'), false,
+      'nothing may be persisted before the user confirms')
+
+    tree = await ui.click(tree, /^仍然勾选$/)
+    // The update action goes through the same async path as start/stop; let its
+    // promise chain settle before re-rendering.
+    for (let i = 0; i < 4; i++) await new Promise((resolve) => setTimeout(resolve, 0))
+    tree = await ui.settle()
+    assert.equal(findBox(tree).checked, true, 'the checkbox must reflect the updated definition')
+    const call = stub.calls.find((c) => c.method === 'POST' && c.body && c.body.action === 'update')
+    assert.ok(call, 'toggling must call the update action')
+    assert.equal(call.body.id, 'fwd-auto')
+    assert.equal(call.body.autoStart, true)
+  } finally { ui.dispose() }
+})
+
+test('cancelling the auto-reconnect notice leaves the flag off and saves nothing', async () => {
+  const FWD = { id: 'fwd-cancel', direction: 'local', listenPort: 18083, targetHost: '127.0.0.1', targetPort: 80, autoStart: false, active: false }
+  const stub = stubFetch({
+    overrides: {
+      '/dsh-remote/forwards': ({ method, body }) => (method === 'POST' && body && body.action === 'update'
+        ? { ok: true, forward: { ...FWD, autoStart: !!body.autoStart }, forwards: [{ ...FWD, autoStart: !!body.autoStart }] }
+        : { forwards: [FWD] }),
+    },
+  })
+  const ui = mountClient({ fetch: stub.fetch })
+  const findBox = (tree) => ui.inputs(tree, 'checkbox').find((p) => p['aria-label'] === '自动重连')
+  try {
+    let tree = await ui.settle()
+    tree = await ui.click(tree, /端口转发/)
+    findBox(tree).onChange({ target: { checked: true } })
+    tree = await ui.settle()
+    assert.match(ui.text(tree), /自动重连会做什么/)
+    tree = await ui.click(tree, /^取消$/)
+    tree = await ui.settle()
+    assert.equal(findBox(tree).checked, false, 'cancel must leave the checkbox off')
+    assert.equal(ui.text(tree).includes('自动重连会做什么'), false, 'cancel must close the notice')
+    assert.equal(stub.calls.some((c) => c.method === 'POST' && c.body && c.body.action === 'update'), false)
+  } finally { ui.dispose() }
+})
+
+test('the first check of a reverse forward warns about the remote listener', async () => {
+  const FWD = { id: 'fwd-rev', direction: 'reverse', listenPort: 18084, targetHost: '127.0.0.1', targetPort: 80, autoStart: false, active: false }
+  const stub = stubFetch({
+    overrides: {
+      '/dsh-remote/forwards': ({ method, body }) => (method === 'POST' && body && body.action === 'update'
+        ? { ok: true, forward: { ...FWD, autoStart: !!body.autoStart }, forwards: [{ ...FWD, autoStart: !!body.autoStart }] }
+        : { forwards: [FWD] }),
+    },
+  })
+  const ui = mountClient({ fetch: stub.fetch })
+  const findBox = (tree) => ui.inputs(tree, 'checkbox').find((p) => p['aria-label'] === '自动重连')
+  try {
+    let tree = await ui.settle()
+    tree = await ui.click(tree, /端口转发/)
+    findBox(tree).onChange({ target: { checked: true } })
+    tree = await ui.settle()
+    const text = ui.text(tree)
+    assert.match(text, /反向转发的自动重连会做什么/, 'a reverse forward must get the remote-listener warning')
+    assert.match(text, /远端/, 'the warning must name the remote listener')
+
+    tree = await ui.click(tree, /^仍然勾选$/)
+    for (let i = 0; i < 4; i++) await new Promise((resolve) => setTimeout(resolve, 0))
+    tree = await ui.settle()
+    assert.equal(findBox(tree).checked, true)
+    const call = stub.calls.find((c) => c.method === 'POST' && c.body && c.body.action === 'update')
+    assert.equal(call.body.autoStart, true)
   } finally { ui.dispose() }
 })
