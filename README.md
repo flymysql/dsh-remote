@@ -82,7 +82,7 @@ dsh plugin --profile web add dsh-remote
 
 ## 文档与社区
 
-[完整工具与配置参考](https://github.com/flymysql/dsh-remote/blob/main/docs/reference.zh.md) · [排障](https://github.com/flymysql/dsh-remote/blob/main/docs/troubleshooting.md) · [升级指南](https://github.com/flymysql/dsh-remote/blob/main/docs/migration-1.0.md) · [更新记录](https://github.com/flymysql/dsh-remote/blob/main/CHANGELOG.md)
+[完整工具与配置参考](https://github.com/flymysql/dsh-remote/blob/main/docs/reference.zh.md) · [排障](https://github.com/flymysql/dsh-remote/blob/main/docs/troubleshooting.md) · [自更新修复](https://github.com/flymysql/dsh-remote/blob/main/docs/self-heal.md) · [升级指南](https://github.com/flymysql/dsh-remote/blob/main/docs/migration-1.0.md) · [更新记录](https://github.com/flymysql/dsh-remote/blob/main/CHANGELOG.md)
 
 [主页](https://flymysql.github.io/dsh-remote/) · [讨论区](https://github.com/flymysql/dsh-remote/discussions) · [反馈问题](https://github.com/flymysql/dsh-remote/issues) · [贡献指南](https://github.com/flymysql/dsh-remote/blob/main/CONTRIBUTING.md) · [贡献者与致谢](#贡献者与致谢)
 

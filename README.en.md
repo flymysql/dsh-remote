@@ -82,7 +82,7 @@ Tool cards show applied changes, actual exit codes and build output, with compil
 
 ## Documentation and community
 
-[Full tool and configuration reference](https://github.com/flymysql/dsh-remote/blob/main/docs/reference.en.md) · [Troubleshooting](https://github.com/flymysql/dsh-remote/blob/main/docs/troubleshooting.md) · [Upgrade guide](https://github.com/flymysql/dsh-remote/blob/main/docs/migration-1.0.md) · [Changelog](https://github.com/flymysql/dsh-remote/blob/main/CHANGELOG.md)
+[Full tool and configuration reference](https://github.com/flymysql/dsh-remote/blob/main/docs/reference.en.md) · [Troubleshooting](https://github.com/flymysql/dsh-remote/blob/main/docs/troubleshooting.md) · [Self-update recovery](https://github.com/flymysql/dsh-remote/blob/main/docs/self-heal.md) · [Upgrade guide](https://github.com/flymysql/dsh-remote/blob/main/docs/migration-1.0.md) · [Changelog](https://github.com/flymysql/dsh-remote/blob/main/CHANGELOG.md)
 
 [Homepage](https://flymysql.github.io/dsh-remote/) · [Discussions](https://github.com/flymysql/dsh-remote/discussions) · [Report an issue](https://github.com/flymysql/dsh-remote/issues) · [Contributing](https://github.com/flymysql/dsh-remote/blob/main/CONTRIBUTING.md) · [Contributors and credits](#contributors-and-credits)
 
