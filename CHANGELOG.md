@@ -2,6 +2,16 @@
 
 All notable changes to **dsh-remote**.
 
+## 1.2.1 — 2026-11-18
+### 升级恢复、会话工作区与依赖闭包
+
+- 修复旧 0.8.x 更新器首次升级到 1.x 时漏装 `.cjs` 与子目录文件、导致插件入口无法加载的问题：旧 `lib/index.js` 与当前 `lib/boot.js` 共用 self-heal guard，主体移至 `lib/main.js` 并保留 query 模块隔离；Node 22 失败 ESM 负缓存通过新 URL 重试，外部可用 `node lib/self-heal.js` 直接修复。
+- 自更新改为按 tarball manifest 校验、写前备份、逐字节核对、原子 marker 与失败逆序回滚；回滚失败保留备份并如实报错。self-heal 用新 URL 加载刚落盘的 `update.js`，不复用缓存中的旧更新器。离线 `--tarball` 不访问 npm，tar 条目禁止绝对路径、盘符与 `..` 逃逸，支持相对 `--dir` 和 realpath CLI 入口。
+- `rw_connect` 在 alias-native OpenSSH 下展示 alias 及实际 resolved user/HostName/Port，不再输出空的 `as .`；`lookupSessionCwd` 支持当前 DSH 的 `session.<format>.jsonl[.zst|.zstd|.gz]`，未知会话继续 fail-closed。
+- 本地工作区刷新使用 `MIRRORS.known` 闩锁避免中途降级；刷新失败仍保留 `!MIRRORS.error`，不会把暂时缺失的远程目录误判为本地。
+- 更新 `diff` 至 9.0.0 并同步 vendored structuredPatch 依赖闭包、文档与发布审计；同步 `semver` 7.8.6 与 `actions/upload-artifact` v7。
+- 已验证：1523 tests / 0 fail、覆盖率 85.5%、发布包 436 个文件；0.8.72/0.8.91/0.8.93/0.8.94/1.2.0 到本版的升级与回滚均通过真实入口检查。DSH 0.2.0/0.2.1/0.2.2 native 与 PTC 验收全部通过，详见 `docs/release/1.2.1.md`。
+
 ## 1.2.0 — 2026-11-16
 ### 本地工作区工作台与挂载前缀修复
 

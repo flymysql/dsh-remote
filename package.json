@@ -1,6 +1,6 @@
 {
   "name": "dsh-remote",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "SSH remote workspaces for DeepSeek Harness: parallel projects across hosts, remote file browsing and editing, recursive search, terminals, Git diffs, and workspace-bound Agent tools to edit, build and test remotely. Optional IDE layout.",
   "license": "MIT",
   "author": "flymysql <flyphp@outlook.com>",
@@ -93,9 +93,9 @@
     "@deepseek-ai/dsh-system-prompt": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-timeout": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-tools": "^0.2.0-rc.2",
+    "diff": "9.0.0",
     "react": "^19.3.1",
-    "semver": "^7.8.5",
-    "diff": "9.0.0"
+    "semver": "^7.8.5"
   },
   "scripts": {
     "test": "node --import ./test/setup-telemetry-off.mjs --test --test-timeout=40000 --test-force-exit --test-concurrency=8",

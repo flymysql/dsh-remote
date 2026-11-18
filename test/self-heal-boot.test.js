@@ -162,6 +162,32 @@ test('the old lib/index.js entry repairs a half-applied tree on the same URL', a
   }
 })
 
+test('self-heal bypasses an updater already cached from the previous version', async () => {
+  const pkgDir = makeHalfUpdatedInstall()
+  const updateFile = path.join(pkgDir, 'lib', 'update.js')
+  // Simulate the old updater having already run: it is in the ESM cache and
+  // cannot install the nested files that the new package needs.
+  writeFileSync(updateFile, "export const diskVersion = () => '0.2.0'\nexport const isInstalledCopy = () => true\nexport const applyUpdate = async () => ({ ok: true, to: '0.2.0', changed: [] })\n")
+  const oldUpdater = await import(pathToFileURL(updateFile).href)
+  assert.deepEqual((await oldUpdater.applyUpdate()).changed, [])
+  const repoLib = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'lib')
+  copyFileSync(path.join(repoLib, 'update.js'), updateFile)
+  copyFileSync(path.join(repoLib, 'self-heal.js'), path.join(pkgDir, 'lib', 'self-heal.js'))
+  const { importWithSelfHeal: heal } = await import(pathToFileURL(path.join(pkgDir, 'lib', 'self-heal.js')).href + '?fresh-self-heal=' + Date.now())
+  assert.equal(existsSync(path.join(pkgDir, 'lib', 'helper.js')), false, 'helper must start missing')
+  try {
+    const result = await heal(importFresh(path.join(pkgDir, 'lib', 'main.js')), {
+      dir: pkgDir,
+      fetchImpl: tarballFetch(goodTarball()),
+      log: () => {},
+    })
+    assert.equal(result.repaired, true)
+    assert.equal(result.module.answer, 42)
+  } finally {
+    rmSync(path.join(pkgDir, '..', '..'), { recursive: true, force: true })
+  }
+})
+
 test('repair is refused for non-installed copies (source checkouts stay untouched)', async () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'dsh-remote-src-')) // NOT under node_modules
   mkdirSync(path.join(dir, 'lib'), { recursive: true })
