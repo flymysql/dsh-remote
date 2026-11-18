@@ -121,6 +121,24 @@ export function mountClient(opts = {}) {
         relativeTime: () => ({ unit: 'now', n: 0 }),
         MarkdownText,
       }
+      // Optional host Menu face (opt-in, so every other interaction test keeps
+      // exercising the no-primitive fallbacks). Shape is faithful to the bundle
+      // contract: it renders `anchor` and, while open, one menuitem button per
+      // `items` entry reporting `onSelect(id)`. Only the search-panel test asks
+      // for it, to pin "the advanced options are a shut menu by default".
+      if (opts.withHostChrome) {
+        stub.Menu = (props) => React.createElement('span', { className: props.className, 'data-menu': props.open ? 'open' : 'closed', 'data-align': props.align },
+          props.anchor,
+          props.open
+            ? React.createElement('div', { role: 'menu' }, (props.items || []).map((item) => React.createElement('button', {
+                key: item.id,
+                type: 'button',
+                role: 'menuitem',
+                'aria-selected': item.id === props.selectedId,
+                onClick: () => { if (typeof props.onSelect === 'function') props.onSelect(item.id) },
+              }, item.label)))
+            : null)
+      }
       // Optional host code-highlighter face (issue #104): faithful to the
       // bundle contract — useCodeHighlighter(lang) returns highlight(text) →
       // per-line [{text, style:{color}}], or a fn yielding null for unknown

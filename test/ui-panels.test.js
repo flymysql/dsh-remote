@@ -271,7 +271,9 @@ test('a machine that authenticates through an agent shows the agent fields it ne
     tree = await ui.settle()
     const text = ui.text(tree)
     assert.match(text, /私钥路径/, 'the private key field must be visible when editing such a machine')
-    const boxes = ui.inputs(tree, 'checkbox').map((p) => !!p.checked)
+    const boxes = ui.elements(tree)
+      .filter((el) => typeof el.type === 'function' && el.type.name === 'RwCheckbox')
+      .map((el) => !!el.props.checked)
     assert.ok(boxes.includes(true), 'the stored agent flag must be reflected in the form')
   } finally { ui.dispose() }
 })
@@ -423,15 +425,17 @@ test('each forward row exposes an editable 自动重连 checkbox that updates th
     },
   })
   const ui = mountClient({ fetch: stub.fetch })
-  const findBox = (tree) => ui.inputs(tree, 'checkbox').find((p) => p['aria-label'] === '自动重连')
+  // The unified checkbox is a component: read its props, not a native input.
+  const findBox = (tree) => ui.elements(tree)
+    .find((el) => typeof el.type === 'function' && el.type.name === 'RwCheckbox' && el.props.label === '自动重连')
   try {
     let tree = await ui.settle()
     tree = await ui.click(tree, /端口转发/)
     assert.ok(findBox(tree), 'each row must offer an editable 自动重连 checkbox')
-    assert.equal(findBox(tree).checked, false, 'the checkbox must reflect the stored flag')
+    assert.equal(findBox(tree).props.checked, false, 'the checkbox must reflect the stored flag')
     assert.equal(ui.text(tree).includes('[auto]'), false, 'the static [auto] marker must be gone')
 
-    findBox(tree).onChange({ target: { checked: true } })
+    findBox(tree).props.onChange(true)
     tree = await ui.settle()
     // The first check explains what 自动重连 means before anything is saved.
     assert.match(ui.text(tree), /自动重连会做什么/, 'the first check must explain the semantics')
@@ -445,7 +449,7 @@ test('each forward row exposes an editable 自动重连 checkbox that updates th
     // promise chain settle before re-rendering.
     for (let i = 0; i < 4; i++) await new Promise((resolve) => setTimeout(resolve, 0))
     tree = await ui.settle()
-    assert.equal(findBox(tree).checked, true, 'the checkbox must reflect the updated definition')
+    assert.equal(findBox(tree).props.checked, true, 'the checkbox must reflect the updated definition')
     const call = stub.calls.find((c) => c.method === 'POST' && c.body && c.body.action === 'update')
     assert.ok(call, 'toggling must call the update action')
     assert.equal(call.body.id, 'fwd-auto')
@@ -463,16 +467,18 @@ test('cancelling the auto-reconnect notice leaves the flag off and saves nothing
     },
   })
   const ui = mountClient({ fetch: stub.fetch })
-  const findBox = (tree) => ui.inputs(tree, 'checkbox').find((p) => p['aria-label'] === '自动重连')
+  // The unified checkbox is a component: read its props, not a native input.
+  const findBox = (tree) => ui.elements(tree)
+    .find((el) => typeof el.type === 'function' && el.type.name === 'RwCheckbox' && el.props.label === '自动重连')
   try {
     let tree = await ui.settle()
     tree = await ui.click(tree, /端口转发/)
-    findBox(tree).onChange({ target: { checked: true } })
+    findBox(tree).props.onChange(true)
     tree = await ui.settle()
     assert.match(ui.text(tree), /自动重连会做什么/)
     tree = await ui.click(tree, /^取消$/)
     tree = await ui.settle()
-    assert.equal(findBox(tree).checked, false, 'cancel must leave the checkbox off')
+    assert.equal(findBox(tree).props.checked, false, 'cancel must leave the checkbox off')
     assert.equal(ui.text(tree).includes('自动重连会做什么'), false, 'cancel must close the notice')
     assert.equal(stub.calls.some((c) => c.method === 'POST' && c.body && c.body.action === 'update'), false)
   } finally { ui.dispose() }
@@ -488,11 +494,13 @@ test('the first check of a reverse forward warns about the remote listener', asy
     },
   })
   const ui = mountClient({ fetch: stub.fetch })
-  const findBox = (tree) => ui.inputs(tree, 'checkbox').find((p) => p['aria-label'] === '自动重连')
+  // The unified checkbox is a component: read its props, not a native input.
+  const findBox = (tree) => ui.elements(tree)
+    .find((el) => typeof el.type === 'function' && el.type.name === 'RwCheckbox' && el.props.label === '自动重连')
   try {
     let tree = await ui.settle()
     tree = await ui.click(tree, /端口转发/)
-    findBox(tree).onChange({ target: { checked: true } })
+    findBox(tree).props.onChange(true)
     tree = await ui.settle()
     const text = ui.text(tree)
     assert.match(text, /反向转发的自动重连会做什么/, 'a reverse forward must get the remote-listener warning')
@@ -501,7 +509,7 @@ test('the first check of a reverse forward warns about the remote listener', asy
     tree = await ui.click(tree, /^仍然勾选$/)
     for (let i = 0; i < 4; i++) await new Promise((resolve) => setTimeout(resolve, 0))
     tree = await ui.settle()
-    assert.equal(findBox(tree).checked, true)
+    assert.equal(findBox(tree).props.checked, true)
     const call = stub.calls.find((c) => c.method === 'POST' && c.body && c.body.action === 'update')
     assert.equal(call.body.autoStart, true)
   } finally { ui.dispose() }
