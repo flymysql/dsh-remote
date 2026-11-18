@@ -21,7 +21,7 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 function makeMirrorHarness(apiImpl) {
   const timers = [], picked = []
-  const body = section('    const MIRRORS = { list: [], loaded: false, error: \'\' }', '    // Server identity colors')
+  const body = section('    const MIRRORS = { list: [], loaded: false, known: false, error: \'\' }', '    // Server identity colors')
     + section('      const commitPath = (p, selectedMachineId = machineId) => {', '      const acceptBrowserPick = (p) => {')
     + section('    function localWorkspaceSession(sessionId) {', '    function workspaceText')
     + '\nreturn { MIRRORS, ensureMirrors, refreshMirrors, mirrorForCwd, sameMirrorDir, commitPath, localWorkspaceSession, getMirrorLoad: () => mirrorLoad }'
