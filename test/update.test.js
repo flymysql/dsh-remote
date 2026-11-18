@@ -204,6 +204,21 @@ test('applyUpdate refuses tarball entries that escape the package directory', as
   }
 })
 
+test('applyUpdate accepts a relative install directory', async () => {
+  const dir = makeInstall()
+  try {
+    const relativeDir = path.relative(process.cwd(), dir)
+    const result = await applyUpdate('0.2.0', {
+      dir: relativeDir,
+      fetchImpl: makeFetch({ version: '0.2.0', tarball: makeTarball(NEW_FILES) }),
+    })
+    assert.equal(result.ok, true)
+    assert.equal(readFileSync(path.join(dir, 'lib', 'index.js'), 'utf8'), NEW_INDEX)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('applyUpdate refuses a version mismatch without touching the install', async () => {
   const dir = makeInstall()
   try {
