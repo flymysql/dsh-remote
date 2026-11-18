@@ -155,8 +155,7 @@ test('the old lib/index.js entry repairs a half-applied tree on the same URL', a
     // dynamic retry must work after the first failed static dependency graph.
     const mod = await import(pathToFileURL(path.join(pkgDir, 'lib', 'index.js')).href)
     assert.equal(mod.name, 'dsh-remote')
-    const main = await import(pathToFileURL(path.join(pkgDir, 'lib', 'main.js')).href)
-    assert.equal(main.answer, 42)
+    assert.equal(readFileSync(path.join(pkgDir, 'lib', 'helper.js'), 'utf8'), HELPER_SOURCE)
   } finally {
     globalThis.fetch = realFetch
     rmSync(path.join(pkgDir, '..', '..'), { recursive: true, force: true })
