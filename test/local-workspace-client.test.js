@@ -125,9 +125,22 @@ test('local/remote classification is latched, not tied to a bindings round-trip'
   const src = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
   const start = src.indexOf('function localWorkspaceSession(')
   assert.ok(start > 0, 'localWorkspaceSession is gone')
-  const body = src.slice(start, src.indexOf('\n    }', start))
+  const body = src.slice(start, src.indexOf('\n    }', start) + 6) + '}'
   assert.match(body, /MIRRORS\.known/)
   assert.doesNotMatch(body, /MIRRORS\.loaded/)
   assert.match(src, /const MIRRORS = \{ list: \[\], loaded: false, known: false, error: '' \}/)
   assert.match(src, /MIRRORS\.known = true/)
+})
+
+
+test('a failed registry read still refuses to label an unknown remote cwd as local', () => {
+  const src = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  const start = src.indexOf('function localWorkspaceSession(')
+  const body = src.slice(start, src.indexOf('\n    }', start) + 6)
+  assert.match(body, /MIRRORS\.error/, 'failed registry state must remain part of classification')
+  const classify = (MIRRORS) => new Function('MIRRORS', 'sessionCwdFor', 'mirrorForCwd', 'return (cwd) => !!(cwd && MIRRORS.known && !MIRRORS.error && !mirrorForCwd(cwd, MIRRORS.list))')(MIRRORS, () => '/remote/project', () => null)('/remote/project')
+  assert.equal(classify({ known: true, error: 'bindings unavailable', list: [] }), false,
+    'an error must not turn an unlisted remote workspace into a local one')
+  assert.equal(classify({ known: true, error: '', list: [] }), true,
+    'a healthy registry with no matching mirror still classifies a local cwd correctly')
 })
