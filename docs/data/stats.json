@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-17T20:52:39.070Z",
+  "generatedAt": "2026-11-18T07:24:20.780Z",
   "heartbeat": {
     "ok": true,
-    "generatedAt": "2026-11-17T20:52:38.678Z",
+    "generatedAt": "2026-11-18T07:24:20.329Z",
     "tz": "Asia/Shanghai",
     "daily": [
       {
@@ -123,28 +123,28 @@
       },
       {
         "day": "2026-11-18",
-        "dau": 1160
+        "dau": 1799
       }
     ],
-    "wau": 3819,
-    "mau": 4472,
-    "installs": 4472,
+    "wau": 4049,
+    "mau": 4691,
+    "installs": 4691,
     "byVersion": [
       {
         "version": "1.2.0",
-        "n": 2247
+        "n": 2538
       },
       {
         "version": "0.8.91",
-        "n": 1803
+        "n": 1807
       },
       {
         "version": "1.1.2",
-        "n": 1115
+        "n": 1119
       },
       {
         "version": "0.8.94",
-        "n": 1014
+        "n": 1023
       },
       {
         "version": "0.8.85",
@@ -152,11 +152,11 @@
       },
       {
         "version": "1.1.1",
-        "n": 419
+        "n": 420
       },
       {
         "version": "0.8.90",
-        "n": 358
+        "n": 359
       },
       {
         "version": "0.8.88",
@@ -168,7 +168,7 @@
       },
       {
         "version": "1.0.1",
-        "n": 138
+        "n": 139
       },
       {
         "version": "0.8.84",
@@ -182,15 +182,15 @@
     "byPlatform": [
       {
         "platform": "win32",
-        "n": 2790
+        "n": 2933
       },
       {
         "platform": "darwin",
-        "n": 981
+        "n": 1023
       },
       {
         "platform": "linux",
-        "n": 682
+        "n": 715
       },
       {
         "platform": "android",
@@ -198,7 +198,7 @@
       },
       {
         "platform": "ios",
-        "n": 8
+        "n": 9
       },
       {
         "platform": "openharmony",
@@ -209,7 +209,7 @@
   "heartbeatError": null,
   "npm": {
     "package": "dsh-remote",
-    "checkedAt": "2026-11-17T20:52:38.712Z",
+    "checkedAt": "2026-11-18T07:24:20.357Z",
     "latest": "1.2.0",
     "lastWeek": 79726,
     "lastMonth": 177421,
@@ -342,9 +342,9 @@
     "note": "npm daily counts have reporting gaps; zero-value days are flagged and are not real zero usage."
   },
   "repo": {
-    "stars": 308,
+    "stars": 317,
     "forks": 56,
-    "openIssues": 5,
-    "pushedAt": "2026-11-17T17:19:22Z"
+    "openIssues": 0,
+    "pushedAt": "2026-11-18T04:10:32Z"
   }
 }
