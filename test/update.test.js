@@ -167,6 +167,25 @@ test('applyUpdate leaves no temp files and skips byte-identical files', async ()
   }
 })
 
+test('applyUpdate uses a local tarball without contacting the registry', async () => {
+  const dir = makeInstall()
+  try {
+    const tarballPath = path.join(dir, 'candidate.tgz')
+    writeFileSync(tarballPath, makeTarball(NEW_FILES))
+    let fetches = 0
+    const result = await applyUpdate('0.2.0', {
+      dir,
+      tarballPath,
+      fetchImpl: async () => { fetches++; throw new Error('network must not be used for an offline tarball') },
+    })
+    assert.equal(result.ok, true)
+    assert.equal(fetches, 0)
+    assert.equal(JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8')).version, '0.2.0')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('applyUpdate refuses a version mismatch without touching the install', async () => {
   const dir = makeInstall()
   try {
