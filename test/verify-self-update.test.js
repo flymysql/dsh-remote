@@ -63,6 +63,11 @@ test('materially different content is flagged (but CRLF-vs-LF is not material)',
   rmSync(b.dir, { recursive: true, force: true })
 })
 
+test('relativeRefs ignores cache-busting query and hash suffixes', () => {
+  const refs = relativeRefs("import { x } from './update.js?self-heal=123'\nconst y = require('./other.js#v2')")
+  assert.deepEqual(refs.sort(), ['./other.js', './update.js'])
+})
+
 test('relativeRefs picks up static, dynamic and require forms', () => {
   const src = [
     "import a from './a.js'",

@@ -71,7 +71,7 @@ export function listFiles(dir, prefix = '') {
 export function relativeRefs(source) {
   const refs = new Set()
   for (const m of source.matchAll(/(?:from|import|require)\s*\(?\s*['"](\.[^'"]+)['"]/g)) {
-    refs.add(m[1])
+    refs.add(m[1].split(/[?#]/, 1)[0])
   }
   return [...refs]
 }
@@ -150,6 +150,7 @@ async function main() {
     mkdirSync(prevHome, { recursive: true })
     writeFileSync(path.join(prevHome, 'package.json'), JSON.stringify({ name: 'gate-sandbox', private: true }))
     runNpm(['install', `dsh-remote@${fromVersion}`, '--legacy-peer-deps', '--no-audit', '--no-fund', '--ignore-scripts'], { cwd: prevHome, stdio: 'pipe' })
+    runNpm(['install', 'yaml@2.9.1', '@deepseek-ai/schemastery@3.19.0', 'iconv-lite@0.7.3', '--legacy-peer-deps=false', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: prevHome, stdio: 'pipe' })
     const prevDir = path.join(prevHome, 'node_modules', 'dsh-remote')
     if (!existsSync(path.join(prevDir, 'lib', 'update.js'))) fail(`previous install at ${prevDir} has no lib/update.js`)
     console.log(`previous copy:   installed at ${prevDir}`)
@@ -179,6 +180,16 @@ async function main() {
     const result = await oldUpdater.applyUpdate(candidateVersion)
     console.log(`updater says:    ok=${result?.ok} changed=${result?.changed?.length ?? '?'} file(s)`)
 
+    const verifyEntry = async (file, label) => {
+      const mod = await import(pathToFileURL(file).href + '?release-gate=' + fromVersion + '-' + label + '-' + Date.now())
+      if (mod.name !== 'dsh-remote' || typeof mod.apply !== 'function') fail(`entry ${label} does not expose the dsh-remote plugin`)
+    }
+    // Old 0.8.x updaters may write a partial tree. Load the real entry first:
+    // the new guard must self-heal, then the tree audit proves it recovered.
+    await verifyEntry(path.join(prevDir, 'lib', 'index.js'), 'candidate-index')
+    await verifyEntry(path.join(prevDir, 'lib', 'boot.js'), 'candidate-boot')
+    console.log('UPGRADE ENTRY GATE: PASS — candidate entries import after self-heal if required')
+
     // ── 5. audit the resulting tree ───────────────────────────────────────
     const { missing, mismatched, unresolved } = auditAppliedTree(candPkg, prevDir, candFiles)
     if (missing.length) fail(`the previous updater NEVER INSTALLED ${missing.length} file(s):\n  - ${missing.join('\n  - ')}\n(this is exactly the #126 half-updated tree)`)
@@ -199,7 +210,8 @@ async function main() {
     const rollbackAudit = auditAppliedTree(previousSnapshot, prevDir, previousFiles)
     if (Object.values(rollbackAudit).some((items) => items.length)) fail(`rollback tree incomplete: ${JSON.stringify(rollbackAudit)}`)
     globalThis.fetch = realFetch
-    console.log(`ROLLBACK GATE: PASS — restored ${fromVersion}, ${previousFiles.length} files consistent`)
+    await verifyEntry(path.join(prevDir, 'lib', 'index.js'), 'rollback-index')
+    console.log(`ROLLBACK GATE: PASS — restored ${fromVersion}, ${previousFiles.length} files consistent and old entry imports`)
     console.log('SELF-UPDATE GATE: PASS')
   } finally {
     try { rmSync(scratch, { recursive: true, force: true }) } catch {}
