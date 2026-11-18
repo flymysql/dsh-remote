@@ -63,7 +63,7 @@ function makeCtx() {
 async function loadPlugin(home) {
   process.env.DSH_HOME = home
   // Cache-bust so each test observes a fresh module-level state.
-  return import(`../lib/index.js?issue63=${Math.random()}`)
+  return import(`../lib/main.js?issue63=${Math.random()}`)
 }
 
 const CONFIG = {
@@ -238,7 +238,7 @@ test('LOCAL_BOOTSTRAP_TOOLS only names tools the plugin really registers', async
 })
 
 test('normalizeLocalTools maps anything unrecognized to bootstrap', async () => {
-  const mod = await import('../lib/index.js?issue63-pure=' + Math.random())
+  const mod = await import('../lib/main.js?issue63-pure=' + Math.random())
   assert.equal(mod.normalizeLocalTools('bootstrap'), 'bootstrap')
   assert.equal(mod.normalizeLocalTools('none'), 'none')
   assert.equal(mod.normalizeLocalTools('all'), 'all')
@@ -250,7 +250,7 @@ test('normalizeLocalTools maps anything unrecognized to bootstrap', async () => 
 })
 
 test('pickWorkspaceNextStep: a local session is told to OPEN the mirror first', async () => {
-  const mod = await import('../lib/index.js?issue63-pure2=' + Math.random())
+  const mod = await import('../lib/main.js?issue63-pure2=' + Math.random())
   const local = mod.pickWorkspaceNextStep(true)
   assert.match(local, /this session is LOCAL/)
   assert.match(local, /Open a session whose workspace IS the local mirror path/)
@@ -264,7 +264,7 @@ test('rw_pick_workspace wires its closing hint through pickWorkspaceNextStep', a
   // Source-level pin (same style as docs-i18n.test.js): the success text must
   // branch on the session's locality instead of always printing "Run rw_sync".
   const here = path.dirname(fileURLToPath(import.meta.url))
-  const src = readFileSync(path.join(here, '..', 'lib', 'index.js'), 'utf8')
+  const src = readFileSync(path.join(here, '..', 'lib', 'main.js'), 'utf8')
   assert.ok(
     src.includes('${pickWorkspaceNextStep(b.local)}'),
     'rw_pick_workspace success text must call pickWorkspaceNextStep(b.local)',

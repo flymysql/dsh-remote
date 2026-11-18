@@ -84,7 +84,7 @@ test('Chinese is the default when there is no stored preference', () => {
 test('documented rw_* tool names all exist in the plugin', () => {
   // 实测漂移过：站点列了 rw_workspace / rw_list / rw_read / rw_write（都不存在，
   // 真名是 rw_pick_workspace / rw_list_dir / rw_read_file / rw_write_file）。
-  const indexSrc = read('lib/index.js')
+  const indexSrc = read('lib/main.js')
   const real = new Set([...indexSrc.matchAll(/name:\s*'(rw_[a-z_]+)'/g)].map((m) => m[1]))
 
   const documented = new Set()
@@ -142,9 +142,9 @@ test('the snapshot generator records npm.latest', () => {
 })
 
 test('config defaults shown on the site match the schema', () => {
-  // 站点上的默认值是用户照着配的依据，必须与 lib/index.js 的 Config schema 一致。
+  // 站点上的默认值是用户照着配的依据，必须与 lib/main.js 的 Config schema 一致。
   // 实测漂移过：auditLog 写成 false（真源 true）。
-  const schema = read('lib/index.js')
+  const schema = read('lib/main.js')
   const block = schema.slice(schema.indexOf('export const Config'), schema.indexOf('\n})', schema.indexOf('export const Config')))
   const declared = {}
   for (const m of block.matchAll(/^\s{2}([a-zA-Z][a-zA-Z0-9]*):\s*z\.[\s\S]*?\.default\(([^)]*)\)/gm)) {

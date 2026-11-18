@@ -167,6 +167,58 @@ test('applyUpdate leaves no temp files and skips byte-identical files', async ()
   }
 })
 
+test('applyUpdate uses a local tarball without contacting the registry', async () => {
+  const dir = makeInstall()
+  try {
+    const tarballPath = path.join(dir, 'candidate.tgz')
+    writeFileSync(tarballPath, makeTarball(NEW_FILES))
+    let fetches = 0
+    const result = await applyUpdate('0.2.0', {
+      dir,
+      tarballPath,
+      fetchImpl: async () => { fetches++; throw new Error('network must not be used for an offline tarball') },
+    })
+    assert.equal(result.ok, true)
+    assert.equal(fetches, 0)
+    assert.equal(JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8')).version, '0.2.0')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('applyUpdate refuses tarball entries that escape the package directory', async () => {
+  const dir = makeInstall()
+  const outside = path.join(dir, '..', 'escape.txt')
+  try {
+    for (const entry of ['lib/../../escape.txt', 'lib/..\\..\\escape.txt']) {
+      const tarball = makeTarball({ ...NEW_FILES, [entry]: 'escape' })
+      await assert.rejects(
+        () => applyUpdate('0.2.0', { dir, fetchImpl: makeFetch({ version: '0.2.0', tarball }) }),
+        /unsafe tarball path/,
+      )
+      assert.equal(existsSync(outside), false, 'a traversal entry must never reach the parent directory')
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+    rmSync(outside, { force: true })
+  }
+})
+
+test('applyUpdate accepts a relative install directory', async () => {
+  const dir = makeInstall()
+  try {
+    const relativeDir = path.relative(process.cwd(), dir)
+    const result = await applyUpdate('0.2.0', {
+      dir: relativeDir,
+      fetchImpl: makeFetch({ version: '0.2.0', tarball: makeTarball(NEW_FILES) }),
+    })
+    assert.equal(result.ok, true)
+    assert.equal(readFileSync(path.join(dir, 'lib', 'index.js'), 'utf8'), NEW_INDEX)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('applyUpdate refuses a version mismatch without touching the install', async () => {
   const dir = makeInstall()
   try {
@@ -192,6 +244,79 @@ test('applyUpdate surfaces a failed download as update failed', async () => {
       /update failed: download failed \(HTTP 500\)/,
     )
     assert.equal(readFileSync(path.join(dir, 'lib', 'index.js'), 'utf8'), 'OLD INDEX')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('applyUpdate rolls back the whole tree when a later write fails', async () => {
+  const dir = makeInstall()
+  writeFileSync(path.join(dir, '.dsh-remote-updated'), '0.0.9')
+  try {
+    const fetchImpl = makeFetch({ version: '0.2.0', tarball: makeTarball(NEW_FILES) })
+    await assert.rejects(
+      () => applyUpdate('0.2.0', {
+        dir,
+        fetchImpl,
+        writeFileAtomic(dest, bytes) {
+          if (dest.endsWith('client.js')) throw new Error('injected write failure')
+          writeFileAtomic(dest, bytes)
+        },
+      }),
+      /update failed: injected write failure/,
+    )
+    assert.equal(readFileSync(path.join(dir, 'lib', 'index.js'), 'utf8'), 'OLD INDEX')
+    assert.equal(readFileSync(path.join(dir, 'lib', 'client.js'), 'utf8'), 'OLD CLIENT')
+    assert.equal(JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8')).version, '0.1.0')
+    assert.equal(readFileSync(path.join(dir, '.dsh-remote-updated'), 'utf8'), '0.0.9')
+    assert.deepEqual(readdirSync(dir).filter((n) => n.startsWith('.dsh-remote-update-')), [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('applyUpdate detects a silent content mismatch and restores the old tree', async () => {
+  const dir = makeInstall()
+  try {
+    const fetchImpl = makeFetch({ version: '0.2.0', tarball: makeTarball(NEW_FILES) })
+    await assert.rejects(
+      () => applyUpdate('0.2.0', {
+        dir,
+        fetchImpl,
+        writeFileAtomic(dest, bytes) {
+          writeFileAtomic(dest, dest.endsWith('client.js') ? Buffer.from('CORRUPT') : bytes)
+        },
+      }),
+      /applied file mismatch: lib.*client\.js/,
+    )
+    assert.equal(readFileSync(path.join(dir, 'lib', 'index.js'), 'utf8'), 'OLD INDEX')
+    assert.equal(readFileSync(path.join(dir, 'lib', 'client.js'), 'utf8'), 'OLD CLIENT')
+    assert.equal(JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8')).version, '0.1.0')
+    assert.equal(existsSync(path.join(dir, '.dsh-remote-updated')), false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a rollback failure retains the backup and reports the original failure', async () => {
+  const dir = makeInstall()
+  try {
+    const fetchImpl = makeFetch({ version: '0.2.0', tarball: makeTarball(NEW_FILES) })
+    await assert.rejects(
+      () => applyUpdate('0.2.0', {
+        dir,
+        fetchImpl,
+        writeFileAtomic(dest, bytes) {
+          if (dest.endsWith('client.js')) throw new Error('injected write failure')
+          writeFileAtomic(dest, bytes)
+        },
+        restoreFile() { throw new Error('restore blocked') },
+      }),
+      /update failed: injected write failure; rollback failed at .*restore blocked; backup retained at/,
+    )
+    const leftovers = readdirSync(dir).filter((n) => n.startsWith('.dsh-remote-update-'))
+    assert.equal(leftovers.length, 1, 'the backup directory must be retained when rollback itself fails')
+    assert.equal(existsSync(path.join(dir, leftovers[0], 'backup')), true)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

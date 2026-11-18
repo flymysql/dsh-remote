@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..')
-const indexSrc = readFileSync(path.join(root, 'lib', 'index.js'), 'utf8')
+const indexSrc = readFileSync(path.join(root, 'lib', 'main.js'), 'utf8')
 const clientSrc = readFileSync(path.join(root, 'lib', 'client.js'), 'utf8')
 
 test('the update default is a single exported constant set to auto', () => {
