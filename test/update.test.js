@@ -186,6 +186,24 @@ test('applyUpdate uses a local tarball without contacting the registry', async (
   }
 })
 
+test('applyUpdate refuses tarball entries that escape the package directory', async () => {
+  const dir = makeInstall()
+  const outside = path.join(dir, '..', 'escape.txt')
+  try {
+    for (const entry of ['lib/../../escape.txt', 'lib/..\\..\\escape.txt']) {
+      const tarball = makeTarball({ ...NEW_FILES, [entry]: 'escape' })
+      await assert.rejects(
+        () => applyUpdate('0.2.0', { dir, fetchImpl: makeFetch({ version: '0.2.0', tarball }) }),
+        /unsafe tarball path/,
+      )
+      assert.equal(existsSync(outside), false, 'a traversal entry must never reach the parent directory')
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+    rmSync(outside, { force: true })
+  }
+})
+
 test('applyUpdate refuses a version mismatch without touching the install', async () => {
   const dir = makeInstall()
   try {
