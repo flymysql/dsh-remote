@@ -268,6 +268,15 @@ test('lib/boot.js re-exports exactly the public surface of lib/index.js', async 
   assert.deepEqual(Object.keys(boot).sort(), Object.keys(index).sort())
 })
 
+test('index and boot preserve cache-busted module identity', async () => {
+  const a = await import('../lib/index.js?identity=a')
+  const b = await import('../lib/index.js?identity=b')
+  assert.notEqual(a.apply, b.apply, 'different index queries must create different main instances')
+  const bootA = await import('../lib/boot.js?identity=a')
+  const bootB = await import('../lib/boot.js?identity=b')
+  assert.notEqual(bootA.apply, bootB.apply, 'boot must forward its query through index to main')
+})
+
 test('the package entry point resolves to lib/boot.js', async () => {
   const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
   assert.equal(pkg.main, 'lib/boot.js')
@@ -275,7 +284,7 @@ test('the package entry point resolves to lib/boot.js', async () => {
   // Both entry spellings share one shallow guard: boot re-exports index;
   // index imports only self-heal, whose only package dependency is update.
   const bootSrc = readFileSync(new URL('../lib/boot.js', import.meta.url), 'utf8')
-  assert.match(bootSrc, /export \* from '\.\/index\.js'/)
+  assert.match(bootSrc, /new URL\('\.\/index\.js' \+ new URL\(import\.meta\.url\)\.search, import\.meta\.url\)/)
   const indexSrc = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
   const staticImports = [...indexSrc.matchAll(/^import .* from '(\.[^']+)'/gm)].map((m) => m[1])
   assert.deepEqual(staticImports, ['./self-heal.js'])
