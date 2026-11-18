@@ -10,7 +10,7 @@ All notable changes to **dsh-remote**.
 - `rw_connect` 在 alias-native OpenSSH 下展示 alias 及实际 resolved user/HostName/Port，不再输出空的 `as .`；`lookupSessionCwd` 支持当前 DSH 的 `session.<format>.jsonl[.zst|.zstd|.gz]`，未知会话继续 fail-closed。
 - 本地工作区刷新使用 `MIRRORS.known` 闩锁避免中途降级；刷新失败仍保留 `!MIRRORS.error`，不会把暂时缺失的远程目录误判为本地。
 - 更新 `diff` 至 9.0.0 并同步 vendored structuredPatch 依赖闭包、文档与发布审计；同步 `semver` 7.8.6 与 `actions/upload-artifact` v7。
-- 已验证：1523 tests / 0 fail、覆盖率 85.5%、发布包 436 个文件；0.8.72/0.8.91/0.8.93/0.8.94/1.2.0 到本版的升级与回滚均通过真实入口检查。native/PTC 验收见 `docs/release/1.2.1.md`，发布前必须通过。
+- 已验证：1523 tests / 0 fail、覆盖率 85.5%、发布包 436 个文件；0.8.72/0.8.91/0.8.93/0.8.94/1.2.0 到本版的升级与回滚均通过真实入口检查。DSH 0.2.0/0.2.1/0.2.2 native 与 PTC 验收全部通过，详见 `docs/release/1.2.1.md`。
 
 ## 1.2.0 — 2026-11-16
 ### 本地工作区工作台与挂载前缀修复
