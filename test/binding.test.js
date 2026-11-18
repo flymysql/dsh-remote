@@ -12,9 +12,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { gzipSync } from 'node:zlib'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { resolveMirror, poolKey } from '../lib/binding.js'
+import { lookupSessionCwd, resolveMirror, poolKey, encodeSegmentSafe } from '../lib/binding.js'
 
 const root = () => mkdtempSync(path.join(tmpdir(), 'dsh-remote-bind-'))
 
@@ -123,4 +124,45 @@ test('poolKey: same machine shares one key; any identity field change splits it'
 test('poolKey: a missing port defaults to 22 so both spellings share one pool', () => {
   assert.equal(poolKey({ host: 'h', username: 'u' }), 'u@h:22')
   assert.equal(poolKey({ host: 'h', username: 'u', port: '22' }), 'u@h:22')
+})
+
+/** Build a `$DSH_HOME` holding one session log, as DSH writes it on disk. */
+const sessionHome = (sessionId, fileName, header) => {
+  const home = root()
+  const dir = path.join(home, 'sessions', '--project--', encodeSegmentSafe(sessionId))
+  mkdirSync(dir, { recursive: true })
+  const body = Buffer.from(JSON.stringify(header) + '\n')
+  writeFileSync(path.join(dir, fileName), fileName.endsWith('.gz') ? gzipSync(body) : body)
+  return home
+}
+
+// DSH names the log `session.<format>.jsonl[.zst|.gz]`, and the format segment
+// changes between releases (v4 today). A fixed name list made every session of a
+// newer DSH look like it had no cwd: the host then answered 403 for
+// `/dsh-remote/workspace-context` and the explorer showed "this session is a
+// local workspace" even for a remote one.
+test('lookupSessionCwd: finds a versioned session log written by a newer DSH', () => {
+  const home = sessionHome('session-abc', 'session.v4.jsonl.gz', { type: 'session', version: 4, id: 'session-abc', cwd: '/work/project' })
+  assert.equal(lookupSessionCwd('session-abc', { dshHome: home }), '/work/project')
+  rmSync(home, { recursive: true, force: true })
+})
+
+test('lookupSessionCwd: keeps reading unversioned logs and prefers the newest format', () => {
+  const home = root()
+  const dir = path.join(home, 'sessions', '--project--', encodeSegmentSafe('session-old'))
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(path.join(dir, 'session.jsonl'), JSON.stringify({ type: 'session', cwd: '/work/old' }) + '\n')
+  assert.equal(lookupSessionCwd('session-old', { dshHome: home }), '/work/old')
+
+  // A newer format appears next to it: the newest one wins, so an upgrade does
+  // not keep resolving through the stale file.
+  writeFileSync(path.join(dir, 'session.v4.jsonl'), JSON.stringify({ type: 'session', cwd: '/work/new' }) + '\n')
+  assert.equal(lookupSessionCwd('session-old', { dshHome: home }), '/work/new')
+  rmSync(home, { recursive: true, force: true })
+})
+
+test('lookupSessionCwd: unknown session resolves to empty, never to a sibling cwd', () => {
+  const home = sessionHome('session-known', 'session.v4.jsonl', { type: 'session', cwd: '/work/known' })
+  assert.equal(lookupSessionCwd('session-missing', { dshHome: home }), '')
+  rmSync(home, { recursive: true, force: true })
 })
