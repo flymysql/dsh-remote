@@ -95,7 +95,7 @@
     "@deepseek-ai/dsh-tools": "^0.2.0-rc.2",
     "react": "^19.3.1",
     "semver": "^7.8.5",
-    "diff": "8.0.4"
+    "diff": "9.0.0"
   },
   "scripts": {
     "test": "node --import ./test/setup-telemetry-off.mjs --test --test-timeout=40000 --test-force-exit --test-concurrency=8",
