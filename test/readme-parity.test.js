@@ -113,7 +113,7 @@ test('the configuration tables declare the same keys', () => {
 
 test('every config key documented in the table exists in the schema', () => {
   // 反向核对：文档不能发明配置项，也不能在被删除后留下幽灵行。
-  const schema = readFileSync(path.join(root, 'lib', 'index.js'), 'utf8')
+  const schema = readFileSync(path.join(root, 'lib', 'main.js'), 'utf8')
   const start = schema.indexOf('export const Config')
   const block = schema.slice(start, schema.indexOf('\n})', start))
   const declared = new Set([...block.matchAll(/^\s{2}([a-zA-Z][a-zA-Z0-9]*):\s*z\./gm)].map((m) => m[1]))
@@ -127,7 +127,7 @@ test('both detailed references list the same rw_* tools', () => {
   // Compare against the PLUGIN, not a hardcoded number. A literal here only
   // proves the author updated the test when it bothered them; comparing to the
   // registered tools proves the docs are actually right.
-  const src = readFileSync(path.join(root, 'lib', 'index.js'), 'utf8')
+  const src = readFileSync(path.join(root, 'lib', 'main.js'), 'utf8')
   const real = [...new Set([...src.matchAll(/name:\s*'(rw_[a-z_]+)'/g)].map((m) => m[1]))].sort()
   assert.deepEqual([...tools(referenceZh)].sort(), real,
     'the reference tool list must match the tools the plugin registers')

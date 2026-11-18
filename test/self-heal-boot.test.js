@@ -9,10 +9,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { gzipSync } from 'node:zlib'
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, readFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, readFileSync, copyFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { pathToFileURL, fileURLToPath } from 'node:url'
 
 import { isMissingOwnModuleError, importWithSelfHeal, repairInstall } from '../lib/self-heal.js'
 
@@ -137,6 +137,32 @@ test('a half-updated install heals itself: re-lays the tarball, then imports cle
   rmSync(path.join(pkgDir, '..', '..'), { recursive: true, force: true })
 })
 
+test('the old lib/index.js entry repairs a half-applied tree on the same URL', async () => {
+  const pkgDir = makeHalfUpdatedInstall()
+  for (const file of ['self-heal.js', 'update.js', 'index.js']) {
+    copyFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'lib', file), path.join(pkgDir, 'lib', file))
+  }
+  const tarball = makeTarball({
+    'lib/index.js': readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'index.js')),
+    'lib/main.js': "export const name = 'dsh-remote'\nexport { answer } from './helper.js'\n// " + 'y'.repeat(120) + '\n',
+    'lib/helper.js': HELPER_SOURCE,
+    'package.json': JSON.stringify({ name: 'dsh-remote', version: '0.2.0' }),
+  })
+  const realFetch = globalThis.fetch
+  globalThis.fetch = tarballFetch(tarball)
+  try {
+    // No cache-busting query: this is the production old-entry URL and its
+    // dynamic retry must work after the first failed static dependency graph.
+    const mod = await import(pathToFileURL(path.join(pkgDir, 'lib', 'index.js')).href)
+    assert.equal(mod.name, 'dsh-remote')
+    const main = await import(pathToFileURL(path.join(pkgDir, 'lib', 'main.js')).href)
+    assert.equal(main.answer, 42)
+  } finally {
+    globalThis.fetch = realFetch
+    rmSync(path.join(pkgDir, '..', '..'), { recursive: true, force: true })
+  }
+})
+
 test('repair is refused for non-installed copies (source checkouts stay untouched)', async () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'dsh-remote-src-')) // NOT under node_modules
   mkdirSync(path.join(dir, 'lib'), { recursive: true })
@@ -227,6 +253,12 @@ test('repairInstall refuses an unusable on-disk version instead of guessing', as
 
 // ── boot shell surface ─────────────────────────────────────────────────────
 
+test('lib/index.js re-exports exactly the public surface of lib/main.js', async () => {
+  const index = await import('../lib/index.js?surface=index-main')
+  const main = await import('../lib/main.js?surface=main')
+  assert.deepEqual(Object.keys(index).sort(), Object.keys(main).sort())
+})
+
 test('lib/boot.js re-exports exactly the public surface of lib/index.js', async () => {
   // Pin the key set BOTH ways: a new export added to index.js without touching
   // boot.js (silent loss for consumers going through the package entry), or a
@@ -240,10 +272,12 @@ test('the package entry point resolves to lib/boot.js', async () => {
   const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
   assert.equal(pkg.main, 'lib/boot.js')
   assert.equal(pkg.exports['.'], './lib/boot.js')
-  // The guard chain must stay shallow: boot → self-heal → update. Assert it
-  // statically so nobody accidentally fattens boot.js into a second god file.
+  // Both entry spellings share one shallow guard: boot re-exports index;
+  // index imports only self-heal, whose only package dependency is update.
   const bootSrc = readFileSync(new URL('../lib/boot.js', import.meta.url), 'utf8')
-  const staticImports = [...bootSrc.matchAll(/^import .* from '(\.[^']+)'/gm)].map((m) => m[1])
+  assert.match(bootSrc, /export \* from '\.\/index\.js'/)
+  const indexSrc = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  const staticImports = [...indexSrc.matchAll(/^import .* from '(\.[^']+)'/gm)].map((m) => m[1])
   assert.deepEqual(staticImports, ['./self-heal.js'])
   const healSrc = readFileSync(new URL('../lib/self-heal.js', import.meta.url), 'utf8')
   const healImports = [...healSrc.matchAll(/^import .* from '(\.[^']+)'/gm)].map((m) => m[1])

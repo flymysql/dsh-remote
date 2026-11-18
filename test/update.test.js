@@ -197,6 +197,79 @@ test('applyUpdate surfaces a failed download as update failed', async () => {
   }
 })
 
+test('applyUpdate rolls back the whole tree when a later write fails', async () => {
+  const dir = makeInstall()
+  writeFileSync(path.join(dir, '.dsh-remote-updated'), '0.0.9')
+  try {
+    const fetchImpl = makeFetch({ version: '0.2.0', tarball: makeTarball(NEW_FILES) })
+    await assert.rejects(
+      () => applyUpdate('0.2.0', {
+        dir,
+        fetchImpl,
+        writeFileAtomic(dest, bytes) {
+          if (dest.endsWith('client.js')) throw new Error('injected write failure')
+          writeFileAtomic(dest, bytes)
+        },
+      }),
+      /update failed: injected write failure/,
+    )
+    assert.equal(readFileSync(path.join(dir, 'lib', 'index.js'), 'utf8'), 'OLD INDEX')
+    assert.equal(readFileSync(path.join(dir, 'lib', 'client.js'), 'utf8'), 'OLD CLIENT')
+    assert.equal(JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8')).version, '0.1.0')
+    assert.equal(readFileSync(path.join(dir, '.dsh-remote-updated'), 'utf8'), '0.0.9')
+    assert.deepEqual(readdirSync(dir).filter((n) => n.startsWith('.dsh-remote-update-')), [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('applyUpdate detects a silent content mismatch and restores the old tree', async () => {
+  const dir = makeInstall()
+  try {
+    const fetchImpl = makeFetch({ version: '0.2.0', tarball: makeTarball(NEW_FILES) })
+    await assert.rejects(
+      () => applyUpdate('0.2.0', {
+        dir,
+        fetchImpl,
+        writeFileAtomic(dest, bytes) {
+          writeFileAtomic(dest, dest.endsWith('client.js') ? Buffer.from('CORRUPT') : bytes)
+        },
+      }),
+      /applied file mismatch: lib.*client\.js/,
+    )
+    assert.equal(readFileSync(path.join(dir, 'lib', 'index.js'), 'utf8'), 'OLD INDEX')
+    assert.equal(readFileSync(path.join(dir, 'lib', 'client.js'), 'utf8'), 'OLD CLIENT')
+    assert.equal(JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8')).version, '0.1.0')
+    assert.equal(existsSync(path.join(dir, '.dsh-remote-updated')), false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a rollback failure retains the backup and reports the original failure', async () => {
+  const dir = makeInstall()
+  try {
+    const fetchImpl = makeFetch({ version: '0.2.0', tarball: makeTarball(NEW_FILES) })
+    await assert.rejects(
+      () => applyUpdate('0.2.0', {
+        dir,
+        fetchImpl,
+        writeFileAtomic(dest, bytes) {
+          if (dest.endsWith('client.js')) throw new Error('injected write failure')
+          writeFileAtomic(dest, bytes)
+        },
+        restoreFile() { throw new Error('restore blocked') },
+      }),
+      /update failed: injected write failure; rollback failed at .*restore blocked; backup retained at/,
+    )
+    const leftovers = readdirSync(dir).filter((n) => n.startsWith('.dsh-remote-update-'))
+    assert.equal(leftovers.length, 1, 'the backup directory must be retained when rollback itself fails')
+    assert.equal(existsSync(path.join(dir, leftovers[0], 'backup')), true)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('writeFileAtomic replaces content and cleans up its temp file', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'dsh-remote-atomic-'))
   try {

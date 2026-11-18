@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { auditPackagePaths, verifyReleasePackage } from '../scripts/verify-release-package.mjs'
 
-const files = ['package/package.json', 'package/cordis.patch.yml', 'package/lib/boot.js', 'package/lib/client.js', 'package/lib/index.js', 'package/lib/sync-status.js', 'package/lib/auto-update.js', 'package/lib/file-changes.js', 'package/lib/remote-write.js', 'package/lib/workspace-search.js', 'package/lib/remote-git.js', 'package/lib/vendor/jsdiff/patch/create.js', 'package/lib/vendor/jsdiff/diff/base.js', 'package/lib/vendor/jsdiff/diff/line.js', 'package/lib/vendor/jsdiff/util/params.js', 'package/lib/vendor/jsdiff/LICENSE', 'package/lib/vendor/jsdiff/SOURCE.md']
+const files = ['package/package.json', 'package/cordis.patch.yml', 'package/lib/boot.js', 'package/lib/client.js', 'package/lib/index.js', 'package/lib/main.js', 'package/lib/sync-status.js', 'package/lib/auto-update.js', 'package/lib/file-changes.js', 'package/lib/remote-write.js', 'package/lib/workspace-search.js', 'package/lib/remote-git.js', 'package/lib/vendor/jsdiff/patch/create.js', 'package/lib/vendor/jsdiff/diff/base.js', 'package/lib/vendor/jsdiff/diff/line.js', 'package/lib/vendor/jsdiff/util/params.js', 'package/lib/vendor/jsdiff/LICENSE', 'package/lib/vendor/jsdiff/SOURCE.md']
 test('release package requires the new runtime files and rejects compiled platform-specific native binaries', () => {
   assert.deepEqual(auditPackagePaths([...files, 'package/node_modules/ssh2/lib/client.js']), { missing: [], forbidden: [] })
   const native = 'package/node_modules/ssh2/lib/protocol/crypto/build/Release/sshcrypto.node'
