@@ -15,7 +15,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import net from 'node:net'
 import path from 'node:path'
-import { mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { createHost } from './harness/plugin-host.js'
 import { startFakeSsh } from './harness/fake-ssh.js'
@@ -211,9 +211,22 @@ test('rw_upload and rw_download move real bytes in both directions', async () =>
     await host.run('rw_upload', { localPath: src, path: '/home/user/uploaded.md' })
     assert.equal(srv.fs.readText('/home/user/uploaded.md'), '# from local\n', 'upload must land on the remote')
 
-    const dst = path.join(local, 'downloaded.md')
-    await host.run('rw_download', { path: '/home/user/uploaded.md', localPath: dst })
-    assert.equal(readFileSync(dst, 'utf8'), '# from local\n', 'download must land on the local disk')
+    // Issue #168: the download destination always lands inside the mirror. The
+    // default form preserves the remote relative path there, an explicit
+    // localPath is constrained to the mirror, and anything outside is refused.
+    await host.run('rw_download', { path: '/home/user/uploaded.md' })
+    const mirrored = findMirrorFile(host, 'uploaded.md')
+    assert.ok(mirrored, 'the default download must land in the mirror')
+    assert.equal(readFileSync(mirrored, 'utf8'), '# from local\n', 'download must land on the local disk')
+
+    const explicit = path.join(path.dirname(mirrored), 'downloaded.md')
+    await host.run('rw_download', { path: '/home/user/uploaded.md', localPath: explicit })
+    assert.equal(readFileSync(explicit, 'utf8'), '# from local\n', 'an explicit localPath inside the mirror is honored')
+
+    const refused = await host.run('rw_download', { path: '/home/user/uploaded.md', localPath: path.join(local, 'pwned.md') }).then(() => null, (e) => e)
+    assert.ok(refused, 'a localPath outside the mirror must be refused')
+    assert.match(String(refused.message), /inside this workspace mirror/)
+    assert.equal(existsSync(path.join(local, 'pwned.md')), false, 'nothing may be written outside the mirror')
   })
 })
 
