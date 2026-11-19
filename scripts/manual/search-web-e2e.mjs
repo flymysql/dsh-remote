@@ -115,7 +115,9 @@ try {
   await page.screenshot({ path: path.join(artifacts, 'search-options.png') })
   await closeOptions()
   assert.equal(await page.getByText(/^镜像同步/).count(), 0, 'the live remote explorer carries no mirror-sync noise')
-  const completed = async () => { await pane.getByText('搜索完成', { exact: true }).waitFor({ timeout: 30000 }) }
+  // The status, match count and scanned count are one disclosure title now
+  // ("搜索完成 · 2 个结果"), so match the prefix instead of an exact label.
+  const completed = async () => { await pane.getByText(/^搜索完成/).first().waitFor({ timeout: 30000 }) }
   await query.fill('block')
   // The fixture answers fast enough that the transient states can be skipped
   // between two polls. Requiring one SPECIFIC transient label turned that into
@@ -165,12 +167,12 @@ try {
   await file.getByRole('button', { name: '返回文件树', exact: true }).click()
   await page.getByRole('button', { name: '搜索远程工作区', exact: true }).click()
   await selectScope('文件和目录'); await query.fill('cancel-this-query')
-  await pane.getByText('正在搜索…', { exact: true }).waitFor()
+  await page.waitForFunction(() => /^正在搜索…/.test(document.querySelector('.dsh-rw-search-details button[aria-expanded]')?.innerText || ''))
   await page.waitForFunction(() => /已扫描 [1-9]\d* 项/.test(document.querySelector('.dsh-rw-search-details button[aria-expanded]')?.innerText || ''))
   const cancelDone = page.waitForResponse(response => response.url().includes('/dsh-remote/search') && response.request().method() === 'POST' && response.request().postDataJSON()?.action === 'cancel' && response.ok())
   await pane.getByRole('button', { name: '停止', exact: true }).click()
   await cancelDone
-  await pane.getByText('搜索已停止', { exact: true }).waitFor()
+  await pane.getByText(/^搜索已停止/).first().waitFor()
   const cancelled = jobs.findLast(job => job.query === 'cancel-this-query')
   assert.ok(cancelled)
   const cancelResponse = await page.request.get(base + '/dsh-remote/search?id=' + cancelled.id + '&sessionId=remote-search-e2e')
