@@ -161,3 +161,119 @@ test('stop during debounce prevents any remote job', async t => {
   await wait(370); await ui.tick()
   assert.equal(searchCalls().length, 0)
 })
+
+
+test('the scope RwSelect opens, selects once, closes, and shows the chosen value', async t => {
+  const { ui } = await setup(t, request => reply({ ok: true, search: snapshot('block', 'completed') }))
+  const Explorer = ui.body('dsh-remote/explorer')
+  const info = { sessionId: 'extract', useTabInfo: () => ({ tab: { visible: true, actions: { openResource() {}, openTab() {} } } }) }
+  let tree = await ui.settleComponent(Explorer, info)
+  const toggle = ui.components(tree).find(c => c.type.name === 'WorkbenchAction' && c.props.icon === 'search')
+  toggle.props.onClick(); tree = await ui.settleComponent(Explorer, info)
+  ui.inputs(tree).find(p => p['aria-label'] === '搜索远程工作区').onChange({ target: { value: 'extract' } })
+  tree = await ui.settleComponent(Explorer, info)
+  const RwSelect = ui.components(tree).find(c => c.type.name === 'RwSelect')?.type
+  assert.ok(RwSelect, 'the search scope is the shared select primitive')
+
+  // Mount the component itself: its open state lives in its own hook, so this
+  // is the only way to prove the open→select→close cycle instead of reading
+  // props off the parent (which would pass even if the cycle were dead).
+  ui.resetState()
+  const chosen = []
+  const options = ['names', 'files', 'directories', 'content'].map(value => ({ value, label: value.toUpperCase() }))
+  const props = { value: 'names', options, onChange: value => chosen.push(value), label: '搜索范围' }
+  const trigger = view => ui.elements(view).find(e => e.type === 'button' && e.props['aria-haspopup'] === 'menu')
+  const pick = (view, label) => ui.elements(view).find(e => e.type === 'button' && e.props.role === 'menuitem' && ui.textOf(e).trim() === label)
+
+  let mounted = await ui.settleComponent(RwSelect, props)
+  assert.equal(mounted.props['data-menu'], 'closed', 'the scope menu starts closed')
+  assert.match(ui.textOf(trigger(mounted)), /NAMES/, 'the trigger shows the current value')
+
+  trigger(mounted).props.onClick({ preventDefault() {}, stopPropagation() {} })
+  mounted = await ui.settleComponent(RwSelect, props)
+  assert.equal(mounted.props['data-menu'], 'open', 'clicking the trigger opens the menu')
+
+  pick(mounted, 'CONTENT').props.onClick()
+  mounted = await ui.settleComponent(RwSelect, props)
+  assert.deepEqual(chosen, ['content'], 'choosing a different value reports it once')
+  assert.equal(mounted.props['data-menu'], 'closed', 'single-select closes after choosing')
+
+  mounted = await ui.settleComponent(RwSelect, { ...props, value: 'content' })
+  assert.match(ui.textOf(trigger(mounted)), /CONTENT/, 'the trigger follows the new value')
+  // Re-open and pick the value that is already active: no redundant onChange.
+  trigger(mounted).props.onClick({ preventDefault() {}, stopPropagation() {} })
+  mounted = await ui.settleComponent(RwSelect, { ...props, value: 'content' })
+  pick(mounted, 'CONTENT').props.onClick()
+  assert.deepEqual(chosen, ['content'], 're-picking the same value does not fire onChange again')
+})
+
+test('the advanced search options are a multi-select menu that keeps itself open', async t => {
+  const { ui } = await setup(t, request => reply({ ok: true, search: snapshot('block', 'completed') }))
+  const Explorer = ui.body('dsh-remote/explorer')
+  const info = { sessionId: 'extract', useTabInfo: () => ({ tab: { visible: true, actions: { openResource() {}, openTab() {} } } }) }
+  let tree = await ui.settleComponent(Explorer, info)
+  const toggle = ui.components(tree).find(c => c.type.name === 'WorkbenchAction' && c.props.icon === 'search')
+  toggle.props.onClick(); tree = await ui.settleComponent(Explorer, info)
+  ui.inputs(tree).find(p => p['aria-label'] === '搜索远程工作区').onChange({ target: { value: 'extract' } })
+  tree = await ui.settleComponent(Explorer, info)
+  const options = view => ui.elements(view).find(e => Array.isArray(e.props.items) && e.props.items.some(item => item && item.id === 'case'))
+  assert.equal(options(tree).props.open, false, 'the options menu starts closed')
+
+  options(tree).props.anchor.props.onClick(); tree = await ui.settleComponent(Explorer, info)
+  assert.equal(options(tree).props.open, true, 'the options menu opens')
+  options(tree).props.onSelect('case'); tree = await ui.settleComponent(Explorer, info)
+  assert.deepEqual(options(tree).props.selectedIds, ['case'], 'case sensitivity is selected')
+  assert.equal(options(tree).props.open, true, 'multi-select keeps the menu open')
+  options(tree).props.onSelect('ignored'); tree = await ui.settleComponent(Explorer, info)
+  assert.deepEqual(options(tree).props.selectedIds, ['case', 'ignored'], 'both options can be on at once')
+
+  // Escape is handled INSIDE the host Menu; mount it and fire the key so the
+  // assertion covers the real path (a dead onClose would keep it open).
+  const optionsEl = options(tree)
+  let closed = 0
+  const mountedMenu = await ui.settleComponent(optionsEl.type, {
+    ...optionsEl.props,
+    onClose: () => { closed++; optionsEl.props.onClose() },
+  })
+  ui.elements(mountedMenu).find(e => typeof e.props.onKeyDown === 'function')
+    .props.onKeyDown({ key: 'Escape', preventDefault() {} })
+  assert.equal(closed, 1, 'Escape asks the owner to close the menu')
+  tree = await ui.settleComponent(Explorer, info)
+  assert.equal(options(tree).props.open, false, 'Escape closes the menu')
+})
+
+test('RwDetails actually expands and collapses its body through onToggle', async t => {
+  const { ui, render } = await setup(t, request => reply({ ok: true, search: snapshot('block', 'completed') }))
+  const tree = await render()
+  const RwDetails = ui.components(tree).find(c => c.type.name === 'RwDetails')?.type
+  assert.ok(RwDetails, 'the scan status uses the shared disclosure component')
+  const disclosure = view => ui.elements(view).find(e => typeof e.type === 'function' && e.type.name === 'RwDisclosure')
+
+  // Mount the component itself: its open state lives in its own hook, so this
+  // is the only way to prove onToggle really flips it (reading children props
+  // from the parent would pass even if the toggle were dead).
+  ui.resetState()
+  const props = { title: 'scan', children: ui.React.createElement('span', {}, 'body') }
+  let mounted = await ui.settleComponent(RwDetails, props)
+  assert.equal(disclosure(mounted).props.open, false, 'starts collapsed')
+  disclosure(mounted).props.onToggle(); mounted = await ui.settleComponent(RwDetails, props)
+  assert.equal(disclosure(mounted).props.open, true, 'onToggle expands the details')
+  disclosure(mounted).props.onToggle(); mounted = await ui.settleComponent(RwDetails, props)
+  assert.equal(disclosure(mounted).props.open, false, 'onToggle collapses the details again')
+})
+
+test('the explorer context menu computes its anchor from the pointer', async t => {
+  const { ui } = await setup(t, request => reply({ ok: true, search: snapshot('block', 'completed') }))
+  const Explorer = ui.body('dsh-remote/explorer')
+  const info = { sessionId: 'extract', useTabInfo: () => ({ tab: { visible: true, actions: { openResource() {}, openTab() {} } } }) }
+  let tree = await ui.settleComponent(Explorer, info)
+  const row = ui.elements(tree).find(e => e.props['data-rw-tree-row'])
+  assert.ok(row, 'a workspace root row is available for the context menu')
+  row.props.onContextMenu({ clientX: 123, clientY: 45, preventDefault() {}, stopPropagation() {} })
+  tree = await ui.settleComponent(Explorer, info)
+  const menu = ui.elements(tree).find(e => typeof e.props.getAnchorRect === 'function')
+  assert.ok(menu, 'the host Menu receives a real anchor function')
+  assert.deepEqual(menu.props.getAnchorRect(), { left: 123, top: 45, right: 123, bottom: 45, width: 0, height: 0 })
+  menu.props.onClose(); tree = await ui.settleComponent(Explorer, info)
+  assert.equal(ui.elements(tree).some(e => e.props.open === true), false, 'onClose dismisses the context menu')
+})

@@ -514,3 +514,22 @@ test('the first check of a reverse forward warns about the remote listener', asy
     assert.equal(call.body.autoStart, true)
   } finally { ui.dispose() }
 })
+
+
+test('settings machine menu uses the clicked button rect and closes correctly', async () => {
+  const machines = [{ ...MACHINE, id: 'm-1', name: 'first' }]
+  const ui = mountClient({ withHostChrome: true, fetch: stubFetch({ machines }).fetch })
+  try {
+    let tree = await ui.settle()
+    const action = ui.elements(tree).find(e => e.props.id && e.props.id.endsWith('-actions-m-1'))
+    assert.ok(action, 'the saved machine has an actions button')
+    const rect = { left: 11, top: 22, right: 33, bottom: 44, width: 22, height: 22 }
+    action.props.onClick({ currentTarget: { getBoundingClientRect: () => rect } })
+    tree = await ui.settle()
+    const menu = ui.elements(tree).find(e => typeof e.props.getAnchorRect === 'function')
+    assert.ok(menu, 'the settings HostMenu receives getAnchorRect')
+    assert.equal(menu.props.getAnchorRect(), rect, 'the menu anchors to the actual button DOMRect')
+    menu.props.onClose(); tree = await ui.settle()
+    assert.equal(ui.elements(tree).some(e => e.props.open === true), false, 'onClose dismisses the machine menu')
+  } finally { ui.dispose() }
+})

@@ -351,3 +351,12 @@ test('no backup i18n key survives the capability removal', () => {
     assert.doesNotMatch(text, /工作区备份|备份时间点|选择要恢复/, 'no backup UI survives anywhere')
   }
 })
+
+
+test('host menus use the real getAnchorRect contract, not anchorPoint', () => {
+  assert.doesNotMatch(src, /anchorPoint\s*:/, 'the host bundle does not accept anchorPoint')
+  assert.match(src, /settingsMenu && HostMenu[\s\S]*getAnchorRect: \(\) => settingsMenu\.anchor/,
+    'settings menus must use the button DOMRect captured on click')
+  assert.match(src, /getAnchorRect: \(\) => \(\{ left: menu\.x, top: menu\.y, right: menu\.x, bottom: menu\.y, width: 0, height: 0 \}\)/,
+    'context menus must compute a zero-size rect at the pointer')
+})
