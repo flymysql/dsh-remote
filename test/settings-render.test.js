@@ -202,26 +202,33 @@ test('issue #78: auto-open checkbox defaults on, persists off, reads back on rem
   const reset = installHookRig()
   const render = () => { reset(); return Page({}) }
 
+  // The stable id rides on a wrapper span (no host primitive forwards unknown
+  // props); the control itself is the unified checkbox.
+  const autoOpen = (tree) => {
+    const wrap = findAll(tree, (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')
+    assert.equal(wrap.length, 1, 'exactly one auto-open control renders')
+    const control = findAll(wrap[0], (el) => typeof el.type === 'function' && el.type.name === 'RwCheckbox')
+    assert.equal(control.length, 1, 'the control is the unified checkbox')
+    return control[0]
+  }
+
   let tree = render()
-  let box = findAll(tree, (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')
-  assert.equal(box.length, 1, 'exactly one auto-open checkbox renders')
-  assert.equal(box[0].props.checked, true, 'default is ON (existing behaviour preserved)')
+  let box = autoOpen(tree)
+  assert.equal(box.props.checked, true, 'default is ON (existing behaviour preserved)')
   // The label must carry the TRANSLATED text, not a raw key (the global leak
   // check in the first test guards everything; this pins the text to THIS control).
-  assert.match(collectText(tree), /打开远程工作区时，自动在侧边栏展开「远程文件」/)
+  assert.equal(box.props.label, '打开远程工作区时，自动在侧边栏展开「远程文件」')
 
-  box[0].props.onChange({ target: { checked: false } })
+  box.props.onChange(false) // bare boolean, per the unified checkbox contract
   assert.equal(store.get('dsh-remote:explorerAutoOpen'), '0', 'uncheck persists immediately')
   tree = render()
-  box = findAll(tree, (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')
-  assert.equal(box[0].props.checked, false, 're-render reflects the stored choice')
+  assert.equal(autoOpen(tree).props.checked, false, 're-render reflects the stored choice')
 
   // A fresh mount (the "restart") starts from the stored value.
   const remount = mountClient({ localStorage })
   installHookRig()()
   const tree2 = remount.Page({})
-  const box2 = findAll(tree2, (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')
-  assert.equal(box2[0].props.checked, false, 'a restart reads the persisted opt-out')
+  assert.equal(autoOpen(tree2).props.checked, false, 'a restart reads the persisted opt-out')
 })
 
 test('with a host Switch the toggles ride it: ids on wrappers, bare-boolean onChange persists', () => {
@@ -265,11 +272,14 @@ test('issue #119: storage get/set errors fall back safely and still POST the hos
   const reset = installHookRig()
   const render = () => { reset(); return Page({}) }
 
-  let box = findAll(render(), (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')
-  assert.equal(box[0].props.checked, true, 'an unreadable local store still defaults ON')
-  assert.doesNotThrow(() => box[0].props.onChange({ target: { checked: false } }), 'a blocked setItem cannot break the toggle')
-  box = findAll(render(), (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')
-  assert.equal(box[0].props.checked, false, 'the in-memory effective preference changes immediately')
+  const autoOpen = (tree) => findAll(findAll(tree, (el) => el.props && el.props['data-testid'] === 'explorer-auto-open')[0],
+    (el) => typeof el.type === 'function' && el.type.name === 'RwCheckbox')[0]
+
+  let box = autoOpen(render())
+  assert.equal(box.props.checked, true, 'an unreadable local store still defaults ON')
+  assert.doesNotThrow(() => box.props.onChange(false), 'a blocked setItem cannot break the toggle')
+  box = autoOpen(render())
+  assert.equal(box.props.checked, false, 'the in-memory effective preference changes immediately')
   const write = requests.find((r) => r.url === '/dsh-remote/explorer-auto-open' && r.init && r.init.method === 'POST')
   assert.ok(write, 'the choice is sent to DSH_HOME even when localStorage is unavailable')
   assert.equal(JSON.parse(write.init.body).enabled, false)
@@ -340,4 +350,13 @@ test('no backup i18n key survives the capability removal', () => {
   for (const text of [collapsed, expanded]) {
     assert.doesNotMatch(text, /工作区备份|备份时间点|选择要恢复/, 'no backup UI survives anywhere')
   }
+})
+
+
+test('host menus use the real getAnchorRect contract, not anchorPoint', () => {
+  assert.doesNotMatch(src, /anchorPoint\s*:/, 'the host bundle does not accept anchorPoint')
+  assert.match(src, /settingsMenu && HostMenu[\s\S]*getAnchorRect: \(\) => settingsMenu\.anchor/,
+    'settings menus must use the button DOMRect captured on click')
+  assert.match(src, /getAnchorRect: \(\) => \(\{ left: menu\.x, top: menu\.y, right: menu\.x, bottom: menu\.y, width: 0, height: 0 \}\)/,
+    'context menus must compute a zero-size rect at the pointer')
 })

@@ -11,7 +11,7 @@ const directory = { path: '/project/deep/block-dir', relative: 'deep/block-dir',
 
 async function setup(t, searchFetch) {
   const calls = []
-  const ui = mountClient({ effectDependencies: true, fetch: async (url, init = {}) => {
+  const ui = mountClient({ effectDependencies: true, withHostChrome: true, fetch: async (url, init = {}) => {
     const request = { url: String(url), method: init.method || 'GET', body: init.body ? JSON.parse(init.body) : null }
     calls.push(request)
     if (request.url.includes('/search')) return searchFetch(request)
@@ -30,7 +30,11 @@ async function setup(t, searchFetch) {
   toggle.props.onClick(); tree = await ui.settleComponent(Explorer, info)
   ui.inputs(tree).find(p => p['aria-label'] === '搜索远程工作区').onChange({ target: { value: 'extract' } })
   tree = await ui.settleComponent(Explorer, info)
-  assert.equal(ui.elements(tree).find(e => e.props.className === 'dsh-rw-search-options')?.props.open, undefined, 'advanced search controls are collapsed by default')
+  // The advanced search options are a host Menu of checked rows, shut by default.
+  const optionsMenu = (tree) => ui.elements(tree).find(e => e.props && Array.isArray(e.props.items)
+    && e.props.items.some(item => item && item.id === 'case'))
+  assert.equal(optionsMenu(tree)?.props.open, false, 'advanced search controls are collapsed by default')
+  assert.ok(optionsMenu(tree).props.items.some(item => item.id === 'ignored'), 'both options are menu rows')
   assert.equal(ui.buttons(tree).some(b => b.label === '新建目录'), false, 'active search does not show the tree footer')
   const Search = ui.components(tree).find(c => c.type.name === 'RemoteWorkspaceSearch')?.type
   assert.ok(Search, 'search is the actual component contributed by the native explorer')
@@ -40,27 +44,38 @@ async function setup(t, searchFetch) {
     onOpenFile: (...args) => opened.push(args), onRevealDirectory: path => revealed.push(path) }
   const render = (next = props) => ui.settleComponent(Search, next)
   const searchCalls = () => calls.filter(c => c.url.includes('/search'))
-  return { ui, Search, props, render, searchCalls, opened, revealed }
+  // The scan status is the disclosure's header text and the counters are its
+  // (collapsed) body. Both are props of the disclosure element rather than
+  // rendered children until it is mounted, so the helpers read them there.
+  const scanDetails = (tree) => ui.elements(tree).find(e => typeof e.type === 'function' && e.type.name === 'RwDetails')
+  const statusText = (tree) => scanDetails(tree)?.props.title || ''
+  const detailText = (tree) => ui.textOf(scanDetails(tree)?.props.children)
+  return { ui, Search, props, render, searchCalls, opened, revealed, scanDetails, statusText, detailText }
 }
 
 test('remote search shows immediate preparation, actual scan progress, incremental results and file/directory navigation', async t => {
-  const { ui, render, searchCalls, opened, revealed } = await setup(t, request => reply({ ok: true, search: request.method === 'POST'
+  const { ui, render, searchCalls, opened, revealed, scanDetails, statusText, detailText } = await setup(t, request => reply({ ok: true, search: request.method === 'POST'
     ? snapshot('block', 'running', { results: [directory] })
     : snapshot('block', 'completed', { results: [directory, { ...file, line: 7, text: 'literal block match' }], scannedDirs: 8, scannedFiles: 39 }) }))
   let tree = await render()
-  assert.match(ui.textOf(tree), /准备搜索/)
+  assert.match(statusText(tree), /准备搜索/)
   assert.equal(searchCalls().length, 0, 'typing does not start a request before debounce')
   assert.equal(ui.elements(tree).find(e => e.type === 'section').props['aria-busy'], true)
-  const details = ui.elements(tree).find(e => e.type === 'details')
-  assert.equal(details.props.open, undefined, 'scan details are collapsed by default')
-  assert.ok(ui.elements(details).some(e => e.type === 'summary' && e.props['aria-label'] === '扫描详情'))
+  // Scan details ride the shared disclosure row: the status is the header and the
+  // counters are its (collapsed) body — no native <details>/<summary> anywhere.
+  assert.ok(scanDetails(tree), 'the scan status renders as a disclosure')
+  assert.match(detailText(tree), /0 个目录 · 0 个文件 · 0 个结果/)
+  assert.equal(ui.elements(tree).some(e => e.type === 'details' || e.type === 'summary'), false,
+    'no native disclosure element survives')
   await wait(370); await ui.tick(); tree = await render()
-  assert.match(ui.textOf(tree), /正在搜索/); assert.match(ui.textOf(tree), /3 个目录 · 12 个文件 · 1 个结果/)
+  assert.match(statusText(tree), /正在搜索/); assert.match(statusText(tree), /1 个结果/)
+  assert.match(detailText(tree), /3 个目录 · 12 个文件 · 1 个结果/)
   assert.ok(ui.elements(tree).some(e => e.type === 'progress'))
   ui.elements(tree).find(e => e.props['data-rw-search-result'] === directory.relative).props.onClick()
   assert.deepEqual(revealed, [directory.path])
   await wait(770); await ui.tick(); tree = await render()
-  assert.match(ui.textOf(tree), /搜索完成/); assert.match(ui.textOf(tree), /8 个目录 · 39 个文件 · 2 个结果/)
+  assert.match(statusText(tree), /搜索完成/); assert.match(statusText(tree), /2 个结果/)
+  assert.match(detailText(tree), /8 个目录 · 39 个文件 · 2 个结果/)
   assert.match(ui.textOf(tree), /第 7 行/)
   ui.elements(tree).find(e => e.props['data-rw-search-result'] === file.relative).props.onClick()
   assert.deepEqual(opened, [[file.path, 7]])
@@ -69,7 +84,7 @@ test('remote search shows immediate preparation, actual scan progress, increment
 
 test('a replaced query/session cancels a late-created old job without publishing its results', async t => {
   const old = deferred()
-  const { ui, render, props, searchCalls } = await setup(t, request => {
+  const { ui, render, props, searchCalls, statusText } = await setup(t, request => {
     if (request.body?.action === 'cancel') return reply({ ok: true, search: snapshot(request.body.id, 'cancelled') })
     if (request.body?.sessionId === 'a') return old.promise
     return reply({ ok: true, search: snapshot('fresh', 'completed', { results: [{ ...file, name: 'NEW_SESSION_ONLY', path: '/other/fresh.c' }] }) })
@@ -77,7 +92,7 @@ test('a replaced query/session cancels a late-created old job without publishing
   await render(); await wait(370); await ui.tick()
   const next = { ...props, sessionId: 'b', root: '/other', query: 'fresh' }
   let tree = await render(next)
-  assert.match(ui.textOf(tree), /准备搜索/); assert.doesNotMatch(ui.textOf(tree), /OLD_SESSION/)
+  assert.match(statusText(tree), /准备搜索/); assert.doesNotMatch(ui.textOf(tree), /OLD_SESSION/)
   await wait(370); await ui.tick(); tree = await render(next)
   old.resolve(reply({ ok: true, search: snapshot('block', 'completed', { id: 'old-job', results: [{ ...file, name: 'OLD_SESSION_RESULT' }] }) }))
   await ui.tick(); tree = await render(next)
@@ -87,7 +102,7 @@ test('a replaced query/session cancels a late-created old job without publishing
 
 test('stopping a running search retains found results and rejects an in-flight poll, then retry creates a new job', async t => {
   const poll = deferred(); let starts = 0
-  const { ui, render, searchCalls } = await setup(t, request => {
+  const { ui, render, searchCalls, statusText } = await setup(t, request => {
     if (request.method === 'GET') return poll.promise
     if (request.body.action === 'cancel') return reply({ ok: true, search: snapshot('block', 'cancelled') })
     return reply({ ok: true, search: snapshot('block', 'running', { id: 'job-' + ++starts, results: [file] }) })
@@ -95,17 +110,17 @@ test('stopping a running search retains found results and rejects an in-flight p
   await render(); await wait(370); await ui.tick()
   let tree = await render(); await wait(770); await ui.tick()
   ui.button(tree, /^停止$/).el.props.onClick(); tree = await render()
-  assert.match(ui.textOf(tree), /搜索已停止/); assert.match(ui.textOf(tree), /block.c/)
+  assert.match(statusText(tree), /搜索已停止/); assert.match(ui.textOf(tree), /block.c/)
   assert.ok(searchCalls().some(c => c.body?.action === 'cancel' && c.body.id === 'job-1'))
   poll.resolve(reply({ ok: true, search: snapshot('block', 'completed', { results: [{ ...file, name: 'LATE_POLL_RESULT' }] }) }))
   await ui.tick(); tree = await render(); assert.doesNotMatch(ui.textOf(tree), /LATE_POLL_RESULT/)
   ui.button(tree, /^重新搜索$/).el.props.onClick(); await ui.tick(); tree = await render(); await ui.tick(); tree = await render()
-  assert.equal(starts, 2); assert.match(ui.textOf(tree), /正在搜索/)
+  assert.equal(starts, 2); assert.match(statusText(tree), /正在搜索/)
 })
 
 test('search mode, case and ignored-directory choices reach the backend; empty, partial and error states are explicit', async t => {
   let result = snapshot('block', 'completed', { mode: 'content' })
-  const { ui, render, props, searchCalls } = await setup(t, request => request.body?.action === 'cancel' ? reply({ ok: true, search: snapshot('block', 'cancelled') }) : reply({ ok: true, search: result }))
+  const { ui, render, props, searchCalls, statusText, detailText } = await setup(t, request => request.body?.action === 'cancel' ? reply({ ok: true, search: snapshot('block', 'cancelled') }) : reply({ ok: true, search: result }))
   const content = { ...props, mode: 'content', includeIgnored: true, caseSensitive: true }
   await render(content); await wait(370); await ui.tick(); let tree = await render(content)
   const start = searchCalls().find(c => c.body?.action === 'start')
@@ -113,21 +128,21 @@ test('search mode, case and ignored-directory choices reach the backend; empty, 
   assert.match(ui.textOf(tree), /未找到匹配项/)
   result = snapshot('block', 'partial', { mode: 'content', skipped: 4, errors: 1, results: [file] })
   ui.button(tree, /^重新搜索$/).el.props.onClick(); tree = await render(content); await ui.tick(); tree = await render(content)
-  assert.match(ui.textOf(tree), /已找到部分结果/); assert.match(ui.textOf(tree), /跳过 4 项 · 1 项读取失败/)
+  assert.match(statusText(tree), /已找到部分结果/); assert.match(detailText(tree), /跳过 4 项 · 1 项读取失败/)
   result = { ...snapshot('block', 'failed', { mode: 'content' }), error: 'SSH permission denied' }
   ui.button(tree, /^重新搜索$/).el.props.onClick(); tree = await render(content); await ui.tick(); tree = await render(content)
-  assert.match(ui.textOf(tree), /搜索失败/); assert.match(ui.textOf(tree), /SSH permission denied/)
+  assert.match(statusText(tree), /搜索失败/); assert.match(ui.textOf(tree), /SSH permission denied/)
 })
 
 test('same query invalidates results when session, root, case sensitivity or ignore policy changes', async t => {
-  const { ui, render, props, searchCalls } = await setup(t, request => reply({ ok: true, search: snapshot('block', request.body?.action === 'cancel' ? 'cancelled' : 'completed', { results: [{ ...file, name: 'PREVIOUS_SCOPE_RESULT' }] }) }))
+  const { ui, render, props, searchCalls, statusText } = await setup(t, request => reply({ ok: true, search: snapshot('block', request.body?.action === 'cancel' ? 'cancelled' : 'completed', { results: [{ ...file, name: 'PREVIOUS_SCOPE_RESULT' }] }) }))
   let active = props
   await render(active); await wait(370); await ui.tick()
   let tree = await render(active); assert.match(ui.textOf(tree), /PREVIOUS_SCOPE_RESULT/)
   for (const change of [{ sessionId: 'b' }, { root: '/different-root' }, { caseSensitive: true }, { includeIgnored: true }]) {
     active = { ...active, ...change }
     tree = await render(active)
-    assert.match(ui.textOf(tree), /准备搜索/)
+    assert.match(statusText(tree), /准备搜索/)
     assert.doesNotMatch(ui.textOf(tree), /PREVIOUS_SCOPE_RESULT/, 'the previous scope cannot remain actionable while a new scope is preparing')
     await wait(370); await ui.tick(); tree = await render(active)
     assert.match(ui.textOf(tree), /PREVIOUS_SCOPE_RESULT/)
@@ -139,10 +154,126 @@ test('same query invalidates results when session, root, case sensitivity or ign
 })
 
 test('stop during debounce prevents any remote job', async t => {
-  const { ui, render, searchCalls } = await setup(t, () => { throw new Error('a cancelled debounce must not reach the backend') })
+  const { ui, render, searchCalls, statusText } = await setup(t, () => { throw new Error('a cancelled debounce must not reach the backend') })
   let tree = await render()
   ui.button(tree, /^停止$/).el.props.onClick(); tree = await render()
-  assert.match(ui.textOf(tree), /搜索已停止/)
+  assert.match(statusText(tree), /搜索已停止/)
   await wait(370); await ui.tick()
   assert.equal(searchCalls().length, 0)
+})
+
+
+test('the scope RwSelect opens, selects once, closes, and shows the chosen value', async t => {
+  const { ui } = await setup(t, request => reply({ ok: true, search: snapshot('block', 'completed') }))
+  const Explorer = ui.body('dsh-remote/explorer')
+  const info = { sessionId: 'extract', useTabInfo: () => ({ tab: { visible: true, actions: { openResource() {}, openTab() {} } } }) }
+  let tree = await ui.settleComponent(Explorer, info)
+  const toggle = ui.components(tree).find(c => c.type.name === 'WorkbenchAction' && c.props.icon === 'search')
+  toggle.props.onClick(); tree = await ui.settleComponent(Explorer, info)
+  ui.inputs(tree).find(p => p['aria-label'] === '搜索远程工作区').onChange({ target: { value: 'extract' } })
+  tree = await ui.settleComponent(Explorer, info)
+  const RwSelect = ui.components(tree).find(c => c.type.name === 'RwSelect')?.type
+  assert.ok(RwSelect, 'the search scope is the shared select primitive')
+
+  // Mount the component itself: its open state lives in its own hook, so this
+  // is the only way to prove the open→select→close cycle instead of reading
+  // props off the parent (which would pass even if the cycle were dead).
+  ui.resetState()
+  const chosen = []
+  const options = ['names', 'files', 'directories', 'content'].map(value => ({ value, label: value.toUpperCase() }))
+  const props = { value: 'names', options, onChange: value => chosen.push(value), label: '搜索范围' }
+  const trigger = view => ui.elements(view).find(e => e.type === 'button' && e.props['aria-haspopup'] === 'menu')
+  const pick = (view, label) => ui.elements(view).find(e => e.type === 'button' && e.props.role === 'menuitem' && ui.textOf(e).trim() === label)
+
+  let mounted = await ui.settleComponent(RwSelect, props)
+  assert.equal(mounted.props['data-menu'], 'closed', 'the scope menu starts closed')
+  assert.match(ui.textOf(trigger(mounted)), /NAMES/, 'the trigger shows the current value')
+
+  trigger(mounted).props.onClick({ preventDefault() {}, stopPropagation() {} })
+  mounted = await ui.settleComponent(RwSelect, props)
+  assert.equal(mounted.props['data-menu'], 'open', 'clicking the trigger opens the menu')
+
+  pick(mounted, 'CONTENT').props.onClick()
+  mounted = await ui.settleComponent(RwSelect, props)
+  assert.deepEqual(chosen, ['content'], 'choosing a different value reports it once')
+  assert.equal(mounted.props['data-menu'], 'closed', 'single-select closes after choosing')
+
+  mounted = await ui.settleComponent(RwSelect, { ...props, value: 'content' })
+  assert.match(ui.textOf(trigger(mounted)), /CONTENT/, 'the trigger follows the new value')
+  // Re-open and pick the value that is already active: no redundant onChange.
+  trigger(mounted).props.onClick({ preventDefault() {}, stopPropagation() {} })
+  mounted = await ui.settleComponent(RwSelect, { ...props, value: 'content' })
+  pick(mounted, 'CONTENT').props.onClick()
+  assert.deepEqual(chosen, ['content'], 're-picking the same value does not fire onChange again')
+})
+
+test('the advanced search options are a multi-select menu that keeps itself open', async t => {
+  const { ui } = await setup(t, request => reply({ ok: true, search: snapshot('block', 'completed') }))
+  const Explorer = ui.body('dsh-remote/explorer')
+  const info = { sessionId: 'extract', useTabInfo: () => ({ tab: { visible: true, actions: { openResource() {}, openTab() {} } } }) }
+  let tree = await ui.settleComponent(Explorer, info)
+  const toggle = ui.components(tree).find(c => c.type.name === 'WorkbenchAction' && c.props.icon === 'search')
+  toggle.props.onClick(); tree = await ui.settleComponent(Explorer, info)
+  ui.inputs(tree).find(p => p['aria-label'] === '搜索远程工作区').onChange({ target: { value: 'extract' } })
+  tree = await ui.settleComponent(Explorer, info)
+  const options = view => ui.elements(view).find(e => Array.isArray(e.props.items) && e.props.items.some(item => item && item.id === 'case'))
+  assert.equal(options(tree).props.open, false, 'the options menu starts closed')
+
+  options(tree).props.anchor.props.onClick(); tree = await ui.settleComponent(Explorer, info)
+  assert.equal(options(tree).props.open, true, 'the options menu opens')
+  options(tree).props.onSelect('case'); tree = await ui.settleComponent(Explorer, info)
+  assert.deepEqual(options(tree).props.selectedIds, ['case'], 'case sensitivity is selected')
+  assert.equal(options(tree).props.open, true, 'multi-select keeps the menu open')
+  options(tree).props.onSelect('ignored'); tree = await ui.settleComponent(Explorer, info)
+  assert.deepEqual(options(tree).props.selectedIds, ['case', 'ignored'], 'both options can be on at once')
+
+  // Escape is handled INSIDE the host Menu; mount it and fire the key so the
+  // assertion covers the real path (a dead onClose would keep it open).
+  const optionsEl = options(tree)
+  let closed = 0
+  const mountedMenu = await ui.settleComponent(optionsEl.type, {
+    ...optionsEl.props,
+    onClose: () => { closed++; optionsEl.props.onClose() },
+  })
+  ui.elements(mountedMenu).find(e => typeof e.props.onKeyDown === 'function')
+    .props.onKeyDown({ key: 'Escape', preventDefault() {} })
+  assert.equal(closed, 1, 'Escape asks the owner to close the menu')
+  tree = await ui.settleComponent(Explorer, info)
+  assert.equal(options(tree).props.open, false, 'Escape closes the menu')
+})
+
+test('RwDetails actually expands and collapses its body through onToggle', async t => {
+  const { ui, render } = await setup(t, request => reply({ ok: true, search: snapshot('block', 'completed') }))
+  const tree = await render()
+  const RwDetails = ui.components(tree).find(c => c.type.name === 'RwDetails')?.type
+  assert.ok(RwDetails, 'the scan status uses the shared disclosure component')
+  const disclosure = view => ui.elements(view).find(e => typeof e.type === 'function' && e.type.name === 'RwDisclosure')
+
+  // Mount the component itself: its open state lives in its own hook, so this
+  // is the only way to prove onToggle really flips it (reading children props
+  // from the parent would pass even if the toggle were dead).
+  ui.resetState()
+  const props = { title: 'scan', children: ui.React.createElement('span', {}, 'body') }
+  let mounted = await ui.settleComponent(RwDetails, props)
+  assert.equal(disclosure(mounted).props.open, false, 'starts collapsed')
+  disclosure(mounted).props.onToggle(); mounted = await ui.settleComponent(RwDetails, props)
+  assert.equal(disclosure(mounted).props.open, true, 'onToggle expands the details')
+  disclosure(mounted).props.onToggle(); mounted = await ui.settleComponent(RwDetails, props)
+  assert.equal(disclosure(mounted).props.open, false, 'onToggle collapses the details again')
+})
+
+test('the explorer context menu computes its anchor from the pointer', async t => {
+  const { ui } = await setup(t, request => reply({ ok: true, search: snapshot('block', 'completed') }))
+  const Explorer = ui.body('dsh-remote/explorer')
+  const info = { sessionId: 'extract', useTabInfo: () => ({ tab: { visible: true, actions: { openResource() {}, openTab() {} } } }) }
+  let tree = await ui.settleComponent(Explorer, info)
+  const row = ui.elements(tree).find(e => e.props['data-rw-tree-row'])
+  assert.ok(row, 'a workspace root row is available for the context menu')
+  row.props.onContextMenu({ clientX: 123, clientY: 45, preventDefault() {}, stopPropagation() {} })
+  tree = await ui.settleComponent(Explorer, info)
+  const menu = ui.elements(tree).find(e => typeof e.props.getAnchorRect === 'function')
+  assert.ok(menu, 'the host Menu receives a real anchor function')
+  assert.deepEqual(menu.props.getAnchorRect(), { left: 123, top: 45, right: 123, bottom: 45, width: 0, height: 0 })
+  menu.props.onClose(); tree = await ui.settleComponent(Explorer, info)
+  assert.equal(ui.elements(tree).some(e => e.props.open === true), false, 'onClose dismisses the context menu')
 })

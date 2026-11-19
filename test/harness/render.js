@@ -121,6 +121,57 @@ export function mountClient(opts = {}) {
         relativeTime: () => ({ unit: 'now', n: 0 }),
         MarkdownText,
       }
+      // Optional host Menu face (opt-in, so every other interaction test keeps
+      // exercising the no-primitive fallbacks). Shape is faithful to the bundle
+      // contract: it renders `anchor` and, while open, one menuitem button per
+      // `items` entry reporting `onSelect(id)`. Only the search-panel test asks
+      // for it, to pin "the advanced options are a shut menu by default".
+      if (opts.withHostChrome) {
+        // Faithful enough to catch Menu contract regressions: anchor geometry,
+        // close/multi-select semantics, and the keyboard paths users rely on.
+        // This is intentionally not a full focus-trap implementation; the tests
+        // still exercise the real prop shapes and state transitions.
+        stub.Menu = (props) => {
+          const items = props.items || []
+          const rect = typeof props.getAnchorRect === 'function' ? props.getAnchorRect() : null
+          const selectedIds = props.selectedIds || (props.selectedId ? [props.selectedId] : [])
+          const selectedIndex = Math.max(0, items.findIndex(item => selectedIds.includes(item.id)))
+          const choose = (index) => {
+            const item = items[index]
+            if (item && typeof props.onSelect === 'function') props.onSelect(item.id)
+          }
+          const onKeyDown = (event) => {
+            if (event.key === 'Escape') { event.preventDefault?.(); props.onClose?.(); return }
+            if (event.key === 'ArrowDown') { event.preventDefault?.(); choose(Math.min(items.length - 1, selectedIndex + 1)); return }
+            if (event.key === 'ArrowUp') { event.preventDefault?.(); choose(Math.max(0, selectedIndex - 1)); return }
+            if (event.key === 'Home') { event.preventDefault?.(); choose(0); return }
+            if (event.key === 'End') { event.preventDefault?.(); choose(items.length - 1); return }
+            if (event.key === 'Enter') { event.preventDefault?.(); choose(selectedIndex) }
+          }
+          return React.createElement('span', {
+            className: props.className,
+            'data-menu': props.open ? 'open' : 'closed',
+            'data-align': props.align,
+            'data-anchor-left': rect?.left,
+            'data-anchor-top': rect?.top,
+            'data-selected-ids': selectedIds,
+            tabIndex: props.autoFocus ? 0 : undefined,
+            onKeyDown,
+          },
+          props.anchor,
+          props.open
+            ? React.createElement('div', { role: 'menu' },
+              React.createElement('button', { type: 'button', 'aria-label': 'close-menu', onClick: () => props.onClose?.() }, '×'),
+              items.map((item) => React.createElement('button', {
+                key: item.id,
+                type: 'button',
+                role: 'menuitem',
+                'aria-selected': selectedIds.includes(item.id),
+                onClick: () => choose(items.indexOf(item)),
+              }, item.label)))
+            : null)
+        }
+      }
       // Optional host code-highlighter face (issue #104): faithful to the
       // bundle contract — useCodeHighlighter(lang) returns highlight(text) →
       // per-line [{text, style:{color}}], or a fn yielding null for unknown
