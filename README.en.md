@@ -28,7 +28,7 @@ After installation or an upgrade, restart DSH Web and refresh the page. Check au
 
 ## Start in 3 steps
 
-1. **Configure a host**: open Settings → Remote workspaces to edit SSH configuration or save credentials. Connectivity checks run automatically; no manual connection step is required.
+1. **Configure a host**: open Settings → Remote workspaces to edit SSH configuration or save credentials. Hosts already in `~/.ssh/config` are listed there — open the row's `…` menu and choose **Edit** to save it as a machine and fill in its login password (the entry is the same `…` menu before and after saving). Connectivity checks run automatically; no manual connection step is required.
 2. **Create a workspace**: Add workspace → Remote, then choose a host and folder. Each workspace binds its own host; settings have no folder selection or global active host.
 3. **Develop remotely**: open workspace files or enter IDE mode to edit with syntax highlighting, search, run commands and collaborate with the agent. Files open ready to edit.
 
@@ -62,7 +62,7 @@ The terminal starts in the session's remote directory. A pixel fish welcomes you
 
 ### Port forwarding (SSH tunnels)
 
-Open the listener on the side that initiates the connection: a listener here is a local forward (`ssh -L`); one on the remote is a reverse forward (`ssh -R`). Run several at once, and tick auto reconnect per row to restore only the forwards that were running, scoped to their machine. Enabling it for a reverse forward first warns that the remote will listen again.
+Open the listener on the side that initiates the connection: a listener here is a local forward (`ssh -L`); one on the remote is a reverse forward (`ssh -R`). Run several at once. Each forward names its **host**, so you can define a tunnel for a machine that is not connected yet and start it once that machine is. Every forward can be edited in place — direction, ports, target or owning host; a running one is stopped first and restarted with the new settings. Tick auto reconnect per row to restore only the forwards that were running, scoped to their machine — enabling it for a reverse forward first warns that the remote will listen again.
 
 Upgrading from an older version: auto-reconnect entries that predate `lastActive` are paused and marked "Re-confirm" in the row; tick them again to opt back in (reverse forwards also need the remote-listening warning acknowledged).
 

@@ -353,10 +353,17 @@ test('no backup i18n key survives the capability removal', () => {
 })
 
 
-test('host menus use the real getAnchorRect contract, not anchorPoint', () => {
-  assert.doesNotMatch(src, /anchorPoint\s*:/, 'the host bundle does not accept anchorPoint')
-  assert.match(src, /settingsMenu && HostMenu[\s\S]*getAnchorRect: \(\) => settingsMenu\.anchor/,
-    'settings menus must use the button DOMRect captured on click')
+test('host menus carry the current CSS-anchor contract, plus the legacy rect', () => {
+  // DSH 0.2.2-rc.2 (deepseek-harness commit 2c990f0b14, "position floating
+  // panels with CSS anchors") REPLACED `getAnchorRect` with `anchorRef` (the
+  // trigger element) and `anchorPoint` (client coordinates). On such a host a
+  // menu given only the rect is silently placed elsewhere — that is why the
+  // 编辑/删除 popup and the explorer context menu were detached from their
+  // trigger. Older hosts only know the rect, so both are passed and each host
+  // ignores the prop it does not implement.
+  assert.match(src, /anchorRef: settingsMenu\.anchorRef/, 'settings menus anchor to the pressed element')
+  assert.match(src, /anchorPoint: \{ x: menu\.x, y: menu\.y \}/, 'context menus anchor to the pointer')
+  assert.match(src, /getAnchorRect: settingsMenu\.getAnchorRect/, 'legacy hosts keep the button rect')
   assert.match(src, /getAnchorRect: \(\) => \(\{ left: menu\.x, top: menu\.y, right: menu\.x, bottom: menu\.y, width: 0, height: 0 \}\)/,
-    'context menus must compute a zero-size rect at the pointer')
+    'legacy context menus keep the zero-size pointer rect')
 })
