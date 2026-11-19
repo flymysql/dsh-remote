@@ -11,7 +11,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs'
 import { gzipSync } from 'node:zlib'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -165,4 +165,82 @@ test('lookupSessionCwd: unknown session resolves to empty, never to a sibling cw
   const home = sessionHome('session-known', 'session.v4.jsonl', { type: 'session', cwd: '/work/known' })
   assert.equal(lookupSessionCwd('session-missing', { dshHome: home }), '')
   rmSync(home, { recursive: true, force: true })
+})
+
+
+/** Link `target` at `link` (junction on Windows — no admin needed). Returns
+ *  false when the OS refuses, so the case is SKIPPED, never silently passed. */
+function linkDir(target, link) {
+  try {
+    symlinkSync(target, link, process.platform === 'win32' ? 'junction' : 'dir')
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Issue #173: `%USERPROFILE%\.dsh` is often an NTFS Junction to another drive,
+// while a session's cwd arrives in the REAL spelling. `path.resolve` is purely
+// lexical, so the prefix test said "not inside any mirror" and every rw_* tool
+// refused the session as LOCAL.
+test('resolveMirror: a cwd in the REAL spelling still binds when the registry root is a junction', (t) => {
+  const real = root()
+  const links = root()
+  const m = mirror(real, { host: '192.168.0.204', port: 3022, username: 'root', remotePath: '/srv/app', base: 'default' })
+  const linkedRoot = path.join(links, '.dsh', 'remote-workspaces')
+  mkdirSync(path.dirname(linkedRoot), { recursive: true })
+  if (!linkDir(real, linkedRoot)) { rmSync(real, { recursive: true, force: true }); rmSync(links, { recursive: true, force: true }); return t.skip('this OS refuses directory links') }
+  try {
+    const nested = path.join(m, 'src', 'deep')
+    mkdirSync(nested, { recursive: true })
+    const r = resolveMirror(nested, linkedRoot)
+    assert.equal(r.machine?.host, '192.168.0.204')
+    assert.equal(r.machine?.port, 3022)
+    assert.equal(r.remotePath, '/srv/app')
+    // The reported mirror keeps the CWD's spelling, so downstream path mapping
+    // compares like with like.
+    assert.equal(r.mirrorDir, m)
+    rmSync(nested, { recursive: true, force: true })
+  } finally {
+    rmSync(real, { recursive: true, force: true })
+    rmSync(links, { recursive: true, force: true })
+  }
+})
+
+test('resolveMirror: a cwd written THROUGH a junction still binds to a literally spelled root', (t) => {
+  const real = root()
+  const links = root()
+  const m = mirror(real, { host: '10.9.9.9', username: 'dev', remotePath: '/home/dev/proj', base: 'proj' })
+  const linkedMirror = path.join(links, 'proj-link')
+  if (!linkDir(m, linkedMirror)) { rmSync(real, { recursive: true, force: true }); rmSync(links, { recursive: true, force: true }); return t.skip('this OS refuses directory links') }
+  try {
+    const nested = path.join(linkedMirror, 'src')
+    mkdirSync(nested, { recursive: true })
+    const r = resolveMirror(nested, real)
+    assert.equal(r.machine?.host, '10.9.9.9')
+    assert.equal(r.remotePath, '/home/dev/proj')
+    // ...and the mirror is re-spelled the way the cwd spells it.
+    assert.equal(r.mirrorDir, linkedMirror)
+    rmSync(nested, { recursive: true, force: true })
+  } finally {
+    rmSync(real, { recursive: true, force: true })
+    rmSync(links, { recursive: true, force: true })
+  }
+})
+
+test('resolveMirror: a linked root never makes a NON-mirror path look bound', (t) => {
+  const real = root()
+  const links = root()
+  mirror(real, { host: '10.0.0.7', username: 'u', remotePath: '/srv/a', base: 'a' })
+  mkdirSync(path.join(real, 'not-a-mirror', 'sub'), { recursive: true })
+  const linkedRoot = path.join(links, 'root-link')
+  if (!linkDir(real, linkedRoot)) { rmSync(real, { recursive: true, force: true }); rmSync(links, { recursive: true, force: true }); return t.skip('this OS refuses directory links') }
+  try {
+    const r = resolveMirror(path.join(linkedRoot, 'not-a-mirror', 'sub'), linkedRoot)
+    assert.equal(r.machine, null, 'a directory without meta must never bind')
+    assert.equal(r.mirrorDir, null)
+  } finally {
+    rmSync(real, { recursive: true, force: true })
+    rmSync(links, { recursive: true, force: true })
+  }
 })
