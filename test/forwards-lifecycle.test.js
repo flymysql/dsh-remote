@@ -319,6 +319,83 @@ test('unknown forward ids and actions are refused with 404/400 and a reason', as
   })
 })
 
+test('a forward can be defined for a host that is not the connected one', async () => {
+  const first = machine({ host: '10.0.0.9' })
+  const second = machine({ host: '10.0.0.10', name: 'other' })
+  const host = await createHost({ machines: [first, second], currentId: first.id })
+  try {
+    // The settings form names the host explicitly. Defining is allowed before
+    // that host is ever dialed: the tunnel becomes startable once it is.
+    const defined = await post(host, {
+      action: 'define', machineId: second.id, listenPort: await freePort(), targetHost: '127.0.0.1', targetPort: 22,
+    })
+    assert.equal(defined.status, 200, defined.raw)
+    assert.equal(defined.json.forward.machineId, second.id, 'the NAMED host must own the definition')
+    assert.equal((await host.call('/dsh-remote/forwards', { method: 'GET' })).json.forwards
+      .find((f) => f.id === defined.json.forward.id).machineId, second.id,
+    'a later GET (and a restart) must keep the owner')
+
+    // Starting it while another machine is active must be refused — otherwise
+    // the tunnel would silently run through the WRONG connection.
+    const started = await post(host, { action: 'start', id: defined.json.forward.id })
+    assert.equal(started.json.ok, false)
+    assert.match(String(started.json.error), /另一台机器/)
+
+    // A typo must never persist a definition that no machine can start.
+    const unknown = await post(host, {
+      action: 'define', machineId: 'm-does-not-exist', listenPort: await freePort(), targetPort: 22,
+    })
+    assert.equal(unknown.status, 404)
+    assert.match(String(unknown.json.error), /machine not found/)
+  } finally { await host.dispose() }
+})
+
+test('an existing definition can be edited; a live tunnel refuses bind changes', async () => {
+  const echo = await echoServer()
+  try {
+    await withForwards(async ({ host }) => {
+      const started = await startOnFreePort(host, post, echo.port)
+      assert.equal(started.started.json.ok, true, `start failed: ${started.started.raw}`)
+      const fwd = started.fwd
+
+      // The socket still listens on the OLD port, so "edited" and "listening"
+      // would disagree: a bind change on a live tunnel is refused.
+      const blocked = await post(host, { action: 'update', id: fwd.id, listenPort: started.listenPort + 1 })
+      assert.equal(blocked.status, 409)
+      assert.match(String(blocked.json.error), /先停止/)
+
+      // 自动重连 is not a bind and stays editable while running.
+      const auto = await post(host, { action: 'update', id: fwd.id, autoStart: true })
+      assert.equal(auto.status, 200)
+      assert.equal(auto.json.forward.autoStart, true)
+
+      // Stop, then edit every editable field through one partial patch.
+      await post(host, { action: 'stop', id: fwd.id })
+      const nextPort = await freePort()
+      const updated = await post(host, {
+        action: 'update', id: fwd.id, direction: 'reverse', listenPort: nextPort,
+        targetHost: '127.0.0.1', targetPort: 22, autoStart: false,
+      })
+      assert.equal(updated.status, 200, updated.raw)
+      assert.equal(updated.json.forward.direction, 'reverse')
+      assert.equal(updated.json.forward.listenPort, nextPort)
+      assert.equal(updated.json.forward.targetPort, 22)
+      assert.equal(updated.json.forward.autoStart, false)
+      const listed = (await host.call('/dsh-remote/forwards', { method: 'GET' })).json.forwards
+        .find((f) => f.id === fwd.id)
+      assert.equal(listed.listenPort, nextPort, 'the edit is persisted for a later start')
+      assert.equal(listed.targetPort, 22)
+
+      // Field validation still runs for every supplied value.
+      assert.equal((await post(host, { action: 'update', id: fwd.id, listenPort: 0 })).status, 400)
+      assert.equal((await post(host, { action: 'update', id: fwd.id, direction: 'sideways' })).status, 400)
+      assert.equal((await post(host, { action: 'update', id: fwd.id, targetPort: 70000 })).status, 400)
+      assert.equal((await post(host, { action: 'update', id: fwd.id, machineId: 'nope' })).status, 404)
+      assert.equal((await post(host, { action: 'update', id: 'nope', autoStart: true })).status, 404)
+    })
+  } finally { await echo.close() }
+})
+
 // ── autoStart semantics + concurrent starts ────────────────────────────────
 //
 // 自动重连 means RESTORE: a forward that was running when the connection
