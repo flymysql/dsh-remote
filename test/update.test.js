@@ -8,6 +8,7 @@
 // network and no real install are involved.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { gzipSync } from 'node:zlib'
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -66,11 +67,19 @@ function makeTarball(files) {
   return gzipSync(Buffer.concat(chunks))
 }
 
-/** A fetch stand-in serving the registry endpoint + one tarball. */
-function makeFetch({ version, tarball }) {
+/** A fetch stand-in serving the registry endpoints + one tarball. The
+ *  per-version metadata endpoint serves dist.integrity computed over the very
+ *  tarball bytes unless the caller overrides it (the tamper tests). */
+function makeFetch({ version, tarball, integrity }) {
   return async (url) => {
     if (String(url).endsWith('/latest')) {
       return { ok: true, status: 200, json: async () => ({ version }) }
+    }
+    if (/\/dsh-remote\/[^/]+$/.test(String(url))) {
+      const sri = integrity === undefined
+        ? 'sha512-' + createHash('sha512').update(tarball).digest('base64')
+        : integrity
+      return { ok: true, status: 200, json: async () => ({ dist: { integrity: sri } }) }
     }
     return {
       ok: true,
@@ -239,8 +248,19 @@ test('applyUpdate refuses a version mismatch without touching the install', asyn
 test('applyUpdate surfaces a failed download as update failed', async () => {
   const dir = makeInstall()
   try {
+    // The metadata fetch comes first now (#169); a healthy metadata answer
+    // followed by a failed tarball download must still surface as-is.
+    const tarball = makeTarball(NEW_FILES)
     await assert.rejects(
-      () => applyUpdate('0.2.0', { dir, fetchImpl: async () => ({ ok: false, status: 500 }) }),
+      () => applyUpdate('0.2.0', {
+        dir,
+        fetchImpl: async (url) => {
+          if (/\/dsh-remote\/[^/]+$/.test(String(url))) {
+            return { ok: true, status: 200, json: async () => ({ dist: { integrity: 'sha512-' + createHash('sha512').update(tarball).digest('base64') } }) }
+          }
+          return { ok: false, status: 500 }
+        },
+      }),
       /update failed: download failed \(HTTP 500\)/,
     )
     assert.equal(readFileSync(path.join(dir, 'lib', 'index.js'), 'utf8'), 'OLD INDEX')
@@ -668,4 +688,47 @@ test('scheduleSelfReload swaps after the grace period', async () => {
   assert.deepEqual(calls, []) // nothing may happen while the caller still answers
   await new Promise((r) => setTimeout(r, 25))
   assert.deepEqual(calls, ['dispose', 'init'])
+})
+
+// ── supply-chain root: registry dist.integrity (#169) ─────────────────────
+
+test('applyUpdate verifies the tarball against registry dist.integrity before extracting', async () => {
+  // Every pre-existing case now flows through makeFetch's integrity branch
+  // implicitly; this pins the success path explicitly.
+  const dir = makeInstall()
+  try {
+    const res = await applyUpdate('0.2.0', {
+      dir,
+      fetchImpl: makeFetch({ version: '0.2.0', tarball: makeTarball(NEW_FILES) }),
+    })
+    assert.equal(res.ok, true)
+    assert.equal(res.to, '0.2.0')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('applyUpdate refuses a tampered tarball and leaves the install untouched', async () => {
+  const dir = makeInstall()
+  // The metadata advertises the GOOD tarball's SRI; the served bytes differ.
+  const good = makeTarball(NEW_FILES)
+  const goodSri = 'sha512-' + createHash('sha512').update(good).digest('base64')
+  const tampered = makeTarball({ ...NEW_FILES, 'lib/index.js': '// EVIL\n' + 'x'.repeat(180) + '\n' })
+  try {
+    await assert.rejects(
+      () => applyUpdate('0.2.0', { dir, fetchImpl: makeFetch({ version: '0.2.0', tarball: tampered, integrity: goodSri }) }),
+      /integrity mismatch/,
+    )
+    assert.equal(readFileSync(path.join(dir, 'lib', 'index.js'), 'utf8'), 'OLD INDEX', 'the install must stay untouched')
+    assert.equal(existsSync(path.join(dir, '.dsh-remote-updated')), false)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('applyUpdate fails closed when the registry metadata has no usable dist.integrity', async () => {
+  const dir = makeInstall()
+  try {
+    await assert.rejects(
+      () => applyUpdate('0.2.0', { dir, fetchImpl: makeFetch({ version: '0.2.0', tarball: makeTarball(NEW_FILES), integrity: null }) }),
+      /no usable dist\.integrity/,
+    )
+    assert.equal(readFileSync(path.join(dir, 'lib', 'index.js'), 'utf8'), 'OLD INDEX')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })
