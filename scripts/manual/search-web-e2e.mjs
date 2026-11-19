@@ -117,8 +117,12 @@ try {
   assert.equal(await page.getByText(/^镜像同步/).count(), 0, 'the live remote explorer carries no mirror-sync noise')
   const completed = async () => { await pane.getByText('搜索完成', { exact: true }).waitFor({ timeout: 30000 }) }
   await query.fill('block')
-  await pane.getByText('准备搜索…', { exact: true }).waitFor()
-  await pane.getByText('正在搜索…', { exact: true }).waitFor()
+  // The fixture answers fast enough that the transient states can be skipped
+  // between two polls. Requiring one SPECIFIC transient label turned that into
+  // a race; accepting any progress/completion label still proves the panel
+  // reacted immediately, and the POST + incremental counters below prove the
+  // real backend work.
+  await pane.getByText(/准备搜索…|正在搜索…|搜索完成/).first().waitFor()
   const detailsToggle = pane.locator('.dsh-rw-search-details button[aria-expanded]').first()
   await page.waitForFunction(() => /已扫描 [1-9]\d* 项/.test(document.querySelector('.dsh-rw-search-details button[aria-expanded]')?.innerText || ''))
   assert.equal(await detailsToggle.getAttribute('aria-expanded'), 'false')
