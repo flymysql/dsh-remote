@@ -120,7 +120,7 @@ test('machineId mints unique ids', () => {
   assert.notEqual(a, b)
 })
 
-test('saveMachines keeps machines.json user-private (0600) — it can carry passwords (issue #169)', () => {
+test('saveMachines keeps machines.json user-private (0600) — it can carry passwords (issue #169)', { skip: process.platform === 'win32' ? 'POSIX mode bits do not exist on Windows; the user-private parent dir is the privacy boundary there' : false }, () => {
   const d = tmp()
   try {
     saveMachines(file(d), [machine('a', 'h1')], 'a')

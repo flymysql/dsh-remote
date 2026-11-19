@@ -31,10 +31,12 @@ fs.symlinkSync(home + '/node_modules', home + '/profiles/web/node_modules')
 fs.writeFileSync(home + '/ssh_config', '')
 fs.writeFileSync(home + '/patch.yml', `- insert:\n    - id: dsh-remote\n      name: ${JSON.stringify(path.join(installed, 'lib/boot.js'))}\n      config:\n        telemetry: false\n        updateMode: manual\n`)
 fs.writeFileSync(home + '/registry.mjs', `import {readFileSync,appendFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 const original=globalThis.fetch;
 globalThis.fetch=async(input,init)=>{
 const url=String(input);
 if(url==='https://registry.npmjs.org/dsh-remote/latest')return Response.json({version:${JSON.stringify(target)}});
+if(url==='https://registry.npmjs.org/dsh-remote/'+${JSON.stringify(target)})return Response.json({dist:{integrity:'sha512-'+createHash('sha512').update(readFileSync(${JSON.stringify(path.resolve(archive))})).digest('base64')}});
 if(url===${JSON.stringify('https://registry.npmjs.org/dsh-remote/-/dsh-remote-' + target + '.tgz')}){
 appendFileSync(${JSON.stringify(home + '/downloads')},'download\\n');return new Response(readFileSync(${JSON.stringify(path.resolve(archive))}));}
 return original(input,init);};`)
