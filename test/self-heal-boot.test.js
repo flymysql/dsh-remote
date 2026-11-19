@@ -8,6 +8,7 @@
 // arc against temp dirs + fabricated tarballs — no network, no real install.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { gzipSync } from 'node:zlib'
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, readFileSync, copyFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -48,12 +49,24 @@ function makeTarball(files) {
   return gzipSync(Buffer.concat(chunks))
 }
 
+// Mirrors makeFetch in update.test.js: the per-version metadata endpoint
+// serves dist.integrity computed over the tarball bytes (#169), the tarball
+// URL serves the bytes.
 function tarballFetch(tarball) {
-  return async () => ({
-    ok: true,
-    status: 200,
-    arrayBuffer: async () => tarball.buffer.slice(tarball.byteOffset, tarball.byteOffset + tarball.byteLength),
-  })
+  return async (url) => {
+    if (/\/dsh-remote\/[^/]+$/.test(String(url))) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ dist: { integrity: 'sha512-' + createHash('sha512').update(tarball).digest('base64') } }),
+      }
+    }
+    return {
+      ok: true,
+      status: 200,
+      arrayBuffer: async () => tarball.buffer.slice(tarball.byteOffset, tarball.byteOffset + tarball.byteLength),
+    }
+  }
 }
 
 /**

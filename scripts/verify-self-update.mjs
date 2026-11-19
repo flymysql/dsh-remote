@@ -25,6 +25,7 @@
 // never fail is worse than no gate.
 
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, readdirSync, rmSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -167,10 +168,21 @@ async function main() {
     // updater module is imported: its `options.fetchImpl || fetch` resolves the
     // global binding at call time, so this reaches even releases that predate
     // the fetchImpl seam.
+    const sri = (buf) => 'sha512-' + createHash('sha512').update(buf).digest('base64')
+    const metadata = (buf) => new Response(JSON.stringify({ dist: { integrity: sri(buf) } }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })
+
     const tgzBuf = readFileSync(tgz)
     const realFetch = globalThis.fetch
     globalThis.fetch = async (url, init) => {
-      if (String(url).endsWith('.tgz')) {
+      const u = String(url)
+      // The candidate is not published yet, so its registry metadata cannot
+      // exist. Return the same SRI shape npm serves, computed over the exact
+      // candidate bytes; rollback metadata is handled below with old bytes.
+      if (u.endsWith('/' + candidateVersion)) return metadata(tgzBuf)
+      if (u.endsWith('.tgz')) {
         return new Response(tgzBuf, { status: 200, headers: { 'content-type': 'application/octet-stream' } })
       }
       return realFetch(url, init)
@@ -202,8 +214,11 @@ async function main() {
     const previousTar = await realFetch(`https://registry.npmjs.org/dsh-remote/-/dsh-remote-${fromVersion}.tgz`)
     if (!previousTar.ok) fail(`cannot read rollback artifact (HTTP ${previousTar.status})`)
     const previousBytes = Buffer.from(await previousTar.arrayBuffer())
-    globalThis.fetch = async (url, init) => String(url).endsWith('.tgz')
-      ? new Response(previousBytes, { status: 200 }) : realFetch(url, init)
+    globalThis.fetch = async (url, init) => {
+      const u = String(url)
+      if (u.endsWith('/' + fromVersion)) return metadata(previousBytes)
+      return u.endsWith('.tgz') ? new Response(previousBytes, { status: 200 }) : realFetch(url, init)
+    }
     const candidateUpdater = await import(pathToFileURL(path.join(prevDir, 'lib', 'update.js')).href + '?rollback=' + Date.now())
     const rolledBack = await candidateUpdater.applyUpdate(fromVersion)
     if (!rolledBack?.ok) fail('candidate updater refused rollback')

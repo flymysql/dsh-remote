@@ -4,7 +4,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { loadMachines, saveMachines, sanitizeMachine, applyMachine, machineId } from '../lib/registry.js'
@@ -118,4 +118,17 @@ test('machineId mints unique ids', () => {
   const b = machineId()
   assert.match(a, /^m-/)
   assert.notEqual(a, b)
+})
+
+test('saveMachines keeps machines.json user-private (0600) — it can carry passwords (issue #169)', { skip: process.platform === 'win32' ? 'POSIX mode bits do not exist on Windows; the user-private parent dir is the privacy boundary there' : false }, () => {
+  const d = tmp()
+  try {
+    saveMachines(file(d), [machine('a', 'h1')], 'a')
+    assert.equal(statSync(file(d)).mode & 0o777, 0o600)
+    // Re-saving through the same path must not loosen it.
+    saveMachines(file(d), [machine('a', 'h1'), machine('b', 'h2')], 'b')
+    assert.equal(statSync(file(d)).mode & 0o777, 0o600)
+  } finally {
+    rmSync(d, { recursive: true, force: true })
+  }
 })
