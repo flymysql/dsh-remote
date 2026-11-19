@@ -650,7 +650,7 @@ test('upgrading the client replaces legacy CSS in the existing style node withou
   assert.equal(nodes.size, 1)
 })
 
-test('workspace-files entry routes proven local and remote projects to the shared explorer',async t=>{
+test('workspace-files entry routes mirrored projects to the shared explorer and keeps local ones native',async t=>{
   const {plugin}=loadClient('https:','Linux x86_64',async()=>({ok:true,json:async()=>({mirrors:[{dir:'/mirrors/a',remotePath:'/srv/a',machineId:'a'},{dir:'/mirrors/b',remotePath:'/srv/b',machineId:'b'}]})}))
   const host=createHost()
   let current='remote-a'
@@ -668,7 +668,8 @@ test('workspace-files entry routes proven local and remote projects to the share
   assert.equal(calls[0].session,'remote-a')
   assert.equal(calls[0].options.paneId,'one')
   current='local';sidebar.openTab('files')
-  assert.equal(calls[1].kind,'dsh-remote/explorer')
+  assert.equal(calls[1].kind,'files','a local project keeps the host explorer, so its context menu keeps reveal/upload/create')
+  assert.equal(calls[1].session,'local')
   sidebar.openTabIn('remote-b','files',{replaceTab:'old'})
   assert.equal(calls[2].kind,'dsh-remote/explorer')
   assert.equal(calls[2].session,'remote-b','bound pane actions must retain their own session')
