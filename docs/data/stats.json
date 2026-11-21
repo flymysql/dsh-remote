@@ -1,14 +1,10 @@
 {
-  "generatedAt": "2026-11-21T07:03:01.839Z",
+  "generatedAt": "2026-11-21T19:12:50.513Z",
   "heartbeat": {
     "ok": true,
-    "generatedAt": "2026-11-21T07:03:01.497Z",
+    "generatedAt": "2026-11-21T19:12:50.150Z",
     "tz": "Asia/Shanghai",
     "daily": [
-      {
-        "day": "2026-10-23",
-        "dau": 0
-      },
       {
         "day": "2026-10-24",
         "dau": 0
@@ -123,36 +119,40 @@
       },
       {
         "day": "2026-11-21",
-        "dau": 2010
+        "dau": 2505
+      },
+      {
+        "day": "2026-11-22",
+        "dau": 1596
       }
     ],
-    "wau": 4854,
-    "mau": 6199,
-    "installs": 6199,
+    "wau": 5015,
+    "mau": 6521,
+    "installs": 6521,
     "byVersion": [
       {
         "version": "1.2.1",
-        "n": 2739
+        "n": 2755
       },
       {
         "version": "1.2.0",
-        "n": 2679
+        "n": 2686
       },
       {
         "version": "1.3.0",
-        "n": 2173
+        "n": 2683
       },
       {
         "version": "0.8.91",
-        "n": 1831
+        "n": 1837
       },
       {
         "version": "1.1.2",
-        "n": 1157
+        "n": 1161
       },
       {
         "version": "0.8.94",
-        "n": 1054
+        "n": 1058
       },
       {
         "version": "0.8.85",
@@ -182,15 +182,15 @@
     "byPlatform": [
       {
         "platform": "win32",
-        "n": 3995
+        "n": 4214
       },
       {
         "platform": "darwin",
-        "n": 1273
+        "n": 1345
       },
       {
         "platform": "linux",
-        "n": 909
+        "n": 940
       },
       {
         "platform": "android",
@@ -209,15 +209,11 @@
   "heartbeatError": null,
   "npm": {
     "package": "dsh-remote",
-    "checkedAt": "2026-11-21T07:03:01.521Z",
+    "checkedAt": "2026-11-21T19:12:50.174Z",
     "latest": "1.3.0",
-    "lastWeek": 86398,
-    "lastMonth": 216254,
+    "lastWeek": 94100,
+    "lastMonth": 233024,
     "daily": [
-      {
-        "day": "2026-10-21",
-        "downloads": 3419
-      },
       {
         "day": "2026-10-22",
         "downloads": 3481
@@ -333,15 +329,19 @@
       {
         "day": "2026-11-19",
         "downloads": 12808
+      },
+      {
+        "day": "2026-11-20",
+        "downloads": 20189
       }
     ],
     "zeroDays": [],
     "note": "npm daily counts have reporting gaps; zero-value days are flagged and are not real zero usage."
   },
   "repo": {
-    "stars": 338,
-    "forks": 59,
-    "openIssues": 2,
-    "pushedAt": "2026-11-20T20:13:25Z"
+    "stars": 340,
+    "forks": 61,
+    "openIssues": 3,
+    "pushedAt": "2026-11-21T14:22:02Z"
   }
 }
