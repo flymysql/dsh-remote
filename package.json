@@ -32,7 +32,8 @@
     ".": "./lib/boot.js",
     "./client": "./lib/client.js",
     "./package.json": "./package.json",
-    "./cordis.patch.yml": "./cordis.patch.yml"
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./deck-bridge": "./lib/deck-bridge.js"
   },
   "files": [
     "lib",
