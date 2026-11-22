@@ -160,6 +160,18 @@ try {
   }
   await page.evaluate(()=>window.__hl.setPath('notes.unknown-extension'))
   await editor.fill('plain text\n第二行\nthird target\nlast line\n')
+  // `jump()` maps a line number through the OVERLAY's own line table, which is
+  // rebuilt from React state; `fill()` only QUEUES that update. Jumping straight
+  // after the fill therefore maps line 3 in the PREVIOUS document (the C sample
+  // above), the caret lands at a different offset, and the next wait burns its
+  // whole timeout. That is the race that made this file flake on CI (PR #175,
+  // #178, #184, #189, #190) — wait for the overlay to own the new text first.
+  // The condition is the same one the assertions below rely on, so a genuinely
+  // broken overlay still fails here instead of being papered over.
+  await page.waitForFunction(()=>{
+    const line=document.querySelector('[data-rw-editor-line="3"]')
+    return !!line && (line.textContent||'').includes('third target')
+  })
   await page.evaluate(()=>window.__hl.jump(3))
   await page.waitForFunction(()=>window.__hl.editorRef.current.selectionStart===15)
   assert.equal(await file.locator('[data-rw-highlight-editor]').getAttribute('data-rw-editor-highlighted'),'false','unknown grammar must be reported honestly')
@@ -171,12 +183,16 @@ try {
   assert.match(await plainLine.getAttribute('class'),/dsh-rw-code-current/)
   await editor.evaluate(node=>{window.__sameEditor=node})
   await page.evaluate(()=>window.__hl.setValue('log\n'.repeat(12000)))
+  // A fixed 100ms sleep is a guess: a slow runner can still be mid-render when
+  // the counts below are read, and the "no per-line DOM" assertions would then
+  // pass for the wrong reason (nothing rendered yet). Wait for the value the
+  // fallback is derived from, so the counts mean what they claim.
+  await page.waitForFunction(()=>window.__hl.editorRef.current.value.length===48000)
   assert.equal(await file.locator('[data-rw-editor-line]').count(),0,'large fallback renders no per-line paint DOM')
   assert.equal(await file.locator('[data-rw-editor-gutter]>div>div').count(),0,'large fallback renders no per-line gutter DOM')
   assert.equal(await editor.evaluate(node=>node===window.__sameEditor),true,'large fallback must preserve the native textarea')
   await page.evaluate(()=>window.__hl.jump(11000))
-  await page.waitForTimeout(100)
-  assert.equal(await editor.evaluate(node=>node.selectionStart),10999*4)
+  await page.waitForFunction(()=>window.__hl.editorRef.current.selectionStart===10999*4)
   assert.ok(await editor.evaluate(node=>node.scrollTop)>200000)
   await editor.pressSequentially('X')
   await editor.press('Control+z')
