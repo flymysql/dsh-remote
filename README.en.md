@@ -18,6 +18,8 @@ Use the normal layout or choose the optional **three-column IDE layout** to view
 
 <img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-ide.png" alt="DSH remote IDE with file tree, native code editor and agent conversation" width="1200"/>
 
+[1.3.1 release notes](https://github.com/flymysql/dsh-remote/blob/main/docs/release/1.3.1.md): SSH recovery, proxy-aware updates and verified official GitHub fallback.
+
 ## Install
 
 ```bash

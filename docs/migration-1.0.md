@@ -2,6 +2,10 @@
 
 1.0 继续使用现有 SSH 主机、镜像目录和工作区记录，不需要重新创建远程项目。发布状态和安装版本以 [npm](https://www.npmjs.com/package/dsh-remote) 与 [Releases](https://github.com/flymysql/dsh-remote/releases) 为准；候选版不覆盖 `latest`。
 
+## 1.3.1 连接与更新修复
+
+旧版本无法连接 npm 时，请先通过插件管理器安装 `dsh-remote@1.3.1`，再重启 DSH Web 并刷新页面。代理与 GitHub 下载回退由新版本更新器提供，不能修复仍运行中的旧更新器。若同机终端 SSH 可用、插件 native 后端仍失败，在对应主机的高级配置中选择 `openssh`，使用与终端一致的 SSH 配置后测试保存。
+
 ## 升级前
 
 - 保存正在编辑的文件。页面内未保存草稿不会抵御浏览器崩溃、强制退出或升级时重新加载客户端。

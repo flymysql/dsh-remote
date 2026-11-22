@@ -26,6 +26,8 @@ dsh plugin --profile web add dsh-remote
 
 安装或升级后，重启 DSH Web 并刷新页面。自动更新状态在设置 → 远程工作区 → 插件偏好中查看。
 
+[1.3.1 更新说明](https://github.com/flymysql/dsh-remote/blob/main/docs/release/1.3.1.md)：SSH 连接恢复、代理网络更新与官方 GitHub 下载回退。
+
 ## 3 步开始
 
 1. **配置主机**：设置 → 远程工作区，编辑 SSH 配置或保存主机凭据；直接写在 `~/.ssh/config` 里的 Host 会出现在主机列表中，点该行的「…」菜单 →「编辑」即可保存成机器并填写登录密码（保存前后入口都是同一个「…」菜单）。打开设置会自动检查连通性，无需手动“连接”。
