@@ -18,7 +18,8 @@ documentation of what the pipeline does.
 
 ## 1. Version and changelog
 
-Bump `package.json` `version`, add a section to `CHANGELOG.md`, keep
+Bump `package.json` and lockfile `version`, synchronize `CLIENT_VERSION` in
+`lib/client.js` (checked by `test/client-lifecycle.test.js`), add a section to `CHANGELOG.md`, keep
 `README.md` (Chinese, the repository front page) and `README.en.md` (English)
 in sync (tool list, config table, Desktop notes). `README.zh.md` is a redirect
 stub kept only for old external links — do not put content in it.
