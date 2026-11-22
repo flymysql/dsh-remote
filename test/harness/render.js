@@ -107,6 +107,39 @@ export function mountClient(opts = {}) {
       // which dereferences `labels.code.*` / `labels.footnotes` without a guard
       // while rendering a fenced code block or a footnote. A pane that forgets
       // `labels` therefore throws here exactly as it does in the browser.
+      // `hostMarkdownImages` makes the stub resolve illustrations the way the
+      // REAL renderer does (primitives `imageSource`): absolute HTTP(S) as
+      // authored, everything else through the owner's `pathImages` vocabulary,
+      // and a miss renders the ALT TEXT (never a broken <img>). Without this
+      // mode the suite cannot tell "the pane passed no vocabulary" from "the
+      // document had no figures" — a remote .md silently degrading to captions.
+      const renderMarkdownWithImages = (props) => {
+        const resolveImage = (raw) => {
+          const value = String(raw).trim()
+          if (/^https?:\/\//i.test(value)) return value
+          const resolved = typeof props.pathImages?.resolve === 'function' ? props.pathImages.resolve(value) : undefined
+          if (typeof resolved !== 'string' || resolved === '') return undefined
+          try {
+            const protocol = new URL(resolved).protocol
+            return protocol === 'http:' || protocol === 'https:' || protocol === 'data:' || protocol === 'blob:' ? resolved : undefined
+          } catch { return undefined }
+        }
+        const children = []
+        const pattern = /!\[([^\]]*)\]\(\s*(?:<([^<>]*)>|([^\s()]+))(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\s*\)/g
+        let last = 0, index = 0, match
+        while ((match = pattern.exec(props.text)) !== null) {
+          if (match.index > last) children.push(props.text.slice(last, match.index))
+          const alt = match[1] || ''
+          const src = resolveImage(match[2] !== undefined ? match[2] : match[3])
+          children.push(src
+            ? React.createElement('img', { key: 'img' + (index++), className: 'md-image', src, alt })
+            : React.createElement('span', { key: 'alt' + (index++), className: 'md-image-alt' }, alt))
+          last = pattern.lastIndex
+        }
+        if (last < props.text.length) children.push(props.text.slice(last))
+        return React.createElement('div', { className: 'md-stub' }, children)
+      }
+
       const MarkdownText = React.memo(opts.strictMarkdownText
         ? (props) => {
             const code = props.labels.code
@@ -114,9 +147,13 @@ export function mountClient(opts = {}) {
             void code.copiedLabel
             void code.toolbarLabels.codeLabel
             void props.labels.footnotes
-            return React.createElement('div', { className: 'md-stub' }, props.text)
+            return opts.hostMarkdownImages
+              ? renderMarkdownWithImages(props)
+              : React.createElement('div', { className: 'md-stub' }, props.text)
           }
-        : (props) => React.createElement('div', { className: 'md-stub' }, props.text))
+        : opts.hostMarkdownImages
+          ? (props) => renderMarkdownWithImages(props)
+          : (props) => React.createElement('div', { className: 'md-stub' }, props.text))
       const stub = {
         relativeTime: () => ({ unit: 'now', n: 0 }),
         MarkdownText,
