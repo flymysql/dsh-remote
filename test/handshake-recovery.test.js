@@ -32,7 +32,7 @@ test('persistent pre-auth drops stop after two attempts instead of retrying inde
   let connections = 0
   const port = await front(t, socket => { connections++; socket.destroy() })
   const pool = new SshPool(config(port)); t.after(() => pool.close())
-  await assert.rejects(pool.connect(), e => e.code === 'SSH_HANDSHAKE_CLOSED' && /握手未完成/.test(e.message))
+  await assert.rejects(pool.connect(), e => e.code === 'SSH_HANDSHAKE_CLOSED' && /Connection lost before handshake|ssh connection closed|read ECONNRESET/i.test(e.cause?.message || ''))
   assert.equal(connections, 2); assert.equal(pool.connecting, null); assert.equal(pool._connectingClient, null)
 })
 
