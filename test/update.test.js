@@ -732,3 +732,50 @@ test('applyUpdate fails closed when the registry metadata has no usable dist.int
     assert.equal(readFileSync(path.join(dir, 'lib', 'index.js'), 'utf8'), 'OLD INDEX')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+// Registry outages must not strand a client that can reach official releases.
+function githubRelease(version, tarball, patch = {}) {
+  return { tag_name: 'v' + version, draft: false, prerelease: false, assets: [{ name: 'dsh-remote-' + version + '.tgz', state: 'uploaded', size: tarball.length, digest: 'sha256:' + createHash('sha256').update(tarball).digest('hex') }], ...patch }
+}
+test('latest-version check falls back to a verified stable GitHub release when npm is unreachable', async () => {
+  const tarball = makeTarball(NEW_FILES)
+  const result = await fetchLatestVersion(100, { fetchImpl: async url => {
+    if (String(url).includes('registry.npmjs.org')) throw Object.assign(new Error('fetch failed'), { cause: { code: 'ENOTFOUND' } })
+    assert.match(String(url), /^https:\/\/api.github.com\/repos\/flymysql\/dsh-remote\/releases\/latest$/)
+    return { ok: true, json: async () => githubRelease('0.2.0', tarball) }
+  } })
+  assert.deepEqual(result, { version: '0.2.0', source: 'github' })
+})
+test('GitHub fallback never advertises drafts, prereleases or an archive without an external digest', async () => {
+  for (const patch of [{ draft: true }, { prerelease: true }, { assets: [] }, { tag_name: 'v0.2.0-beta' }]) {
+    const result = await fetchLatestVersion(100, { fetchImpl: async url => {
+      if (String(url).includes('registry.npmjs.org')) throw new Error('offline')
+      return { ok: true, json: async () => githubRelease('0.2.0', makeTarball(NEW_FILES), patch) }
+    } })
+    assert.equal(result.version, undefined); assert.match(result.error, /GitHub/)
+  }
+})
+test('an npm outage during apply uses the exact GitHub tag and verifies its asset hash', async () => {
+  const dir = makeInstall(), tarball = makeTarball(NEW_FILES), urls = []
+  try {
+    await applyUpdate('0.2.0', { dir, fetchImpl: async url => {
+      urls.push(String(url))
+      if (String(url).includes('registry.npmjs.org')) throw new Error('registry unavailable')
+      if (String(url).includes('api.github.com')) { assert.match(String(url), /tags\/v0.2.0$/); return { ok: true, json: async () => githubRelease('0.2.0', tarball) } }
+      assert.equal(String(url), 'https://github.com/flymysql/dsh-remote/releases/download/v0.2.0/dsh-remote-0.2.0.tgz')
+      return { ok: true, arrayBuffer: async () => tarball }
+    } })
+    assert.equal(JSON.parse(readFileSync(path.join(dir, 'package.json'))).version, '0.2.0')
+    assert.equal(urls.length, 3)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+test('a corrupt GitHub fallback archive cannot alter an existing installation', async () => {
+  const dir = makeInstall(), good = makeTarball(NEW_FILES), before = readFileSync(path.join(dir, 'lib/index.js'))
+  try {
+    await assert.rejects(applyUpdate('0.2.0', { dir, fetchImpl: async url => {
+      if (String(url).includes('registry.npmjs.org')) throw new Error('offline')
+      return String(url).includes('api.github.com') ? { ok: true, json: async () => githubRelease('0.2.0', good) } : { ok: true, arrayBuffer: async () => Buffer.from('tampered archive') }
+    } }), /integrity mismatch/)
+    assert.deepEqual(readFileSync(path.join(dir, 'lib/index.js')), before)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})

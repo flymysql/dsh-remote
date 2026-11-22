@@ -52,10 +52,12 @@ test('the registry-check watchdog timer is unref-ed', () => {
   // 就空闲"的进程都会被它拖住——实测表现为 upload.test.js 永久挂起
   // （npm test 超时 420s）。看门狗计时器不该决定进程寿命。
   const updateSrc = readFileSync(path.join(root, 'lib', 'update.js'), 'utf8')
-  const fn = updateSrc.slice(updateSrc.indexOf('export async function fetchLatestVersion'))
-  const body = fn.slice(0, fn.indexOf('\n}'))
-  assert.match(body, /setTimeout\(\(\) => controller\.abort\(\)/, 'sanity: the watchdog is still there')
-  assert.match(body, /timer\.unref\(\)/, 'the watchdog must not keep the event loop alive')
+  for (const name of ['async function fetchNpmLatestVersion', 'export async function fetchRelease']) {
+    const fn = updateSrc.slice(updateSrc.indexOf(name))
+    const body = fn.slice(0, fn.indexOf('\n}'))
+    assert.match(body, /setTimeout\(\(\) => controller\.abort\(/, 'the source query must remain time-bounded')
+    assert.match(body, /timer\.unref(?:\?\.)?\(/, 'query watchdogs must not keep the event loop alive')
+  }
 })
 
 test('every test that mounts the real plugin pins the update mode', () => {
