@@ -49,6 +49,22 @@ test('previewRemoteFile renders images inline as base64, not as a binary stub (i
   assert.equal(Buffer.from(r.content, 'base64').equals(png), true, 'the FULL file must come back, not the 4KB head')
 })
 
+test('previewRemoteFile hands back an SVG whole, with its own MIME (issue #183)', async () => {
+  const fs = new MemFs()
+  // The tutorial figures ship as SVG: UTF-8 text with no NUL byte, so the text
+  // branch WOULD read it as source. The image extension must win, or a Markdown
+  // illustration comes back as markup the pane cannot draw.
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1"/></svg>\n')
+  fs.writeFileSync('/proj/img/kv-block-nhd-vs-hnd.svg', svg)
+  const sftp = makeSftp(fs)
+  const r = await previewRemoteFile(sftp, '/proj/img/kv-block-nhd-vs-hnd.svg', { maxBytes: 1024 })
+  assert.equal(r.binary, false, 'an SVG is an image, not a source file with a binary hint')
+  assert.equal(r.image, true)
+  assert.equal(r.mime, 'image/svg+xml')
+  assert.equal(r.content.length > 0, true)
+  assert.equal(Buffer.from(r.content, 'base64').equals(svg), true)
+})
+
 test('previewRemoteFile keeps non-image binaries on the download-hint path', async () => {
   const fs = new MemFs()
   fs.writeFileSync('/proj/app.bin', Buffer.concat([Buffer.alloc(16, 0), Buffer.from('binary')]))
