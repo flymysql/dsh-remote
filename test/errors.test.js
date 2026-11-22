@@ -74,3 +74,12 @@ test('every classifyError hint starts with a known prefix (the idempotence table
     assert.ok(PREFIXES.some((p) => hint.startsWith(p)), `hint for "${raw}" starts with an unregistered prefix: ${hint.slice(0, 20)}…`)
   }
 })
+
+test('a pre-auth close is not diagnosed as a proven algorithm or server configuration failure', () => {
+  const error = friendlyMessage(new Error('Connection lost before handshake'), { host: '192.0.2.10', port: 22 })
+  assert.match(error, /认证前断开/); assert.match(error, /openssh/)
+  assert.doesNotMatch(error, /端口上没有跑 sshd|只支持不兼容/)
+  assert.equal(friendlyMessage(new Error(error)), error)
+  const algorithm = classifyError(new Error('Handshake failed: no matching key exchange algorithm'))
+  assert.match(algorithm.hint, /算法协商失败/)
+})
