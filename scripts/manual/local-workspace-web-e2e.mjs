@@ -7,6 +7,7 @@ import { createRequire } from 'node:module'
 import { spawn, execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
+import { e2ePort } from './lib/free-port.mjs'
 const repo = fileURLToPath(new URL('../../', import.meta.url))
 if (!process.env.IT_DSH_MODULES) throw new Error('Set IT_DSH_MODULES to a disposable DSH installation')
 const original = path.resolve(process.env.IT_DSH_MODULES), home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-local-web-'))
@@ -35,7 +36,7 @@ for (const file of ['cordis.yml', 'cordis.patch.yml']) fs.writeFileSync(home + '
 fs.writeFileSync(home + '/profiles/web/package.json', JSON.stringify({ name: 'local-workbench-web-test', private: true, dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] } } }))
 fs.symlinkSync(modules, home + '/profiles/web/node_modules'); fs.writeFileSync(home + '/ssh_config', '')
 fs.writeFileSync(home + '/patch.yml', `- insert:\n    - id: dsh-remote\n      name: ${JSON.stringify(path.join(plugin, 'lib/boot.js'))}\n      config:\n        telemetry: false\n        updateMode: off\n    - id: local-workbench-e2e\n      name: ${JSON.stringify(path.join(repo, 'scripts/manual/fixtures/local-workbench-plugin.mjs'))}\n`)
-const nonce = randomUUID(), port = Number(process.env.IT_LOCAL_PORT || 50682), base = 'http://127.0.0.1:' + port
+const nonce = randomUUID(), port = await e2ePort('IT_LOCAL_PORT'), base = 'http://127.0.0.1:' + port
 const child = spawn(process.execPath, [path.join(path.dirname(require.resolve('@deepseek-ai/dsh/package.json')), 'lib/bin.js'), 'web', '--patch', home + '/patch.yml', '--host', '127.0.0.1', '--port', String(port), '--no-open'], { cwd: home + '/profiles/web', env: { ...process.env, DSH_HOME: home, DSH_REMOTE_SSH_CONFIG: home + '/ssh_config', IT_DSH_MODULES: modules, DSH_E2E_PROJECT: project, DSH_E2E_SECONDARY: secondary, DSH_LOCAL_E2E: '1', DSH_LOCAL_E2E_NONCE: nonce }, stdio: ['ignore', 'pipe', 'pipe'] })
 let log = '', browser, page
 child.stdout.on('data', data => { log += data }); child.stderr.on('data', data => { log += data })

@@ -8,6 +8,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { startDiskWorkspace } from '../../test/harness/disk-workspace.js'
+import { e2ePort } from './lib/free-port.mjs'
 const originalModules = process.env.IT_DSH_MODULES
 if (!originalModules) throw new Error('Set IT_DSH_MODULES to an isolated DSH node_modules')
 const repo = fileURLToPath(new URL('../../', import.meta.url))
@@ -45,7 +46,7 @@ fs.writeFileSync(project + '/notes.txt', 'REMOTE_NOTES\n')
 fs.copyFileSync(path.join(repo, 'lib/workspace-search.js'), project + '/src/workspace-search.js')
 fs.writeFileSync(secondary + '/second-only.txt', 'SECOND_REMOTE_ONLY\n')
 const server = await startDiskWorkspace(project), secondServer = await startDiskWorkspace(secondary)
-const nonce = randomUUID(), port = String(Number(process.env.IT_IDE_PORT || 50670)), base = 'http://127.0.0.1:' + port
+const nonce = randomUUID(), port = String(await e2ePort('IT_IDE_PORT')), base = 'http://127.0.0.1:' + port
 fs.mkdirSync(home + '/profiles/web', { recursive: true })
 for (const file of ['cordis.yml', 'cordis.patch.yml']) fs.writeFileSync(home + '/profiles/web/' + file, '[]\n')
 fs.writeFileSync(home + '/profiles/web/package.json', JSON.stringify({ name: 'ide-workbench-test', private: true, dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] } } }))

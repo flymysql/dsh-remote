@@ -18,13 +18,14 @@ fs.mkdirSync(artifactDir,{recursive:true})
 const live=process.env.IT_AGENT_REAL_MODEL==='1'
 if(live&&!process.env.DEEPSEEK_API_KEY)throw Error('Real-model acceptance requires DEEPSEEK_API_KEY injected through environment settings')
 const nonce=randomUUID()
-const port=String(Number(process.env.IT_AGENT_PORT || 50602))
+const port=String(await e2ePort('IT_AGENT_PORT'))
 const base='http://127.0.0.1:'+port
 import {spawn} from 'node:child_process'
 import * as fs from 'node:fs'
 import assert from 'node:assert/strict'
 import {startDiskWorkspace} from '../../test/harness/disk-workspace.js'
 import {broken,fixed} from '../../test/harness/agent-build-model.js'
+import { e2ePort } from './lib/free-port.mjs'
 const home=fs.mkdtempSync(path.join(os.tmpdir(),'dsh-agent-web-e2e-'))
 // Explicit development mode: copy the current plugin into a temporary host
 // overlay. The default remains the supplied, installed candidate package.

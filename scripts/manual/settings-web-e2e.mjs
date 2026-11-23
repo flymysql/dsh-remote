@@ -6,12 +6,13 @@ import {spawn} from 'node:child_process'
 import {createRequire} from 'node:module'
 import {startFakeSsh} from '../../test/harness/fake-ssh.js'
 import assert from 'node:assert/strict'
+import { e2ePort } from './lib/free-port.mjs'
 const modules=process.env.IT_DSH_MODULES
 if(!modules)throw Error('Set IT_DSH_MODULES to an installed DSH node_modules directory')
 const require=createRequire(path.join(path.resolve(process.env.IT_BROWSER_MODULES || modules),'x.cjs'))
 const artifactDir=process.env.IT_SETTINGS_ARTIFACTS || path.join(process.env.IT_AGENT_ARTIFACTS || os.tmpdir(),'settings')
 fs.mkdirSync(artifactDir,{recursive:true})
-const port=String(Number(process.env.IT_SETTINGS_PORT || 50645))
+const port=String(await e2ePort('IT_SETTINGS_PORT'))
 const {chromium}=require('playwright-core')
 const home=fs.mkdtempSync(path.join(os.tmpdir(),'dsh-settings-inspect-'))
 const hostRequire=createRequire(modules+'/x.cjs')
