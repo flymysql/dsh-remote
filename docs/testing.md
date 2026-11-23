@@ -196,7 +196,7 @@ IT_AGENT_ARTIFACTS=/tmp/dsh-agent-artifacts \
   node scripts/manual/agent-web-e2e.mjs
 ```
 
-脚本启动独立 DSH_HOME、loopback SSH 服务和 Web 宿主，通过正式 SessionController 创建会话、选择测试模型并提交任务；校验最终回复、展开后的编译诊断和退出码，以及文件侧栏读到的 Agent 修改结果。保存会话事件和截图，退出时清理临时 profile、文件和进程；默认使用本机 50602 端口，可用 `IT_AGENT_PORT` 调整。测试用路由仅在显式 E2E 环境变量和随机 nonce 下启用，不修改正式 profile。
+脚本启动独立 DSH_HOME、loopback SSH 服务和 Web 宿主，通过正式 SessionController 创建会话、选择测试模型并提交任务；校验最终回复、展开后的编译诊断和退出码，以及文件侧栏读到的 Agent 修改结果。保存会话事件和截图，退出时清理临时 profile、文件和进程；未设置 `IT_AGENT_PORT` 时自动向内核申请空闲端口（issue #192 之前固定 50602）。测试用路由仅在显式 E2E 环境变量和随机 nonce 下启用，不修改正式 profile。
 
 `IT_AGENT_PTC=1` 使用宿主正式 `ptc` preset，要求文件沙箱后端可工作。在嵌套 bubblewrap 的云执行器里，可在获准的外层执行相同测试；DSH 仍使用工作区沙箱，不改成无约束模式。新旧宿主分别使用自身支持的工具执行器 API，不能假设 `tools.presentAs()` 在新版仍存在。
 
@@ -282,7 +282,7 @@ jsdiff 的最小源码集合保留原 BSD-3-Clause 许可；`node scripts/vendor
 
 `local-copy-recovery-ui.test.js` 检查显式来源、只读预览、上传冲突、草稿保留以及切会话/路径和刷新时的迟到请求，防止旧副本遮盖新读取的远端内容。
 
-`scripts/manual/agent-local-write-web-e2e.mjs` 验证真实 Agent 的完整纠正链路：确定性测试模型先调用普通 `write`，消费实际工具门禁的拒绝结果，再以相对路径调用 `rw_write_file` 保存 HTML，最后通过真实会话中的文件链接打开远端结果。模型决策固定；DSH Agent/ToolRuntime、native 或 PTC 执行器、loopback SSH/SFTP、磁盘文件和 Chromium 点击均真实运行。脚本还放置同名旧镜像副本，确认文件链接读取远端结果。默认读取 `IT_DSH_MODULES` 中实际安装的候选包；`IT_BROWSER_MODULES` 指向 Playwright，`IT_AGENT_ARTIFACTS` 指定事件和截图目录，`IT_AGENT_PORT` 可覆盖默认 50688 端口。设置 `IT_AGENT_PTC=1` 使用正式 PTC preset，保持宿主的 workspace-write 沙箱，要求其沙箱后端可运行；`IT_AGENT_SOURCE=1` 仅用于明确标记的临时源码覆盖验收。此脚本只使用测试模型，拒绝 `IT_AGENT_REAL_MODEL=1`。CI 在 0.2.1-rc.5 / 0.2.2-rc.1 的 native 与 PTC 组合中分别执行。
+`scripts/manual/agent-local-write-web-e2e.mjs` 验证真实 Agent 的完整纠正链路：确定性测试模型先调用普通 `write`，消费实际工具门禁的拒绝结果，再以相对路径调用 `rw_write_file` 保存 HTML，最后通过真实会话中的文件链接打开远端结果。模型决策固定；DSH Agent/ToolRuntime、native 或 PTC 执行器、loopback SSH/SFTP、磁盘文件和 Chromium 点击均真实运行。脚本还放置同名旧镜像副本，确认文件链接读取远端结果。默认读取 `IT_DSH_MODULES` 中实际安装的候选包；`IT_BROWSER_MODULES` 指向 Playwright，`IT_AGENT_ARTIFACTS` 指定事件和截图目录，`IT_AGENT_PORT` 可显式指定端口（默认自动选取空闲端口，见 `scripts/manual/lib/free-port.mjs`）。设置 `IT_AGENT_PTC=1` 使用正式 PTC preset，保持宿主的 workspace-write 沙箱，要求其沙箱后端可运行；`IT_AGENT_SOURCE=1` 仅用于明确标记的临时源码覆盖验收。此脚本只使用测试模型，拒绝 `IT_AGENT_REAL_MODEL=1`。CI 在 0.2.1-rc.5 / 0.2.2-rc.1 的 native 与 PTC 组合中分别执行。
 
 
 ## 本地与远程共享工作区验收

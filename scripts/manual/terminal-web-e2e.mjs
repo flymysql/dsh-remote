@@ -2,6 +2,7 @@
 // No host patches, DOM mascots or user profile changes. Text assertions use
 // the terminal's rendered xterm rows, not React internals or injected output.
 import * as fs from 'node:fs'
+import { e2ePort } from './lib/free-port.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import assert from 'node:assert/strict'
@@ -51,7 +52,7 @@ const server = await startDiskWorkspace(project, { onPtyExec(command, stream, se
   return true
 } })
 const nonce = randomUUID(), marker = 'TERMINAL_DISK_' + randomUUID().replaceAll('-', '')
-const port = String(Number(process.env.IT_TERMINAL_PORT || 50682)), base = 'http://127.0.0.1:' + port
+const port = String(await e2ePort('IT_TERMINAL_PORT')), base = 'http://127.0.0.1:' + port
 fs.mkdirSync(home + '/profiles/web', { recursive: true }); fs.mkdirSync(home + '/bin')
 for (const file of ['cordis.yml', 'cordis.patch.yml']) fs.writeFileSync(home + '/profiles/web/' + file, '[]\n')
 fs.writeFileSync(home + '/profiles/web/package.json', JSON.stringify({ name: 'terminal-workbench-test', private: true, dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] } } }))

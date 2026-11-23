@@ -1,6 +1,7 @@
 // Real DSH loader acceptance: enable auto in a running host and install the
 // actual candidate without calling update-apply. Only an isolated copy changes.
 import * as fs from 'node:fs'
+import { e2ePort } from './lib/free-port.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import { createRequire } from 'node:module'
@@ -40,7 +41,7 @@ if(url==='https://registry.npmjs.org/dsh-remote/'+${JSON.stringify(target)})retu
 if(url===${JSON.stringify('https://registry.npmjs.org/dsh-remote/-/dsh-remote-' + target + '.tgz')}){
 appendFileSync(${JSON.stringify(home + '/downloads')},'download\\n');return new Response(readFileSync(${JSON.stringify(path.resolve(archive))}));}
 return original(input,init);};`)
-const port = String(Number(process.env.IT_UPDATE_PORT || 50651))
+const port = String(await e2ePort('IT_UPDATE_PORT'))
 const child = spawn(process.execPath, ['--import', home + '/registry.mjs', path.join(path.dirname(req.resolve('@deepseek-ai/dsh/package.json')), 'lib/bin.js'), 'web', '--patch', home + '/patch.yml', '--host', '127.0.0.1', '--port', port, '--no-open'], { cwd: home + '/profiles/web', env: { ...process.env, DSH_HOME: home, DSH_REMOTE_SSH_CONFIG: home + '/ssh_config' }, stdio: ['ignore', 'pipe', 'pipe'] })
 let log = '', browser
 child.stdout.on('data', d => log += d); child.stderr.on('data', d => log += d)

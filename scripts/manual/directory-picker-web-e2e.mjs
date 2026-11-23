@@ -1,5 +1,6 @@
 // Actual workspace-directory picker, with an isolated profile and loopback SSH.
 import * as fs from 'node:fs'
+import { e2ePort } from './lib/free-port.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
@@ -26,7 +27,7 @@ fs.symlinkSync(path.resolve(modules), home + '/profiles/web/node_modules')
 fs.writeFileSync(home + '/ssh_config', '')
 fs.writeFileSync(home + '/remote-workspaces/machines.json', JSON.stringify({ list: [{ id: 'picker-dev', name: 'Picker fixture', host: '127.0.0.1', port: server.port, username: 'root', password: 'fixture-only', backend: 'native', hostKeyMode: 'off', recentWorkspaces: ['/home/fixture/project-00'] }], currentId: 'picker-dev' }))
 fs.writeFileSync(home + '/patch.yml', `- insert:\n    - id: dsh-remote\n      name: ${JSON.stringify(path.join(modules, 'dsh-remote/lib/boot.js'))}\n      config:\n        telemetry: false\n        updateMode: off\n`)
-const port = String(Number(process.env.IT_PICKER_PORT || 50664))
+const port = String(await e2ePort('IT_PICKER_PORT'))
 let log = '', browser
 const child = spawn(process.execPath, [path.join(path.dirname(req.resolve('@deepseek-ai/dsh/package.json')), 'lib/bin.js'), 'web', '--patch', home + '/patch.yml', '--host', '127.0.0.1', '--port', port, '--no-open'], { cwd: home + '/profiles/web', env: { ...process.env, DSH_HOME: home, DSH_REMOTE_SSH_CONFIG: home + '/ssh_config' }, stdio: ['ignore', 'pipe', 'pipe'] })
 child.stdout.on('data', d => log += d); child.stderr.on('data', d => log += d)

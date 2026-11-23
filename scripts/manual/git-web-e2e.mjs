@@ -1,5 +1,6 @@
 // Real native Git UI, SSH and repository acceptance. Never edits a user profile.
 import * as fs from 'node:fs'
+import { e2ePort } from './lib/free-port.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import assert from 'node:assert/strict'
@@ -37,7 +38,7 @@ git('init', '-q', '-b', 'daily-work')
 fs.writeFileSync(path.join(project, 'main.c'), '// shared context\nconst int value = 1;\n')
 git('add', 'main.c'); git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'baseline')
 const server = await startDiskWorkspace(project)
-const nonce = randomUUID(), port = String(Number(process.env.IT_GIT_PORT || 50666)), base = 'http://127.0.0.1:' + port
+const nonce = randomUUID(), port = String(await e2ePort('IT_GIT_PORT')), base = 'http://127.0.0.1:' + port
 fs.mkdirSync(home + '/profiles/web', { recursive: true })
 for (const file of ['cordis.yml', 'cordis.patch.yml']) fs.writeFileSync(home + '/profiles/web/' + file, '[]\n')
 fs.writeFileSync(home + '/profiles/web/package.json', JSON.stringify({ name: 'git-workbench-test', private: true, dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] } } }))

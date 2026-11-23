@@ -29,6 +29,11 @@ jobs:
           git diff --exit-code -- lib/vendor/jsdiff
       - name: Static framework gate
         run: node check.mjs
+      - name: E2E port guard
+        # issue #192: two pairs of web e2e scripts shared fixed default ports and
+        # flaked agent-acceptance with EADDRINUSE. Ports are now kernel-assigned;
+        # this gate keeps hardcoded 50xxx defaults from coming back.
+        run: node scripts/manual/check-e2e-ports.mjs
       - name: Unit tests
         run: npm test
       - name: Coverage (union over lib/*.js, gated)
@@ -75,6 +80,11 @@ jobs:
           git diff --exit-code -- lib/vendor/jsdiff
       - name: Static framework gate
         run: node check.mjs
+      - name: E2E port guard
+        # issue #192: two pairs of web e2e scripts shared fixed default ports and
+        # flaked agent-acceptance with EADDRINUSE. Ports are now kernel-assigned;
+        # this gate keeps hardcoded 50xxx defaults from coming back.
+        run: node scripts/manual/check-e2e-ports.mjs
       - name: Unit tests
         run: npm test
 
@@ -99,5 +109,10 @@ jobs:
           git diff --exit-code -- lib/vendor/jsdiff
       - name: Static framework gate
         run: node check.mjs
+      - name: E2E port guard
+        # issue #192: two pairs of web e2e scripts shared fixed default ports and
+        # flaked agent-acceptance with EADDRINUSE. Ports are now kernel-assigned;
+        # this gate keeps hardcoded 50xxx defaults from coming back.
+        run: node scripts/manual/check-e2e-ports.mjs
       - name: Unit tests
         run: npm test

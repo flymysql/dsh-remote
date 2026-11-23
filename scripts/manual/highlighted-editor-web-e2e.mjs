@@ -3,6 +3,7 @@
 // the installed host and plugin files are never patched. Remote save/navigation
 // integration remains covered separately by ide-web-e2e and agent-web-e2e.
 import * as fs from 'node:fs'
+import { e2ePort } from './lib/free-port.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import assert from 'node:assert/strict'
@@ -46,7 +47,7 @@ fs.writeFileSync(fixture + '/package.json', JSON.stringify({ name: 'highlight-ed
 fs.writeFileSync(fixture + '/index.mjs', "export const name='highlight-editor-browser-fixture';export function apply(){}\n")
 fs.writeFileSync(fixture + '/client.js', "window.__ModuleLoader__.load({id:'highlight-editor-browser-fixture',factory:require=>{window.__HL_REQUIRE__=require;return{name:'highlight-editor-browser-fixture',apply(){}}}})\n")
 fs.writeFileSync(home + '/patch.yml', `- insert:\n    - id: dsh-remote\n      name: ${JSON.stringify(path.join(modules, 'dsh-remote/lib/boot.js'))}\n      config:\n        telemetry: false\n        updateMode: off\n    - id: highlight-editor-browser-fixture\n      name: ${JSON.stringify(fixture + '/index.mjs')}\n`)
-const port = String(Number(process.env.IT_EDITOR_PORT || 50686))
+const port = String(await e2ePort('IT_EDITOR_PORT'))
 const child = spawn(process.execPath, [path.join(path.dirname(require.resolve('@deepseek-ai/dsh/package.json')), 'lib/bin.js'), 'web', '--patch', home + '/patch.yml', '--host', '127.0.0.1', '--port', port, '--no-open'], { cwd: profile, env: { ...process.env, DSH_HOME: home, DSH_REMOTE_SSH_CONFIG: home + '/ssh_config' }, stdio: ['ignore', 'pipe', 'pipe'] })
 let log = '', browser
 child.stdout.on('data', data => log += data); child.stderr.on('data', data => log += data)

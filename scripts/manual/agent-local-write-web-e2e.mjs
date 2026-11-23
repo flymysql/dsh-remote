@@ -3,6 +3,7 @@
 // a temporary source overlay. IT_AGENT_PTC=1 uses the real PTC preset.
 // This scripted regression intentionally rejects local write and then recovers.
 import {createRequire} from 'node:module'
+import { e2ePort } from './lib/free-port.mjs'
 import {fileURLToPath} from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
@@ -17,7 +18,7 @@ const artifactDir=process.env.IT_AGENT_ARTIFACTS || fs.mkdtempSync(path.join(os.
 fs.mkdirSync(artifactDir,{recursive:true})
 if(process.env.IT_AGENT_REAL_MODEL==='1')throw Error('Local-write recovery acceptance requires the scripted model')
 const nonce=randomUUID()
-const port=String(Number(process.env.IT_AGENT_PORT || 50688))
+const port=String(await e2ePort('IT_AGENT_PORT'))
 const base='http://127.0.0.1:'+port
 import {spawn} from 'node:child_process'
 import * as fs from 'node:fs'
