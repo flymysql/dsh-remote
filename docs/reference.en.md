@@ -355,8 +355,11 @@ Deploying to a product profile is a separate, explicit action (`./sync.sh`) for 
 
 Quick answers first — the long root-cause stories moved to [docs/troubleshooting.en.md](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/troubleshooting.en.md):
 
-- **The built-in Files panel shows a LOCAL directory** — that is the mirror working copy (by design);
-  the live remote tree lives in the Remote Files tab (auto-opens on remote Sessions since 0.8.82).
+- **The sidebar Files panel may show a LOCAL directory** — the panel better-sidebar hosts still
+  reads the mirror working copy (until the upstream data-source API, upstream #1247); the core
+  file previews and workspace listings already read the remote (`workspaceFilesRemote: false`
+  restores mirror behavior), and the live remote tree lives in the Remote Files tab (auto-opens
+  on remote Sessions since 0.8.82).
 - **Does the remote terminal still ask for the password?** — no: saved passwords are answered through
   the local credential bridge (0.8.81+); OTP codes excepted.
 - **A terminal in a remote Session opens on the remote host** — the shell menu's remote ssh is the

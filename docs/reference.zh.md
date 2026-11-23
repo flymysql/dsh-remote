@@ -347,8 +347,10 @@ scripts/dev-run.sh --status    # 是否在运行
 
 快速自救（每条一行；根因故事与设计权衡的完整版搬到了 [docs/troubleshooting.md](https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/troubleshooting.md)）：
 
-- **侧边栏「文件」面板显示的是本地目录** —— 那是镜像工作副本（地基如此）；看远端实时树用
-  「远程文件」页签（0.8.82 起进入远程会话自动展开，两个右栏世界都算）。
+- **侧边栏「文件」面板显示的是本地目录** —— better-sidebar 接管的那块文件面板读的仍是
+  镜像工作副本（等上游提供远端数据源接口，上游 #1247）；核心的文件预览与工作区列表
+  已直读远端（`workspaceFilesRemote: false` 可退回镜像行为），实时树另有「远程文件」
+  页签（0.8.82 起进入远程会话自动展开，两个右栏世界都算）。
 - **远程终端还要输密码吗？** —— 不用：存过的密码由本机凭据桥自动应答（0.8.81+）；OTP 动态码除外。
 - **远程会话的终端开箱即在远端** —— shell 菜单的 remote ssh 是默认终端（0.8.75+，
   `remoteTerminalDefault: false` 可关）。
