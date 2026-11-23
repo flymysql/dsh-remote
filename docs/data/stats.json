@@ -1,14 +1,10 @@
 {
-  "generatedAt": "2026-11-23T07:33:30.382Z",
+  "generatedAt": "2026-11-23T23:51:14.415Z",
   "heartbeat": {
     "ok": true,
-    "generatedAt": "2026-11-23T07:33:29.883Z",
+    "generatedAt": "2026-11-23T23:51:13.996Z",
     "tz": "Asia/Shanghai",
     "daily": [
-      {
-        "day": "2026-10-25",
-        "dau": 0
-      },
       {
         "day": "2026-10-26",
         "dau": 0
@@ -123,40 +119,48 @@
       },
       {
         "day": "2026-11-23",
-        "dau": 2522
+        "dau": 3111
+      },
+      {
+        "day": "2026-11-24",
+        "dau": 1891
       }
     ],
-    "wau": 5409,
-    "mau": 7129,
-    "installs": 7129,
+    "wau": 5424,
+    "mau": 7425,
+    "installs": 7425,
     "byVersion": [
       {
         "version": "1.3.0",
-        "n": 3060
+        "n": 3082
       },
       {
         "version": "1.2.1",
-        "n": 2773
+        "n": 2777
       },
       {
         "version": "1.2.0",
-        "n": 2696
+        "n": 2702
       },
       {
         "version": "1.3.1",
-        "n": 2366
+        "n": 2465
+      },
+      {
+        "version": "1.4.0",
+        "n": 2052
       },
       {
         "version": "0.8.91",
-        "n": 1844
+        "n": 1848
       },
       {
         "version": "1.1.2",
-        "n": 1174
+        "n": 1178
       },
       {
         "version": "0.8.94",
-        "n": 1064
+        "n": 1067
       },
       {
         "version": "0.8.85",
@@ -164,33 +168,29 @@
       },
       {
         "version": "1.1.1",
-        "n": 429
+        "n": 430
       },
       {
         "version": "0.8.90",
-        "n": 364
+        "n": 365
       },
       {
         "version": "0.8.88",
-        "n": 165
-      },
-      {
-        "version": "1.0.1",
-        "n": 143
+        "n": 166
       }
     ],
     "byPlatform": [
       {
         "platform": "win32",
-        "n": 4641
+        "n": 4849
       },
       {
         "platform": "darwin",
-        "n": 1444
+        "n": 1490
       },
       {
         "platform": "linux",
-        "n": 1020
+        "n": 1062
       },
       {
         "platform": "android",
@@ -209,8 +209,8 @@
   "heartbeatError": null,
   "npm": {
     "package": "dsh-remote",
-    "checkedAt": "2026-11-23T07:33:29.913Z",
-    "latest": "1.3.1",
+    "checkedAt": "2026-11-23T23:51:14.034Z",
+    "latest": "1.4.0",
     "lastWeek": 101250,
     "lastMonth": 254134,
     "daily": [
@@ -339,9 +339,9 @@
     "note": "npm daily counts have reporting gaps; zero-value days are flagged and are not real zero usage."
   },
   "repo": {
-    "stars": 344,
-    "forks": 62,
-    "openIssues": 0,
-    "pushedAt": "2026-11-23T07:28:08Z"
+    "stars": 347,
+    "forks": 64,
+    "openIssues": 2,
+    "pushedAt": "2026-11-23T16:31:56Z"
   }
 }
