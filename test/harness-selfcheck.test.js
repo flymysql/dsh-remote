@@ -26,7 +26,7 @@ test('fake SSH: password auth, exec, platform detection and SFTP all work over a
     const res = await pool.exec('echo hi')
     assert.equal(String(res.stdout).trim(), 'hi', 'exec must reach the fake shell')
     await pool.detect()
-    assert.equal(pool.platform, 'posix', '`cmd /c ver` fails and `uname -s` says Linux → posix')
+    assert.equal(pool.platform, 'posix', '`uname -s` says Linux → posix (no cmd probe needed)')
 
     const sftp = await pool.sftp()
     const entries = await sftp.readdir('/home/user')
