@@ -202,8 +202,9 @@ export async function startFakeSsh(opts = {}) {
       const custom = onExec(trimmed, { cwd, tree })
       if (custom) return { stdout: '', stderr: '', code: 0, ...custom }
     }
-    // Platform detection (lib/pool.js _detect): `cmd /c ver` must FAIL on posix.
-    if (/^cmd(\.exe)?\s+\/c\s+ver/i.test(trimmed)) {
+    // Platform detection (lib/detect-platform.js): `cmd /c "ver"` must FAIL on
+    // posix (the quoted form is the #199 fix; accept the bare form too).
+    if (/^cmd(\.exe)?\s+\/c\s+"?ver"?$/i.test(trimmed)) {
       return platform === 'windows'
         ? { stdout: '\r\nMicrosoft Windows [Version 10.0.19045.3803]\r\n', code: 0 }
         : { stdout: '', stderr: 'sh: cmd: command not found\n', code: 127 }

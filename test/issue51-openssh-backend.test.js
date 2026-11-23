@@ -399,7 +399,7 @@ test('#51: detect() reports posix for a host that answers uname, and Windows for
   const posixPool = new SystemOpenSshPool(baseConfig())
   posixPool._runSsh = async (args) => {
     const cmd = args[args.length - 1]
-    if (cmd === 'cmd /c ver') return { code: 127, stdout: '', stderr: 'command not found' }
+    if (cmd === 'cmd /c "ver"') return { code: 127, stdout: '', stderr: 'command not found' }
     if (cmd === 'uname -s') return { code: 0, stdout: 'Linux\n', stderr: '' }
     return { code: 0, stdout: '', stderr: '' }
   }
@@ -410,7 +410,9 @@ test('#51: detect() reports posix for a host that answers uname, and Windows for
   const winPool = new SystemOpenSshPool(baseConfig())
   winPool._runSsh = async (args) => {
     const cmd = args[args.length - 1]
-    if (cmd === 'cmd /c ver') return { code: 0, stdout: 'Microsoft Windows [Version 10.0]\r\n', stderr: '' }
+    // A cmd.exe default shell cannot run uname (issue #199's host shape).
+    if (cmd === 'uname -s') return { code: 1, stdout: '', stderr: "'uname' is not recognized\r\n" }
+    if (cmd === 'cmd /c "ver"') return { code: 0, stdout: 'Microsoft Windows [Version 10.0]\r\n', stderr: '' }
     if (cmd === 'cmd /c where bash') return { code: 0, stdout: 'C:\\Program Files\\Git\\bin\\bash.exe\r\n', stderr: '' }
     return { code: 0, stdout: '', stderr: '' }
   }
