@@ -163,3 +163,31 @@ test('IDE header lines up with the macOS window controls', () => {
   const narrow = css.indexOf('@media(max-width:600px){[data-rw-ide-header]{gap:5px;padding:0 6px}')
   assert.ok(narrow >= 0 && base.index > narrow, 'the darwin rule must out-specify the narrow-mode shorthand')
 })
+
+test('IDE surfaces keep an opaque floor under alpha theme tokens (issue #200)', () => {
+  // Wallpaper/glass themes set --dsw-alias-bg-base (and the glass tier also
+  // --dsw-specific-sidebar-fill) to transparent. The IDE shell used those
+  // tokens directly as its ONLY coat, so the whole shell went see-through:
+  // the host session list bled through the file-tree column, and chat/welcome
+  // text sat on the wallpaper photo. Every IDE surface now stacks the themed
+  // token OVER a --dsw-alias-bg-layer-1 floor, which those themes leave solid
+  // — stock themes render pixel-identical (the top coat is still the old token).
+  const css = section('const REMOTE_IDE_CSS = `', '\n    // Returns a disposer')
+  const TOP_COAT = {
+    '[data-rw-ide-shell]': 'var(--dsw-alias-bg-base,#fff)',
+    '[data-rw-ide-header]': 'var(--dsw-specific-sidebar-fill,var(--dsw-alias-bg-base,#fff))',
+    '[data-rw-ide-divider]': 'var(--dsw-alias-bg-base,#fff)',
+    '[data-rw-ide-editor],[data-rw-ide-chat]': 'var(--dsw-alias-bg-base,#fff)',
+  }
+  for (const [sel, coat] of Object.entries(TOP_COAT)) {
+    const rule = css.slice(css.indexOf(sel))
+    const decl = /background:([^;}]+)/.exec(rule)?.[1] ?? ''
+    assert.ok(decl.includes(`linear-gradient(${coat},${coat})`),
+      `${sel} must keep its historical token as the TOP coat (stock themes stay identical)`)
+    assert.ok(decl.includes('var(--dsw-alias-bg-layer-1,#fff)'),
+      `${sel} must stack a --dsw-alias-bg-layer-1 floor beneath the themed coat (issue #200)`)
+  }
+  // No IDE surface may depend on the base token ALONE — that is the bug shape.
+  assert.ok(!/background:var\(--dsw-alias-bg-base[^;]*\);/.test(css),
+    'a bare var(--dsw-alias-bg-base) background is exactly what alpha themes unseat (#200)')
+})
