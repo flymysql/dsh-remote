@@ -3,6 +3,7 @@
 // a temporary source overlay; IT_AGENT_APPLIED_DIFF=1 adds a rejected edit and
 // verifies the recorded applied diff in the real Web conversation.
 import {createRequire} from 'node:module'
+import { e2ePort } from './lib/free-port.mjs'
 import {fileURLToPath} from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
@@ -25,7 +26,6 @@ import * as fs from 'node:fs'
 import assert from 'node:assert/strict'
 import {startDiskWorkspace} from '../../test/harness/disk-workspace.js'
 import {broken,fixed} from '../../test/harness/agent-build-model.js'
-import { e2ePort } from './lib/free-port.mjs'
 const home=fs.mkdtempSync(path.join(os.tmpdir(),'dsh-agent-web-e2e-'))
 // Explicit development mode: copy the current plugin into a temporary host
 // overlay. The default remains the supplied, installed candidate package.

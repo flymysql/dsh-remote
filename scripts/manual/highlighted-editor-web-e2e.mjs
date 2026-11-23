@@ -3,13 +3,13 @@
 // the installed host and plugin files are never patched. Remote save/navigation
 // integration remains covered separately by ide-web-e2e and agent-web-e2e.
 import * as fs from 'node:fs'
+import { e2ePort } from './lib/free-port.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
-import { e2ePort } from './lib/free-port.mjs'
 const originalModules = process.env.IT_DSH_MODULES
 if (!originalModules) throw new Error('Set IT_DSH_MODULES to an isolated DSH node_modules')
 const repo = fileURLToPath(new URL('../../', import.meta.url))

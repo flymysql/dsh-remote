@@ -1,6 +1,7 @@
 // Real DSH loader acceptance: enable auto in a running host and install the
 // actual candidate without calling update-apply. Only an isolated copy changes.
 import * as fs from 'node:fs'
+import { e2ePort } from './lib/free-port.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import { createRequire } from 'node:module'
@@ -32,7 +33,6 @@ fs.writeFileSync(home + '/ssh_config', '')
 fs.writeFileSync(home + '/patch.yml', `- insert:\n    - id: dsh-remote\n      name: ${JSON.stringify(path.join(installed, 'lib/boot.js'))}\n      config:\n        telemetry: false\n        updateMode: manual\n`)
 fs.writeFileSync(home + '/registry.mjs', `import {readFileSync,appendFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import { e2ePort } from './lib/free-port.mjs'
 const original=globalThis.fetch;
 globalThis.fetch=async(input,init)=>{
 const url=String(input);

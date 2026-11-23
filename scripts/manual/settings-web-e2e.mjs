@@ -1,12 +1,12 @@
 // Real DSH settings UI, isolated profile, loopback SSH; never uses user configuration.
 import * as fs from 'node:fs'
+import { e2ePort } from './lib/free-port.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import {spawn} from 'node:child_process'
 import {createRequire} from 'node:module'
 import {startFakeSsh} from '../../test/harness/fake-ssh.js'
 import assert from 'node:assert/strict'
-import { e2ePort } from './lib/free-port.mjs'
 const modules=process.env.IT_DSH_MODULES
 if(!modules)throw Error('Set IT_DSH_MODULES to an installed DSH node_modules directory')
 const require=createRequire(path.join(path.resolve(process.env.IT_BROWSER_MODULES || modules),'x.cjs'))

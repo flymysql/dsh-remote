@@ -2,6 +2,7 @@
 // No host patches, DOM mascots or user profile changes. Text assertions use
 // the terminal's rendered xterm rows, not React internals or injected output.
 import * as fs from 'node:fs'
+import { e2ePort } from './lib/free-port.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import assert from 'node:assert/strict'
@@ -10,7 +11,6 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { startDiskWorkspace } from '../../test/harness/disk-workspace.js'
-import { e2ePort } from './lib/free-port.mjs'
 const originalModules = process.env.IT_DSH_MODULES
 if (!originalModules) throw new Error('Set IT_DSH_MODULES to an isolated DSH node_modules')
 const repo = fileURLToPath(new URL('../../', import.meta.url))

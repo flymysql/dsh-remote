@@ -1,5 +1,6 @@
 // Actual DSH Web + browser + native Agent tools + GCC + local PTY acceptance.
 import fs from 'node:fs'
+import { e2ePort } from './lib/free-port.mjs'
 import os from 'node:os'
 import path from 'node:path'
 import assert from 'node:assert/strict'
@@ -7,7 +8,6 @@ import { createRequire } from 'node:module'
 import { spawn, execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
-import { e2ePort } from './lib/free-port.mjs'
 const repo = fileURLToPath(new URL('../../', import.meta.url))
 if (!process.env.IT_DSH_MODULES) throw new Error('Set IT_DSH_MODULES to a disposable DSH installation')
 const original = path.resolve(process.env.IT_DSH_MODULES), home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-local-web-'))
