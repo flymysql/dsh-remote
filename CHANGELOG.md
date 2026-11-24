@@ -2,6 +2,13 @@
 
 All notable changes to **dsh-remote**.
 
+## 1.4.1 — 2026-11-23
+### Windows OpenSSH 探测修复与 IDE 底板加固
+
+- **Windows cmd.exe 默认 shell 的主机可连接（#197/#198）**：系统 OpenSSH 后端的连接探针此前发送裸 `true`——cmd.exe 没有这个命令，健康主机被误报「不可用」，且 cmd.exe 的 GBK 错误文本按 UTF-8 解码后显示为乱码。探针改为 `echo ok`，cmd.exe / PowerShell / POSIX shell 通用。
+- **平台探测链修复（#197/#199/#201）**：三处独立的 Windows 误判归并到共享探测器 `lib/detect-platform.js`（两个后端原先是两份已经漂移的拷贝）：① Windows OpenSSH 会把客户端命令重包成 `cmd.exe /c "…"`，裸的单 token `cmd /c ver` 到达内层 cmd 时多出一个游离引号（`'ver"' 不是内部或外部命令`），探针改为引号形式 `cmd /c "ver"`，Windows Server 2019 + cmd.exe 默认 shell 的主机不再被误判为 posix（工作区选择器此前连 `/` 都列不出驱动器）；② Git Bash 设为 sshd `DefaultShell` 时，`cmd /c ver` 同样成功，旧顺序会选中 POSIX 默认 shell 无法执行的 Windows 路径 bash 包装（引号反斜杠路径到达时已损坏）；现在 `uname -s` + `echo $0` 先行识别 POSIX 默认 shell，并以 POSIX 形式定位 bash（`command -v bash` → `/usr/bin/bash`）；③ `uname` 回答 MINGW 也可能是「cmd.exe 默认 shell + Git usr/bin 在 PATH 上」，`echo $0` 予以区分（cmd 原样回显 `$0`，PowerShell 输出空）。顺带：POSIX 主机的探测从两次降为一次（`uname` 成功即短路）。
+- **IDE 模式底板加固（#200/#202）**：壁纸/玻璃主题会把 `--dsw-alias-bg-base`（玻璃档连 `--dsw-specific-sidebar-fill`）置为 transparent，而 IDE 壳的四处表面（壳层、顶栏、分隔条、重定位的编辑器/聊天面板）此前只用该 token 当唯一底板——整个壳变得透明：宿主会话列表穿出文件树列（两套文字交错重叠），欢迎页与聊天正文直接压在壁纸上。现在每个表面把原 token 作为顶层、叠在 `--dsw-alias-bg-layer-1` 实底之上：原生主题像素级不变（不透明顶层完全遮住底板），alpha 主题落到实底，宿主左栏重新被壳盖住（与原生主题下相同，无需猜测宿主 DOM 选择器做隐藏）。
+
 ## 1.4.0 — 2026-11-23
 ### 工作区文件直读远端与连接修复
 
