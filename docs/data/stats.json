@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-23T23:51:14.415Z",
+  "generatedAt": "2026-11-24T09:51:12.052Z",
   "heartbeat": {
     "ok": true,
-    "generatedAt": "2026-11-23T23:51:13.996Z",
+    "generatedAt": "2026-11-24T09:51:11.548Z",
     "tz": "Asia/Shanghai",
     "daily": [
       {
@@ -123,44 +123,44 @@
       },
       {
         "day": "2026-11-24",
-        "dau": 1891
+        "dau": 2836
       }
     ],
-    "wau": 5424,
-    "mau": 7425,
-    "installs": 7425,
+    "wau": 5717,
+    "mau": 7688,
+    "installs": 7688,
     "byVersion": [
       {
         "version": "1.3.0",
-        "n": 3082
+        "n": 3095
       },
       {
         "version": "1.2.1",
-        "n": 2777
+        "n": 2779
       },
       {
         "version": "1.2.0",
-        "n": 2702
-      },
-      {
-        "version": "1.3.1",
-        "n": 2465
+        "n": 2706
       },
       {
         "version": "1.4.0",
-        "n": 2052
+        "n": 2657
+      },
+      {
+        "version": "1.3.1",
+        "n": 2503
       },
       {
         "version": "0.8.91",
-        "n": 1848
+        "n": 1856
       },
       {
         "version": "1.1.2",
-        "n": 1178
+        "n": 1180
       },
       {
         "version": "0.8.94",
-        "n": 1067
+        "n": 1071
       },
       {
         "version": "0.8.85",
@@ -168,7 +168,7 @@
       },
       {
         "version": "1.1.1",
-        "n": 430
+        "n": 431
       },
       {
         "version": "0.8.90",
@@ -176,21 +176,21 @@
       },
       {
         "version": "0.8.88",
-        "n": 166
+        "n": 167
       }
     ],
     "byPlatform": [
       {
         "platform": "win32",
-        "n": 4849
+        "n": 5019
       },
       {
         "platform": "darwin",
-        "n": 1490
+        "n": 1535
       },
       {
         "platform": "linux",
-        "n": 1062
+        "n": 1110
       },
       {
         "platform": "android",
@@ -209,8 +209,8 @@
   "heartbeatError": null,
   "npm": {
     "package": "dsh-remote",
-    "checkedAt": "2026-11-23T23:51:14.034Z",
-    "latest": "1.4.0",
+    "checkedAt": "2026-11-24T09:51:11.572Z",
+    "latest": "1.4.1",
     "lastWeek": 101250,
     "lastMonth": 254134,
     "daily": [
@@ -339,9 +339,9 @@
     "note": "npm daily counts have reporting gaps; zero-value days are flagged and are not real zero usage."
   },
   "repo": {
-    "stars": 347,
-    "forks": 64,
-    "openIssues": 2,
-    "pushedAt": "2026-11-23T16:31:56Z"
+    "stars": 350,
+    "forks": 65,
+    "openIssues": 1,
+    "pushedAt": "2026-11-24T06:49:37Z"
   }
 }
