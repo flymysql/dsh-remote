@@ -262,11 +262,13 @@ test('pickWorkspaceNextStep: a local session is told to OPEN the mirror first', 
 
 test('rw_pick_workspace wires its closing hint through pickWorkspaceNextStep', async () => {
   // Source-level pin (same style as docs-i18n.test.js): the success text must
-  // branch on the session's locality instead of always printing "Run rw_sync".
+  // branch on the session's locality instead of always printing "Run rw_sync",
+  // and (issue #205) an already-bound session that picks a DIFFERENT workspace
+  // must be told the pick does not rebind it.
   const here = path.dirname(fileURLToPath(import.meta.url))
   const src = readFileSync(path.join(here, '..', 'lib', 'main.js'), 'utf8')
   assert.ok(
-    src.includes('${pickWorkspaceNextStep(b.local)}'),
-    'rw_pick_workspace success text must call pickWorkspaceNextStep(b.local)',
+    /\$\{rebindNote \|\| pickWorkspaceNextStep\(b\.local\)\}/.test(src),
+    'rw_pick_workspace success text must branch: the #205 rebind note when the session is bound elsewhere, pickWorkspaceNextStep(b.local) otherwise',
   )
 })
