@@ -26,7 +26,7 @@ dsh plugin --profile web add dsh-remote
 
 安装或升级后，重启 DSH Web 并刷新页面。自动更新状态在设置 → 远程工作区 → 插件偏好中查看。
 
-[1.4.1 更新说明](https://github.com/flymysql/dsh-remote/blob/main/docs/release/1.4.1.md)：Windows OpenSSH 连接与平台探测修复、IDE 模式壁纸主题底板加固。
+[1.5.0 更新说明](https://github.com/flymysql/dsh-remote/blob/main/docs/release/1.5.0.md)：Web 隧道断链自愈、下载到浏览器所在机器、高 RTT 提速 6 倍、堡垒机终端纯登录模式。
 
 ## 3 步开始
 
