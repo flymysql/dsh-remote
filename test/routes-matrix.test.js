@@ -62,6 +62,8 @@ const ROUTES = [
   // fs surface (lib/routes-fs.js)
   { path: '/dsh-remote/ls', allow: ['GET', 'POST'], noMethodGuard: true },
   { path: '/dsh-remote/read', allow: ['GET', 'POST'], body: true },
+  // GET-only: it answers a byte stream, so there is no body contract to probe.
+  { path: '/dsh-remote/download', allow: ['GET'] },
   { path: '/dsh-remote/write', allow: ['POST'], body: true },
   { path: '/dsh-remote/fs', allow: ['POST'], body: true },
   { path: '/dsh-remote/local-copy/read', allow: ['POST'], body: true },
