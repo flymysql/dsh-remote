@@ -178,5 +178,15 @@ jobs:
           [ "$CODE" = 200 ] || { echo "tarball unavailable after 10min"; exit 1; }
           TMP=$(mktemp -d) && cd "$TMP"
           npm init -y >/dev/null
-          npm install "dsh-remote@${VER}" --prefer-online
+          # The PACKUMENT flips on the CDN later than the tarball URL: 1.4.1 and
+          # 1.5.0 both saw E404/ETARGET here seconds after the tarball check
+          # above returned 200. Retry the install itself, bounded, so npm's
+          # metadata propagation cannot paint a successful release red.
+          OK=0
+          for i in $(seq 1 30); do
+            if npm install "dsh-remote@${VER}" --prefer-online >/dev/null 2>&1; then OK=1; break; fi
+            echo "registry metadata not propagated yet (ETARGET/E404), waiting 10s ($i/30)"
+            sleep 10
+          done
+          [ "$OK" = 1 ] || { echo "npm install dsh-remote@${VER} still failing after 5min"; exit 1; }
           node -e "const p=require('dsh-remote/package.json'); if(p.version!==process.env.VER){process.exit(1)}; console.log('installed', p.version)"
