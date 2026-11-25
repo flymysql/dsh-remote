@@ -27,7 +27,7 @@ test('#205: a bound session picking a DIFFERENT workspace is told the truth', ()
 test('#205: the description states the scope instead of implying a cwd switch', async () => {
   const { readFileSync } = await import('node:fs')
   const src = readFileSync(new URL('../lib/main.js', import.meta.url), 'utf8')
-  const desc = (/name: 'rw_pick_workspace',\n\s+description:\n\s+'((?:[^'\\]|\\.)+)'/.exec(src)?.[1] ?? '').replace(/\\'/g, "'")
+  const desc = (/name: 'rw_pick_workspace',\r?\n\s+description:\r?\n\s+'((?:[^'\\]|\\.)+)'/.exec(src)?.[1] ?? '').replace(/\\'/g, "'")
   assert.match(desc, /does NOT change the current session's working directory/, 'the non-rebinding scope is explicit')
   assert.match(desc, /keeps resolving relative paths/, 'what keeps resolving against the old workspace is named')
   assert.match(desc, /one session per mirror/, 'the worktree guidance is in the description')
