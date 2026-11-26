@@ -58,6 +58,7 @@ function fakeSftp({ files = {}, listings = {} } = {}) {
         filename: e.name,
         attrs: attrsOf({
           isDirectory: () => !!e.dir,
+          isFile: () => !e.dir && !e.link && !e.other,
           isSymbolicLink: () => !!e.link,
           size: e.size ?? 0,
         }),
@@ -87,17 +88,20 @@ class CoreService {
   async readBytes() { throw this.fail }
   async stat() { throw this.fail }
   async list() { throw this.fail }
+  async search() { throw this.fail }
   async changes() { return 'core-changes' }
 }
 
-function harness({ service, sftp, binding } = {}) {
+function harness({ service, sftp, binding, pool } = {}) {
   const effects = []
   const ctx = {
     inject(names, cb) {
       assert.deepEqual(names, ['workspaceFiles'])
       cb({
         get: (name) => (name === 'workspaceFiles' ? service : undefined),
-        effect: (fn) => { effects.push(fn); return () => {} },
+        // cordis runs the effect body now and keeps whatever it returns as the
+        // disposer, so the fake must do the same or the wrapping never lands.
+        effect: (fn) => { const dispose = fn(); if (typeof dispose === 'function') effects.push(dispose); return () => {} },
       })
     },
   }
@@ -105,7 +109,7 @@ function harness({ service, sftp, binding } = {}) {
     resolveBinding: (cwd) => (binding === undefined ? (cwd === MIRROR.mirrorDir ? MIRROR : { mirrorDir: null, remotePath: '', machine: null }) : binding(cwd)),
     poolForMachine: (machine) => {
       assert.equal(machine?.host, MIRROR.machine.host, 'must dial the mirror-recorded machine, never the active one')
-      return { sftp: async () => sftp }
+      return pool ?? { sftp: async () => sftp }
     },
   })
   return { handle, effects }
@@ -114,11 +118,11 @@ function harness({ service, sftp, binding } = {}) {
 const mirrorScope = { sessionId: 's1', workspaceRoot: MIRROR.mirrorDir }
 const localScope = { sessionId: 's2', workspaceRoot: 'C:\\plain\\local' }
 
-test('wraps read/readBytes/stat/list and leaves changes to the core', () => {
+test('wraps read/readBytes/stat/list/search and leaves changes to the core', () => {
   const service = new CoreService()
   const { handle } = harness({ service, sftp: fakeSftp() })
   try {
-    for (const name of ['read', 'readBytes', 'stat', 'list']) {
+    for (const name of ['read', 'readBytes', 'stat', 'list', 'search']) {
       assert.equal(typeof service[name], 'function')
       assert.notEqual(service[name], CoreService.prototype[name], `${name} wrapped`)
     }
@@ -352,6 +356,7 @@ test('dispose restores prototype methods and pre-existing own properties', async
   assert.equal(service.read, CoreService.prototype.read)
   assert.equal(service.list, CoreService.prototype.list)
   assert.equal(service.readBytes, CoreService.prototype.readBytes)
+  assert.equal(service.search, CoreService.prototype.search)
   assert.equal(service.stat, ownOriginal)
   assert.equal(Object.hasOwn(service, 'read'), false)
   assert.equal(Object.hasOwn(service, 'stat'), true)
@@ -381,4 +386,223 @@ test('structural RemoteErrors carry the wire marker', async () => {
   } finally {
     handle.dispose()
   }
+})
+
+const searchRequest = (query, flags = {}) => ({ query, excludedPaths: [], includeHidden: false, respectGitignore: false, ...flags })
+const fileMatch = path => ({ path, type: 'file' })
+const dirMatch = path => ({ path, type: 'directory' })
+
+test('search preserves the core receiver and arguments for non-mirror scopes', async t => {
+  const service = new CoreService()
+  const request = searchRequest('local-only')
+  const signal = new AbortController().signal
+  service.search = async function (...args) {
+    assert.equal(this, service)
+    assert.deepEqual(args, [localScope, request, signal])
+    return { matches: [fileMatch('local-only')], truncated: false, incomplete: false }
+  }
+  const original = service.search
+  const sftp = fakeSftp()
+  const { handle } = harness({ service, sftp })
+  t.after(() => handle.dispose())
+  assert.deepEqual(await service.search(localScope, request, signal), await original.call(service, localScope, request, signal))
+  assert.deepEqual(sftp.calls, [])
+  handle.dispose()
+  assert.equal(service.search, original)
+})
+
+test('SFTP search matches literal names and paths and infers only directories containing files', async t => {
+  const service = new CoreService()
+  const sftp = fakeSftp({
+    files: { '/srv/proj': { dir: true } },
+    listings: {
+      '/srv/proj': [
+        { name: 'tag-dir', dir: true }, { name: 'tag-empty', dir: true }, { name: 'tag-link', link: true },
+        { name: 'tag-tty', other: true }, { name: 'Tag-ROOT' }, { name: '.tag-secret' }, { name: '.git', dir: true },
+        { name: 'src', dir: true }, { name: 'test', dir: true },
+      ],
+      '/srv/proj/tag-dir': [{ name: 'child' }],
+      '/srv/proj/tag-empty': [],
+      '/srv/proj/src': [{ name: '[tag].JS' }, { name: 'tag.js' }, { name: 'tag[*]' }, { name: 'tag-exact', dir: true }],
+      '/srv/proj/test': [{ name: 'tag[*]' }, { name: 'tag-exact', dir: true }],
+      '/srv/proj/test/tag-exact': [{ name: 'child' }],
+    },
+  })
+  const { handle } = harness({ service, sftp })
+  t.after(() => handle.dispose())
+  const flags = { excludedPaths: ['tag[*]', 'src/tag-exact'] }
+  assert.deepEqual(await service.search(mirrorScope, searchRequest(' TAG ', flags)), {
+    matches: [fileMatch('Tag-ROOT'), dirMatch('tag-dir'), fileMatch('src/[tag].JS'), fileMatch('src/tag.js'), dirMatch('test/tag-exact')],
+    truncated: false,
+    incomplete: false,
+  })
+  assert.deepEqual((await service.search(mirrorScope, searchRequest('src/[TAG]', flags))).matches, [fileMatch('src/[tag].JS')])
+  assert.deepEqual((await service.search(mirrorScope, searchRequest('TAG-DIR/', flags))).matches, [fileMatch('tag-dir/child')])
+  assert.deepEqual((await service.search(mirrorScope, searchRequest('.tag', { includeHidden: true }))).matches, [fileMatch('.tag-secret')])
+  assert.ok(sftp.calls.every(([op, path]) => op === 'stat' || op === 'readdir' && !/\/\.(?:git|tag)|tag-link/.test(path)))
+})
+
+test('SFTP fallback applies workspace-local ignore rules and reports their limited coverage', async t => {
+  const service = new CoreService()
+  const sftp = fakeSftp({
+    files: {
+      '/srv/proj': { dir: true },
+      '/srv/proj/.gitignore': { content: '*.tmp\ntag-out/\n' },
+      '/srv/proj/src/.ignore': { content: '/tag-local\n' },
+    },
+    listings: {
+      '/srv/proj': [{ name: '.gitignore' }, { name: 'tag.tmp' }, { name: 'tag-good' }, { name: 'tag-out', dir: true }, { name: 'src', dir: true }],
+      '/srv/proj/tag-out': [{ name: 'tag-inner' }],
+      '/srv/proj/src': [{ name: '.ignore' }, { name: 'tag-local' }, { name: 'tag-out' }],
+    },
+  })
+  const { handle } = harness({ service, sftp })
+  t.after(() => handle.dispose())
+  assert.deepEqual(await service.search(mirrorScope, searchRequest('tag', { respectGitignore: true })), {
+    matches: [fileMatch('tag-good'), fileMatch('src/tag-out')], truncated: false, incomplete: true,
+  })
+  assert.deepEqual(sftp.calls.filter(([op]) => op === 'readPartial').map(([, path]) => path), ['/srv/proj/.gitignore', '/srv/proj/src/.ignore'])
+  sftp.calls.length = 0
+  assert.deepEqual(await service.search(mirrorScope, searchRequest('tag')), {
+    matches: [fileMatch('tag-good'), dirMatch('tag-out'), fileMatch('tag.tmp'), fileMatch('src/tag-local'), fileMatch('src/tag-out'), fileMatch('tag-out/tag-inner')],
+    truncated: false,
+    incomplete: false,
+  })
+  assert.ok(sftp.calls.every(([op]) => op !== 'readPartial'))
+})
+
+test('SFTP search honors a nested Windows session root and emits slash-joined paths', async t => {
+  const service = new CoreService()
+  const sftp = fakeSftp({
+    files: { 'D:\\project\\src': { dir: true } },
+    listings: { 'D:\\project\\src': [{ name: 'pkg', dir: true }], 'D:\\project\\src\\pkg': [{ name: 'Main.cs' }] },
+  })
+  const { handle } = harness({ service, sftp, binding: () => ({ ...MIRROR, remotePath: 'D:\\project' }) })
+  t.after(() => handle.dispose())
+  const scope = { ...mirrorScope, workspaceRoot: MIRROR.mirrorDir + '\\src' }
+  assert.deepEqual(await service.search(scope, searchRequest('PKG/main')), {
+    matches: [fileMatch('pkg/Main.cs')], truncated: false, incomplete: false,
+  })
+  assert.deepEqual(sftp.calls.map(([, dir]) => dir), ['D:\\project\\src', 'D:\\project\\src', 'D:\\project\\src\\pkg'])
+})
+
+test('search distinguishes a result cap, an exact file cap and incomplete discovery', async t => {
+  const service = new CoreService()
+  service.config.search = { maxResults: 1, maxEntries: 2 }
+  const root = [{ name: 'z-tag' }, { name: 'a-tag' }]
+  const sftp = fakeSftp({ files: { '/srv/proj': { dir: true } }, listings: { '/srv/proj': root } })
+  const { handle } = harness({ service, sftp })
+  t.after(() => handle.dispose())
+  assert.deepEqual(await service.search(mirrorScope, searchRequest('tag')), {
+    matches: [fileMatch('a-tag')], truncated: true, incomplete: false,
+  })
+  root.push({ name: 'm-tag' })
+  assert.deepEqual(await service.search(mirrorScope, searchRequest('z-tag')), {
+    matches: [], truncated: false, incomplete: true,
+  })
+  root.splice(2, 1, { name: 'private', dir: true })
+  assert.deepEqual(await service.search(mirrorScope, searchRequest('tag')), {
+    matches: [fileMatch('a-tag')], truncated: true, incomplete: true,
+  })
+})
+
+test('POSIX search streams NUL delimited rg paths and preserves partial discovery', async t => {
+  const service = new CoreService()
+  const sftp = fakeSftp({ files: { '/srv/proj': { dir: true } } })
+  const pool = {
+    platform: 'posix',
+    sftp: async () => sftp,
+    async exec(script, { onData }) {
+      assert.equal(script.startsWith("cd '/srv/proj' || exit 125; exec rg "), true)
+      assert.ok(script.includes("'--no-config' '--files' '--sort=path' '--null' '--path-separator=/'"))
+      assert.ok(script.includes("'--hidden'"))
+      assert.ok(script.includes("'--glob=!/src/name'\\''s\\[x\\]'"))
+      const output = Buffer.from('src/TAG-é\nfile\0tag.md\0')
+      const split = output.indexOf(Buffer.from('é')) + 1
+      onData('stdout', output.subarray(0, split))
+      onData('stderr', Buffer.from('permission denied'))
+      onData('stdout', output.subarray(split))
+      return { code: 2, stdout: '…[truncated]', signal: null }
+    },
+  }
+  const { handle } = harness({ service, pool })
+  t.after(() => handle.dispose())
+  assert.deepEqual(await service.search(mirrorScope, searchRequest('tag', { includeHidden: true, excludedPaths: ["src/name's[x]"] })), {
+    matches: [fileMatch('tag.md'), fileMatch('src/TAG-é\nfile')], truncated: false, incomplete: true,
+  })
+  assert.deepEqual(sftp.calls, [['stat', '/srv/proj']])
+})
+
+test('rg search cancels its own stream at the first file past the cap', async t => {
+  const service = new CoreService()
+  service.config.search = { maxEntries: 1 }
+  const sftp = fakeSftp({ files: { '/srv/proj': { dir: true } } })
+  const pool = {
+    platform: 'posix',
+    sftp: async () => sftp,
+    async exec(_script, { signal, onData }) {
+      onData('stdout', Buffer.from('tag-a\0tag-b\0tag-c\0'))
+      assert.equal(signal.aborted, true)
+      return { code: -1, signal: 'ABORTED' }
+    },
+  }
+  const { handle } = harness({ service, pool })
+  t.after(() => handle.dispose())
+  const signal = new AbortController().signal
+  assert.deepEqual(await service.search(mirrorScope, searchRequest('tag'), signal), {
+    matches: [fileMatch('tag-a')], truncated: false, incomplete: true,
+  })
+  assert.equal(signal.aborted, false)
+  assert.deepEqual(sftp.calls, [['stat', '/srv/proj']])
+})
+
+test('search refuses invalid roots and rejects cancellation with the exact reason', async t => {
+  const service = new CoreService()
+  const sftp = fakeSftp({ files: {} })
+  const { handle } = harness({ service, sftp })
+  t.after(() => handle.dispose())
+  await assert.rejects(service.search(mirrorScope, searchRequest(' ')), { code: 'gateway/bad-request' })
+  const reason = new Error('steered away')
+  await assert.rejects(service.search(mirrorScope, searchRequest('tag'), AbortSignal.abort(reason)), error => error === reason)
+  assert.deepEqual(sftp.calls, [])
+  await assert.rejects(service.search(mirrorScope, searchRequest('tag')), { code: 'workspace-file/not-found' })
+  sftp.stat = async () => attrsOf()
+  await assert.rejects(service.search(mirrorScope, searchRequest('tag')), { code: 'workspace-file/not-directory' })
+
+  sftp.stat = async () => attrsOf({ isDirectory: () => true })
+  const started = Promise.withResolvers()
+  const stalled = Promise.withResolvers()
+  t.after(() => stalled.resolve([]))
+  sftp.readdir = () => { started.resolve(); return stalled.promise }
+  const controller = new AbortController()
+  const pending = service.search(mirrorScope, searchRequest('tag'), controller.signal)
+  await started.promise
+  controller.abort(reason)
+  await assert.rejects(pending, error => error === reason)
+  service.config.search = { timeoutMs: 20 }
+  await assert.rejects(service.search(mirrorScope, searchRequest('tag')), { code: 'workspace-file/search-failed' })
+})
+
+test('registered workspaceFiles search sees new remote names and omits stale mirror names', async t => {
+  const { createHost, machine } = await import('./harness/plugin-host.js')
+  const { startFakeSsh } = await import('./harness/fake-ssh.js')
+  const { writeFileSync, realpathSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const service = new CoreService()
+  const srv = await startFakeSsh({ users: { root: { password: 'pw' } }, fs: { '/home/user/proj/initial': '' } })
+  t.after(() => srv.close())
+  const rec = machine(srv.machine({ workspace: '/home/user/proj' }))
+  const host = await createHost({ machines: [rec], services: { workspaceFiles: service } })
+  t.after(() => host.dispose())
+  const mirror = await host.call('/dsh-remote/mirror', { body: { path: rec.workspace, machineId: rec.id } })
+  assert.equal(mirror.json.ok, true, mirror.raw)
+  // macOS spells its temp dir through /var, while the harness may record the
+  // /private/var realpath (or the reverse). Bind through the same physical path
+  // the plugin resolves, exactly as a real session's cwd would.
+  const local = realpathSync(mirror.json.localMirror)
+  writeFileSync(join(local, 'stale-tag.txt'), 'mirror only')
+  srv.fs.write('/home/user/proj/new/tag.txt', 'remote only')
+  assert.deepEqual(await service.search({ sessionId: 'mirror', workspaceRoot: local }, searchRequest('tag')), {
+    matches: [fileMatch('new/tag.txt')], truncated: false, incomplete: false,
+  })
 })
