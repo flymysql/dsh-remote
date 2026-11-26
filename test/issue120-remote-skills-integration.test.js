@@ -66,8 +66,15 @@ test('REAL SshPool + fake sshd discovers remote skills; HTTP write invalidates t
 
 test('system-OpenSSH backend discovers the same remote skills over the shared surface', async (t) => {
   const { registry, mirror } = await setup(t, 'openssh')
-  const snapshot = await registry.snapshot({ cwd: mirror })
-  assert.equal(snapshot.complete, true)
+  // #219: under the release-verify conditions (an --ignore-scripts tree, full
+  // --test-concurrency=8 load) the real `ssh` child + fake-sshd handshake has
+  // twice raced a snapshot on a loaded CI runner (both rerun-green, and 20/20
+  // green locally). The skill registry's contract is "incomplete → retry", so
+  // allow exactly one retry of the snapshot itself: it absorbs a runner race,
+  // never a real "never completes" defect (that would fail on retry too).
+  let snapshot = await registry.snapshot({ cwd: mirror })
+  if (!snapshot.complete) snapshot = await registry.snapshot({ cwd: mirror })
+  assert.equal(snapshot.complete, true, 'a complete snapshot after at most one retry (#219 runner flake)')
   assert.deepEqual(snapshot.skills.map((s) => s.name), ['alpha', 'beta'])
   assert.equal((await registry.get('alpha', { cwd: mirror })).content, 'old remote body')
   assert.equal((await registry.get('beta', { cwd: mirror })).content, 'agents body')
