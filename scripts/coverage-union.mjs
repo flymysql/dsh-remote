@@ -199,6 +199,22 @@ if (fileGate !== null) {
     const floor = FILE_FLOORS.get(r.file.replace(/\\/g, '/')) ?? fileGate
     if (r.lines < floor - 1e-9) breaches.push(`${r.file}: ${r.lines.toFixed(1)}% < floor ${floor}%`)
   }
+  // #220: when the floor is breached on a rerun-passing run, leave the raw
+  // evidence behind — how many coverage EVALUATION INSTANCES each breaching
+  // file contributed and how large each instance's range map is. A file whose
+  // V8 block was partially lost shows an unusually small instance count/map,
+  // which distinguishes "the test did not exercise it" (small on every run)
+  // from "the runner dropped its coverage" (small only on the flaky run).
+  if (breaches.length) {
+    for (const [file, entry] of sources.entries()) {
+      const rel = path.relative(repo, file).replace(/\\/g, '/')
+      if (!breaches.some((b) => b.startsWith(rel + ':') || b.startsWith(rel.replace(/\//g, '\\') + ':'))) continue
+      const mapSizes = entry.instances.map((m) => m.size)
+      const min = Math.min(...mapSizes), max = Math.max(...mapSizes)
+      const avg = (mapSizes.reduce((a, b) => a + b, 0) / mapSizes.length).toFixed(1)
+      console.error(`  [coverage evidence] ${rel}: ${entry.instances.length} evaluation instance(s), range-map sizes min=${min} avg=${avg} max=${max}`)
+    }
+  }
   // A gate that never tells you to remove exceptions rots: once a file climbs
   // above the global gate its allowance is dead weight and must go.
   for (const [f] of FILE_FLOORS) {
