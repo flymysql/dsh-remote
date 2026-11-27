@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, statSync,
 import os from 'node:os'
 import path from 'node:path'
 import { syncTree, pushTree, loadSyncState, saveSyncState, pushOneFile } from '../lib/sync.js'
+import { createSyncActivity } from '../lib/sync-status.js'
 import { MemFs, makeSftp, seed } from './helpers.js'
 
 function tmpDir() {
@@ -119,6 +120,34 @@ test('push: local edit uploads; remote edit + local untouched is a conflict', as
   assert.match(p2.stats.conflicts[0].reason, /remote-modified/)
   assert.equal(fs.readFileSync('/proj/a.txt').toString(), 'remote-new') // remote untouched
   rmSync(local, { recursive: true, force: true })
+})
+
+test('push reports failed writes and preserves the previous snapshot for those files', async (t) => {
+  const fs = new MemFs()
+  seed(fs, { 'proj/readonly.txt': 'old' })
+  const remote = makeSftp(fs)
+  const sftp = { ...remote, async writeFile(file, bytes) {
+    if (file === '/proj/readonly.txt') throw Object.assign(new Error('Permission denied'), { code: 3 })
+    await remote.writeFile(file, bytes)
+  } }
+  const local = tmpDir()
+  t.after(() => rmSync(local, { recursive: true, force: true }))
+  const { nextState: state } = await syncTree(sftp, '/proj', local)
+  writeFileSync(path.join(local, 'readonly.txt'), 'changed locally')
+  writeFileSync(path.join(local, 'writable.txt'), 'normal file')
+  const activity = createSyncActivity()
+
+  const result = await activity.run(local, 'upload', async record => {
+    const pushed = await pushTree(sftp, local, '/proj', { state })
+    record(pushed.stats)
+    return pushed
+  })
+
+  assert.deepEqual(result.stats.pushed, ['/proj/writable.txt'])
+  assert.equal(result.stats.failed, 1)
+  assert.equal(activity.read(local).phase, 'partial')
+  assert.deepEqual(result.nextState['readonly.txt'], state['readonly.txt'])
+  assert.equal(fs.readFileSync('/proj/readonly.txt').toString(), 'old')
 })
 
 test('state file round-trips via load/save', async () => {
