@@ -546,17 +546,119 @@ test('issue #78: auto-open fires by default, and only once per session per run',
   t.after(() => host.ctx.dispose())
   plugin.apply(host.ctx)
   const sidebar = betterSidebar()
-  sidebar.openTab = (spec) => opened.push(spec)
+  sidebar.openTab = (spec, scope) => opened.push({ spec, scope })
   host.services.set('betterSidebar', sidebar)
 
   sidebar.emit('sess-remote')
-  await until78(() => opened.length === 1, 'the default auto-open')
-  assert.equal(opened[0].type, 'dsh-remote:explorer')
-  assert.equal(opened[0].path, '/home/os/proj')
   sidebar.emit('sess-remote')
-  // The repeat exits synchronously at the autoOpenedFor check (before any
-  // fetch), so there is nothing to wait for on the second emit.
-  assert.equal(opened.length, 1, 'the in-memory set already suppresses repeats within a run')
+  await until78(() => opened.length > 0, 'the default auto-open')
+  assert.equal(opened[0].spec.type, 'dsh-remote:explorer')
+  assert.equal(opened[0].spec.path, '/home/os/proj')
+  assert.equal(opened[0].scope?.sessionId, 'sess-remote')
+  sidebar.emit('sess-remote')
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(opened.length, 1, 'updates during and after auto-open never open a second tab')
+})
+
+test('better-sidebar auto-open skips a stale session and opens when it is revisited', async (t) => {
+  let resolveMirror
+  const mirror = new Promise((resolve) => { resolveMirror = resolve })
+  const remoteUrl = '/dsh-remote/resolve-mirror?sessionId=remote-a'
+  const { plugin, requests } = loadClient('https:', 'Linux x86_64', (url) => (
+    url === remoteUrl ? mirror : { ok: true, json: async () => ({}) }
+  ))
+  const host = createHost()
+  t.after(() => host.ctx.dispose())
+  const sidebar = betterSidebar()
+  const opened = []
+  sidebar.openTab = ({ type, path }) => opened.push([sidebar.getSnapshot().sessionId, type, path])
+  host.services.set('betterSidebar', sidebar)
+  plugin.apply(host.ctx)
+
+  sidebar.emit('remote-a')
+  await until78(() => requests.some(({ url }) => url === remoteUrl), 'remote A mirror lookup')
+  sidebar.emit('local-b')
+  resolveMirror(ISSUE78_REMOTE)
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.deepEqual(opened, [], 'A’s completed lookup must leave B’s sidebar alone')
+
+  sidebar.emit('remote-a')
+  await until78(() => opened.length > 0, 'auto-open after switching back to A')
+  assert.deepEqual(opened, [['remote-a', 'dsh-remote:explorer', '/home/os/proj']])
+})
+
+test('better-sidebar auto-open ignores a mirror lookup completed after disposal', async (t) => {
+  let resolveMirror
+  const mirror = new Promise((resolve) => { resolveMirror = resolve })
+  const { plugin, requests } = loadClient('https:', 'Linux x86_64', (url) => (
+    url.includes('/resolve-mirror') ? mirror : { ok: true, json: async () => ({}) }
+  ))
+  const host = createHost()
+  t.after(() => host.ctx.dispose())
+  const sidebar = betterSidebar()
+  const opened = []
+  sidebar.openTab = (spec) => opened.push(spec.path)
+  host.services.set('betterSidebar', sidebar)
+  plugin.apply(host.ctx)
+
+  sidebar.emit('sess-remote')
+  await until78(() => requests.some(({ url }) => url.includes('/resolve-mirror')), 'pending mirror lookup')
+  host.services.remove('betterSidebar')
+  resolveMirror(ISSUE78_REMOTE)
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.deepEqual(opened, [], 'a disposed integration cannot open a tab')
+
+  host.services.set('betterSidebar', sidebar)
+  await until78(() => opened.length > 0, 'auto-open by the remounted integration')
+  assert.deepEqual(opened, ['/home/os/proj'])
+})
+
+test('better-sidebar auto-open retries a session after openTab throws', async (t) => {
+  const { plugin } = loadClient('https:', 'Linux x86_64', issue78Fetch)
+  const host = createHost()
+  t.after(() => host.ctx.dispose())
+  const sidebar = betterSidebar()
+  let attempts = 0
+  const opened = []
+  sidebar.openTab = (spec) => {
+    if (++attempts === 1) throw new Error('sidebar tab temporarily unavailable')
+    opened.push(spec.path)
+  }
+  host.services.set('betterSidebar', sidebar)
+  plugin.apply(host.ctx)
+
+  sidebar.emit('sess-remote')
+  await until78(() => attempts === 1, 'first auto-open attempt')
+  sidebar.emit('')
+  sidebar.emit('sess-remote')
+  await until78(() => opened.length > 0, 'auto-open retry')
+  assert.deepEqual(opened, ['/home/os/proj'])
+  assert.equal(attempts, 2)
+})
+
+test('better-sidebar auto-open remains eligible while the tab type is disabled', async (t) => {
+  const { plugin, requests } = loadClient('https:', 'Linux x86_64', issue78Fetch)
+  const host = createHost()
+  t.after(() => host.ctx.dispose())
+  const sidebar = betterSidebar()
+  let enabled = false
+  const opened = []
+  sidebar.isTabEnabled = (id) => id === 'dsh-remote:explorer' && enabled
+  sidebar.openTab = (spec) => {
+    if (sidebar.isTabEnabled(spec.type)) opened.push(spec.path)
+  }
+  host.services.set('betterSidebar', sidebar)
+  plugin.apply(host.ctx)
+
+  sidebar.emit('sess-remote')
+  await until78(() => requests.some(({ url }) => url.includes('/resolve-mirror')), 'mirror lookup while disabled')
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.deepEqual(opened, [])
+
+  enabled = true
+  sidebar.emit('sess-remote')
+  await until78(() => opened.length > 0, 'auto-open after enabling the tab')
+  assert.deepEqual(opened, ['/home/os/proj'])
 })
 
 test('issue #78: a persistent opt-out survives "restart" (fresh plugin instance)', async (t) => {
