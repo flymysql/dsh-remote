@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, statSync, utimesSync, mkdirSync } from 'node:fs'
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, statSync, utimesSync, mkdirSync, readdirSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { syncTree, pushTree, loadSyncState, saveSyncState, pushOneFile } from '../lib/sync.js'
@@ -85,15 +85,19 @@ test('ignore rules keep node_modules out of the mirror', async () => {
   rmSync(local, { recursive: true, force: true })
 })
 
-test('dryRun writes nothing locally', async () => {
+test('syncTree dryRun caps the plan without writing locally', async (t) => {
   const fs = new MemFs()
-  seed(fs, { 'proj/a.txt': 'v1' })
+  seed(fs, { 'proj/a.txt': 'v1', 'proj/b.txt': 'v2' })
   const sftp = makeSftp(fs)
   const local = tmpDir()
-  const r = await syncTree(sftp, '/proj', local, { maxFiles: 100, maxFileBytes: 0, isIgnored: noIgnore, state: {}, dryRun: true })
-  assert.equal(r.stats.files, 1)
-  assert.equal(existsSync(path.join(local, 'a.txt')), false)
-  rmSync(local, { recursive: true, force: true })
+  t.after(() => rmSync(local, { recursive: true, force: true }))
+
+  const { stats, nextState } = await syncTree(sftp, '/proj', local, { maxFiles: 1, dryRun: true })
+  assert.equal(stats.files, 1)
+  assert.equal(stats.truncated, true)
+  assert.deepEqual(stats.touched, ['/proj/a.txt'])
+  assert.deepEqual(nextState, { 'a.txt': { size: 2, mtime: fs.statSync('/proj/a.txt').mtime } })
+  assert.deepEqual(readdirSync(local), [])
 })
 
 test('push: local edit uploads; remote edit + local untouched is a conflict', async () => {
@@ -149,16 +153,70 @@ test('pushOneFile: pushes a local edit, never clobbers a remote change', async (
   rmSync(local, { recursive: true, force: true })
 })
 
-test('syncTree sets truncated when maxFiles is hit', async () => {
-  const fs = new MemFs()
-  seed(fs, { 'proj/a.txt': 'a', 'proj/b.txt': 'b', 'proj/c.txt': 'c' })
-  const sftp = makeSftp(fs)
-  const local = tmpDir()
-  const r = await syncTree(sftp, '/proj', local, { maxFiles: 1, maxFileBytes: 0, isIgnored: noIgnore, state: {} })
-  assert.ok(r.stats.files >= 1)
-  assert.equal(r.stats.truncated, true)
-  rmSync(local, { recursive: true, force: true })
-})
+for (const maxFiles of [1, 2]) {
+  test(`syncTree caps downloads at maxFiles=${maxFiles} after a failed candidate`, async (t) => {
+    const fs = new MemFs()
+    seed(fs, { 'proj/a.txt': 'a', 'proj/b.txt': 'b', 'proj/c.txt': 'c', 'proj/d.txt': 'd', 'proj/e.txt': 'e' })
+    const local = tmpDir()
+    t.after(() => rmSync(local, { recursive: true, force: true }))
+    const sftp = makeSftp(fs)
+    const readFile = sftp.readFile
+    let inFlight = 0
+    let peakReads = 0
+    sftp.readFile = async (p) => {
+      peakReads = Math.max(peakReads, ++inFlight)
+      try {
+        // Let other workers reach readFile before this transfer settles.
+        await new Promise((resolve) => setImmediate(resolve))
+        if (p === '/proj/a.txt') throw new Error('permission denied')
+        return await readFile(p)
+      } finally {
+        inFlight--
+      }
+    }
+
+    const { stats, nextState } = await syncTree(sftp, '/proj', local, { maxFiles })
+    const expected = ['b.txt', 'c.txt'].slice(0, maxFiles)
+    assert.equal(stats.files, maxFiles)
+    assert.equal(stats.failed, 1)
+    assert.equal(stats.truncated, true)
+    assert.equal(peakReads, maxFiles)
+    assert.deepEqual(stats.touched, expected.map((name) => '/proj/' + name))
+    assert.deepEqual(readdirSync(local).sort(), expected)
+    assert.deepEqual(Object.keys(nextState).sort(), expected)
+  })
+}
+
+for (const dryRun of [false, true]) {
+  test(`pushTree caps ${dryRun ? 'planned' : 'actual'} uploads at maxFiles=1 after skipped candidates`, async (t) => {
+    const local = tmpDir()
+    t.after(() => rmSync(local, { recursive: true, force: true }))
+    for (const name of ['a.txt', 'b.txt', 'c.txt', 'd.txt', 'e.txt']) writeFileSync(path.join(local, name), name)
+    const [ignored, unchanged, firstUpload] = readdirSync(local)
+    const fs = new MemFs()
+    seed(fs, { ['proj/' + unchanged]: unchanged })
+    const { size, mtime } = fs.statSync('/proj/' + unchanged)
+    utimesSync(path.join(local, unchanged), mtime, mtime)
+    const state = { [unchanged]: { size, mtime } }
+    const sftp = makeSftp(fs)
+
+    const { stats, nextState } = await pushTree(sftp, local, '/proj', {
+      maxFiles: 1, dryRun, state, isIgnored: (rel) => rel === ignored,
+    })
+    assert.equal(stats.files, 1)
+    assert.equal(stats.skippedUnchanged, 1)
+    assert.equal(stats.truncated, true)
+    assert.deepEqual(stats.pushed, ['/proj/' + firstUpload])
+    const remoteFiles = (await sftp.readdir('/proj')).map((entry) => entry.filename)
+    assert.deepEqual(remoteFiles, dryRun ? [unchanged] : [unchanged, firstUpload])
+    if (dryRun) {
+      assert.deepEqual(nextState, state)
+    } else {
+      const { size, mtime } = fs.statSync('/proj/' + firstUpload)
+      assert.deepEqual(nextState, { ...state, [firstUpload]: { size, mtime } })
+    }
+  })
+}
 
 test('syncTree syncs shallow/root files before recursing into deep subdirectories and honors depth option', async () => {
   const fs = new MemFs()
