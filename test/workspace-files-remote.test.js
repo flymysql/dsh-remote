@@ -97,7 +97,9 @@ function harness({ service, sftp, binding } = {}) {
       assert.deepEqual(names, ['workspaceFiles'])
       cb({
         get: (name) => (name === 'workspaceFiles' ? service : undefined),
-        effect: (fn) => { effects.push(fn); return () => {} },
+        // cordis runs the effect body immediately and keeps its return value
+        // as the disposer, so the fake must do the same.
+        effect: (fn) => { const dispose = fn(); if (typeof dispose === 'function') effects.push(dispose); return () => {} },
       })
     },
   }

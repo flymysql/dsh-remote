@@ -189,3 +189,119 @@ test('#228: an empty query is a gateway/bad-request', async () => {
     handle.dispose()
   }
 })
+
+/** A pool whose exec streams NUL records through onData, like both real backends. */
+function streamingPool({ records, code = 0, stderr = '' }) {
+  const calls = []
+  return {
+    calls,
+    sftp: async () => rootSftp,
+    async exec(script, opts = {}) {
+      calls.push({ script, opts })
+      for (const record of records) {
+        opts.onData?.('stdout', record + '\u0000')
+        if (opts.signal?.aborted) return { code: null, signal: 'ABORTED', stdout: '', stderr }
+      }
+      return { code, stdout: '', stderr }
+    },
+  }
+}
+
+test('#228: an empty directory is zero matches, not a failure (rg exits 1)', async () => {
+  const service = new CoreService()
+  const handle = harness({
+    service,
+    sftp: rootSftp,
+    execResult: () => ({ code: 1, stdout: '', stderr: '' }),
+  })
+  try {
+    const result = await service.search({ workspaceRoot: MIRROR.mirrorDir }, { query: 'anything' })
+    assert.deepEqual(result, { matches: [], truncated: false, incomplete: false },
+      'rg --files exits 1 when nothing matches; that is an empty result, not an error')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('#228: streamed enumeration finds a file past maxOutputChars instead of truncating', async () => {
+  const service = new CoreService()
+  const records = []
+  for (let i = 0; i < 6000; i += 1) records.push('/srv/proj/bulk/file-' + String(i).padStart(5, '0') + '-' + 'x'.repeat(40) + '.txt')
+  records.push('/srv/proj/needle-at-the-end.txt')
+  let body = ''
+  for (const record of records) body += record + '\u0000'
+  assert.ok(body.length > 200000, 'the fixture must exceed the default maxOutputChars')
+  const pool = streamingPool({ records })
+  const handle = installWorkspaceFilesRemote({
+    inject(names, cb) { cb({ get: () => service, effect: () => {} }) },
+  }, {
+    resolveBinding: (cwd) => (cwd === MIRROR.mirrorDir ? MIRROR : null),
+    poolForMachine: () => pool,
+  })
+  try {
+    const result = await service.search({ workspaceRoot: MIRROR.mirrorDir }, { query: 'needle-at-the-end' })
+    assert.deepEqual(result.matches, [{ path: 'needle-at-the-end.txt', type: 'file' }],
+      'the last record must survive even though buffered stdout would have been cut at 200k')
+    assert.equal(result.incomplete, false)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('#228: exceeding maxEntries stops the stream and reports incomplete', async () => {
+  const service = new CoreService()
+  service.config.search = { maxEntries: 100, maxResults: 50 }
+  const records = []
+  for (let i = 0; i < 500; i += 1) records.push('/srv/proj/f' + i + '.txt')
+  const pool = streamingPool({ records })
+  const handle = installWorkspaceFilesRemote({
+    inject(names, cb) { cb({ get: () => service, effect: () => {} }) },
+  }, {
+    resolveBinding: (cwd) => (cwd === MIRROR.mirrorDir ? MIRROR : null),
+    poolForMachine: () => pool,
+  })
+  try {
+    const result = await service.search({ workspaceRoot: MIRROR.mirrorDir }, { query: 'f4' })
+    assert.equal(result.incomplete, true, 'a cap must be reported, not silently swallowed')
+    assert.deepEqual(result.matches.map((m) => m.path), ['f4.txt', 'f40.txt', 'f41.txt', 'f42.txt', 'f43.txt', 'f44.txt', 'f45.txt', 'f46.txt', 'f47.txt', 'f48.txt', 'f49.txt'].filter((p) => Number(p.slice(1, -4)) < 100))
+    assert.ok(pool.calls.at(-1).opts.signal.aborted, 'the stream is aborted once the cap is reached')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('#228: the find fallback honours hidden and excluded filters and admits partial coverage', async () => {
+  const service = new CoreService()
+  const records = ['./keep.txt', './.hidden.txt', './src/.cache/y.txt', './draft/z.txt']
+  const pool = streamingPool({ records, stderr: 'DSH_REMOTE_SEARCH_FALLBACK' })
+  const handle = installWorkspaceFilesRemote({
+    inject(names, cb) { cb({ get: () => service, effect: () => {} }) },
+  }, {
+    resolveBinding: (cwd) => (cwd === MIRROR.mirrorDir ? MIRROR : null),
+    poolForMachine: () => pool,
+  })
+  try {
+    const result = await service.search({ workspaceRoot: MIRROR.mirrorDir }, {
+      query: '.txt', includeHidden: false, respectGitignore: true, excludedPaths: ['draft'],
+    })
+    assert.deepEqual(result.matches, [{ path: 'keep.txt', type: 'file' }],
+      'hidden files and excluded subtrees must not leak through the fallback')
+    assert.equal(result.incomplete, true, 'find cannot apply gitignore rules; say so')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('#228: wrappers stay installed until the effect disposer runs', async () => {
+  const service = new CoreService()
+  let disposeEffect
+  const handle = installWorkspaceFilesRemote({
+    inject(names, cb) {
+      cb({ get: () => service, effect: (fn) => { disposeEffect = fn() } })
+    },
+  }, { resolveBinding: (cwd) => (cwd === MIRROR.mirrorDir ? MIRROR : null), poolForMachine: () => fakePool({ exec: { calls: [], result: () => ({ code: 0, stdout: LISTED, stderr: '' }) }, sftp: rootSftp }) })
+  assert.notEqual(service.search, CoreService.prototype.search, 'the seam must still be installed after inject() returns')
+  disposeEffect()
+  assert.equal(service.search, CoreService.prototype.search, 'teardown restores the core implementation')
+  handle.dispose()
+})
