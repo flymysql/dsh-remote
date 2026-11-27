@@ -38,6 +38,23 @@ test('remote Git workbench separates working/staged patches and opens the select
   assert.match(ui.textOf(tree), /没有匹配的改动文件/)
 })
 
+test('diff body lines resembling headers keep their source line numbers', async t => {
+  const opened = []
+  const patch = 'diff --git a/main.c b/main.c\n--- a/main.c\n+++ b/main.c\n@@ -1,2 +1,2 @@\n--- old\n+++ new\n context\n'
+  const ui = mountClient({ effectDependencies: true, fetch: async url => {
+    const q = new URL(String(url), 'http://localhost').searchParams
+    return reply(q.get('action') === 'status' ? status() : { ok: true, available: true, patch })
+  } })
+  t.after(() => ui.dispose())
+  const tree = await ui.settleComponent(ui.body('dsh-remote/changes'), props('a', opened))
+  const rows = ui.elements(tree).filter(el => el.props['data-rw-diff-kind'])
+  assert.deepEqual(rows.map(el => el.props['data-rw-diff-kind']), ['meta', 'meta', 'meta', 'hunk', 'removed', 'added', 'context'])
+  const context = ui.buttons(rows.at(-1))[0]
+  assert.equal(context.el.props['data-rw-diff-line'], 2)
+  context.el.props.onClick()
+  assert.equal(opened[0].args[1].params.line, 2)
+})
+
 test('a late Git status response cannot replace the next session or its file navigation', async t => {
   const first = deferred(), opened = []
   const ui = mountClient({ effectDependencies: true, fetch: async url => {

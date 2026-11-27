@@ -20,7 +20,8 @@ function seedMirror(home, { host = '10.0.0.9', port = 22, username = 'root', nam
   writeFileSync(path.join(mirrorDir, 'hello.txt'), 'hi')
   const sessDir = path.join(home, 'sessions', projectKey(mirrorDir), encodeSegment('sess-1'))
   mkdirSync(sessDir, { recursive: true })
-  writeFileSync(path.join(sessDir, 'session.jsonl'), '{}\n')
+  const header = { type: 'session', version: 0, id: 'sess-1', cwd: mirrorDir, createdAt: 0, delegationDepth: 0 }
+  writeFileSync(path.join(sessDir, 'session.jsonl'), JSON.stringify(header) + '\n')
   return { mirrorDir, sessDir }
 }
 
@@ -61,6 +62,32 @@ test('mirrors list → sessions-only delete → full delete, all through the rou
 
     const after = await host.call('/dsh-remote/workspace-mirrors', { method: 'GET' })
     assert.ok(!after.json.mirrors.some((m) => m.localMirror === mirrorDir), 'gone from the list')
+  } finally {
+    await host.dispose()
+  }
+})
+
+test('full cleanup reports a live subdirectory session before it has a stored log', async () => {
+  const active = []
+  const sessions = {
+    list: () => active,
+    get: (id) => active.find((session) => session.id === id),
+  }
+  const host = await createHost({ services: { sessions } })
+  try {
+    const { mirrorDir, sessDir } = seedMirror(host.home)
+    const cwd = path.join(mirrorDir, 'src')
+    mkdirSync(cwd)
+    active.push({ id: 'sess-live', header: { cwd } })
+    const response = await host.call('/dsh-remote/workspace-cleanup', {
+      method: 'POST',
+      body: { localMirror: mirrorDir, mode: 'all' },
+    })
+    assert.equal(response.status, 409)
+    assert.equal(response.json.code, 'WORKSPACE_BUSY')
+    assert.deepEqual(response.json.liveSessions, ['sess-live'])
+    assert.ok(existsSync(mirrorDir))
+    assert.ok(existsSync(sessDir))
   } finally {
     await host.dispose()
   }
