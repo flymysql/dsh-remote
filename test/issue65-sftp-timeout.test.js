@@ -137,24 +137,54 @@ test('renameOverwrite falls back to the move-aside dance without the extension',
   assert.deepEqual(renames[1], ['/f.tmp', '/f.txt'], 'hop 2 installs the new content')
 })
 
-test('renameOverwrite rolls the original back when the install hop fails', async () => {
-  const fs = new Map([['/f.txt', 'old'], ['/f.tmp', 'new']])
-  let hops = 0
-  const sftp = {
-    on() {},
-    _extensions: {},
-    rename(a, b, cb) {
-      hops++
-      if (hops === 2) return cb(new Error('disk full')) // install hop fails
-      const v = fs.get(a)
-      fs.delete(a); fs.set(b, v)
-      cb(null)
-    },
-    unlink(p, cb) { fs.delete(p); cb(null) },
+test('renameOverwrite tries to restore the original when the install hop fails', async (t) => {
+  const installError = Object.assign(new Error('disk full'), { code: 4 })
+
+  function fixture(rollbackError) {
+    const fs = new Map([['/f.txt', 'old'], ['/f.tmp', 'new']])
+    const renames = []
+    const unlinks = []
+    const sftp = {
+      on() {},
+      _extensions: {},
+      rename(a, b, cb) {
+        renames.push([a, b])
+        if (renames.length === 2) return cb(installError)
+        if (renames.length === 3 && rollbackError) return cb(rollbackError)
+        const v = fs.get(a)
+        fs.delete(a); fs.set(b, v)
+        cb(null)
+      },
+      unlink(p, cb) { unlinks.push(p); fs.delete(p); cb(null) },
+    }
+    const surface = buildSftpSurface(sftp, { commandTimeoutMs: 50 })
+    return { fs, renames, unlinks, surface }
   }
-  const surface = buildSftpSurface(sftp, { commandTimeoutMs: 50 })
-  await assert.rejects(() => surface.renameOverwrite('/f.tmp', '/f.txt'), /disk full/)
-  assert.equal(fs.get('/f.txt'), 'old', 'the original content must be restored')
+
+  await t.test('successful rollback returns the original install error', async () => {
+    const { fs, unlinks, surface } = fixture()
+    await assert.rejects(() => surface.renameOverwrite('/f.tmp', '/f.txt'), error => error === installError)
+    assert.equal(fs.get('/f.txt'), 'old', 'the original content must be restored')
+    assert.deepEqual(unlinks, [])
+  })
+
+  await t.test('failed rollback reports both errors and retains the backup', async () => {
+    const rollbackError = Object.assign(new Error('permission denied'), { code: 3 })
+    const { fs, renames, unlinks, surface } = fixture(rollbackError)
+    await assert.rejects(() => surface.renameOverwrite('/f.tmp', '/f.txt'), error => {
+      assert.ok(error instanceof AggregateError)
+      assert.deepEqual(error.errors, [installError, rollbackError])
+      assert.equal(error.code, installError.code)
+      assert.match(error.message, /install failed.*disk full/i)
+      assert.match(error.message, /rollback failed.*permission denied/i)
+      assert.ok(error.message.includes(renames[0][1]), 'the error must name the retained backup')
+      return true
+    })
+    const backup = renames[0][1]
+    assert.deepEqual(renames, [['/f.txt', backup], ['/f.tmp', '/f.txt'], [backup, '/f.txt']])
+    assert.deepEqual(fs, new Map([['/f.tmp', 'new'], [backup, 'old']]))
+    assert.deepEqual(unlinks, [])
+  })
 })
 
 test('setstat passes through with the same timeout/dead rules (rw_edit mode restore)', async () => {
