@@ -39,6 +39,8 @@ const CLIENT_SRC = readFileSync(path.join(here, '..', '..', 'lib', 'client.js'),
  * @param {Function} [opts.fetch] - fetch stub (default: `{}` for every call).
  * @param {Array<string>} [opts.languages] - navigator.languages (default zh-CN).
  * @param {object} [opts.services] - extra ctx.get(name) services.
+ * @param {object} [opts.location] - window.location for transport-specific tests.
+ * @param {object} [opts.document] - overrides for DOM methods and properties.
  * @returns {object} the harness (see the file header).
  */
 export function mountClient(opts = {}) {
@@ -69,7 +71,7 @@ export function mountClient(opts = {}) {
     window: {
       addEventListener: (type, fn) => { if (!windowListeners.has(type)) windowListeners.set(type, new Set()); windowListeners.get(type).add(fn) },
       removeEventListener: (type, fn) => windowListeners.get(type)?.delete(fn),
-      location: { protocol: 'http:', href: 'http://127.0.0.1:3080/' },
+      location: opts.location || { protocol: 'http:', href: 'http://127.0.0.1:3080/' },
       localStorage: { getItem: () => null, setItem: () => {} },
       confirm: () => true,
       // The bundle calls window.setTimeout too (update check); it used to be
@@ -86,6 +88,7 @@ export function mountClient(opts = {}) {
       querySelector: () => null,
       addEventListener: () => {},
       removeEventListener: () => {},
+      ...opts.document,
     },
     navigator: { clipboard: null, userAgent: 'node', languages: opts.languages || ['zh-CN'] },
     setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout, setInterval: setIntervalStub, clearInterval: clearIntervalStub, console,
