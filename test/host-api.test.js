@@ -13,6 +13,7 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { zstdCompressSync } from 'node:zlib'
 import { createHostApi } from '../lib/host-api.js'
 import { resolveMirror } from '../lib/binding.js'
 import { shortHash } from '../lib/paths.js'
@@ -718,8 +719,16 @@ test('subscribe fires on real mutations (upsert → machines, setCurrent → sta
 
 // ── workspace cleanup (mirror + conversations) ────────────────────────────
 
+function seedCleanupSession(sessionsRoot, cwd, id) {
+  const dir = path.join(sessionsRoot, projectKey(cwd), encodeSegment(id))
+  mkdirSync(dir, { recursive: true })
+  const header = { type: 'session', version: 4, id, cwd, createdAt: 0, isSeeded: false, delegationDepth: 0 }
+  writeFileSync(path.join(dir, 'session.v4.jsonl.zstd'), zstdCompressSync(JSON.stringify(header) + '\n'))
+  return dir
+}
+
 /** Build a real on-disk mirror + session dirs and a deps object for one. */
-function cleanupArea({ liveSession = 'session-live', extraMirrors = 0 } = {}) {
+function cleanupArea({ liveSession = 'session-live', extraMirrors = 0, nestedLive = false } = {}) {
   const home = mkdtempSync(path.join(tmpdir(), 'dsh-remote-clean-area-'))
   const mirrorRoot = path.join(home, 'remote-workspaces')
   const sessionsRoot = path.join(home, 'sessions')
@@ -734,15 +743,11 @@ function cleanupArea({ liveSession = 'session-live', extraMirrors = 0 } = {}) {
     writeFileSync(path.join(extra, '.dsh-remote-meta.json'),
       JSON.stringify({ host: '10.0.0.9', port: 22, username: 'root', remotePath: `/srv/proj-${i}` }))
   }
-  // The API validates through realpath (tmp dirs are symlinked on macOS), so
-  // the session project key must use the same resolved path.
   const realMirror = realpathSync(mirror)
-  const projectDir = path.join(sessionsRoot, projectKey(realMirror))
-  for (const id of ['session-live', 'session-dead']) {
-    const dir = path.join(projectDir, encodeSegment(id))
-    mkdirSync(dir, { recursive: true })
-    writeFileSync(path.join(dir, 'session.v4.jsonl.zstd'), 'x')
-  }
+  const liveCwd = nestedLive ? path.join(realMirror, 'src') : realMirror
+  if (nestedLive) mkdirSync(liveCwd)
+  const projectDir = path.dirname(seedCleanupSession(sessionsRoot, realMirror, 'session-dead'))
+  seedCleanupSession(sessionsRoot, liveCwd, 'session-live')
 
   const state = {
     forgotten: [],
@@ -817,13 +822,26 @@ test('listWorkspaceMirrors reports sessions, liveness, registration and recent f
   } finally { rmSync(area.state.home, { recursive: true, force: true }) }
 })
 
-test('deleteRemoteWorkspace refuses while a session is live (and deletes nothing)', async () => {
-  const area = cleanupArea()
+test('deleteRemoteWorkspace refuses a live subdirectory session even when keeping history', async () => {
+  const area = cleanupArea({ nestedLive: true, extraMirrors: 1 })
   try {
-    await assert.rejects(
-      area.api.deleteRemoteWorkspace({ localMirror: area.state.mirror }),
-      (err) => err.code === 'WORKSPACE_BUSY' && Array.isArray(err.liveSessions) && err.liveSessions.includes('session-live'),
-    )
+    const otherMirror = path.join(area.state.mirrorRoot, 'host-user-22', 'proj-0')
+    seedCleanupSession(area.state.sessionsRoot, otherMirror, 'session-other')
+    const originalProbe = area.deps.isSessionLive
+    for (const deleteSessions of [true, false]) {
+      const probed = []
+      area.deps.isSessionLive = (id, dir, { deep }) => {
+        probed.push({ id, deep })
+        return originalProbe(id)
+      }
+      await assert.rejects(
+        area.api.deleteRemoteWorkspace({ localMirror: area.state.mirror, deleteSessions }),
+        (err) => err.code === 'WORKSPACE_BUSY' && err.liveSessions?.includes('session-live'),
+      )
+      assert.deepEqual(probed.sort((a, b) => a.id.localeCompare(b.id)), [
+        { id: 'session-dead', deep: true }, { id: 'session-live', deep: true },
+      ])
+    }
     assert.equal(existsSync(area.state.mirror), true, 'mirror must survive a refused delete')
     assert.equal(existsSync(path.join(area.state.projectDir, encodeSegment('session-dead'))), true)
     assert.deepEqual(area.registry.records.length, 1)
@@ -932,13 +950,7 @@ test('real plugin: deleteRemoteWorkspace drops the mirror, registration and rece
     assert.equal(host.readMachines()[0].recentWorkspaces.includes('/srv/del'), true)
 
     const sessionsRoot = path.join(process.env.DSH_HOME, 'sessions')
-    // The API validates through realpath (tmp dirs are symlinked on macOS), so
-  // the session project key must use the same resolved path.
-  const realMirror = realpathSync(mirror)
-  const projectDir = path.join(sessionsRoot, projectKey(realMirror))
-    const sessionDir = path.join(projectDir, encodeSegment('session-x'))
-    mkdirSync(sessionDir, { recursive: true })
-    writeFileSync(path.join(sessionDir, 'session.v4.jsonl.zstd'), 'x')
+    const sessionDir = seedCleanupSession(sessionsRoot, mirror, 'session-x')
 
     const result = await host.api.deleteRemoteWorkspace({ localMirror: mirror, force: true })
     assert.equal(result.removedMirror, true)

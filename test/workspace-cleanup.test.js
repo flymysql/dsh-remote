@@ -8,9 +8,10 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { gzipSync, zstdCompressSync } from 'node:zlib'
 
 import {
   MIRROR_META_FILE,
@@ -138,47 +139,68 @@ test('dirSizeBytes sums files and reports truncation at the cap', () => {
 
 // ── sessions ──────────────────────────────────────────────────────────────
 
-test('listSessionDirs finds the project directory and decodes session ids', () => {
+function seedSession(sessionsRoot, cwd, id, { version = 0, suffix = '' } = {}) {
+  const dir = path.join(sessionsRoot, projectKey(cwd), encodeSegment(id))
+  const file = version ? `session.v${version}.jsonl${suffix}` : `session.jsonl${suffix}`
+  const header = { type: 'session', version, id, cwd, createdAt: 0, delegationDepth: 0 }
+  if (version >= 2) header.isSeeded = false
+  const line = JSON.stringify(header) + '\n'
+  const data = suffix === '.gz' ? gzipSync(line) : suffix ? zstdCompressSync(line) : line
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(path.join(dir, file), data)
+  return dir
+}
+
+test('listSessionDirs selects root and subdirectory conversations in supported formats', () => {
   const home = tempHome()
   try {
-    const cwd = '/mirrors/host-user-22/proj'
-    const projectDir = path.join(home, 'sessions', projectKey(cwd))
-    mkdirSync(path.join(projectDir, encodeSegment('session-abc')), { recursive: true })
-    mkdirSync(path.join(projectDir, encodeSegment('session-xyz')), { recursive: true })
-    writeFileSync(path.join(projectDir, 'not-a-dir.txt'), 'x')
-    const found = listSessionDirs({ sessionsRoot: path.join(home, 'sessions'), cwd })
-    assert.deepEqual(found.map((s) => s.id).sort(), ['session-abc', 'session-xyz'])
-    assert.equal(listSessionDirs({ sessionsRoot: path.join(home, 'other'), cwd }).length, 0)
-    assert.equal(listSessionDirs({ sessionsRoot: path.join(home, 'sessions'), cwd: '/elsewhere' }).length, 0)
+    const cwd = seedMirror(home)
+    const sessionsRoot = path.join(home, 'sessions')
+    const nested = path.join(cwd, 'src')
+    const other = seedMirror(home, { name: 'proj-other' })
+    mkdirSync(nested)
+    seedSession(sessionsRoot, cwd, 'session-abc')
+    seedSession(sessionsRoot, nested, 'session xyz', { version: 4, suffix: '.zstd' })
+    seedSession(sessionsRoot, nested, 'session-old-gzip', { version: 2, suffix: '.gz' })
+    seedSession(sessionsRoot, nested, 'session-old-zst', { version: 3, suffix: '.zst' })
+    seedSession(sessionsRoot, other, 'session-other')
+    writeFileSync(path.join(sessionsRoot, projectKey(cwd), 'not-a-dir.txt'), 'x')
+    const found = listSessionDirs({ sessionsRoot, cwd })
+    assert.deepEqual(found.map((s) => s.id).sort(), ['session xyz', 'session-abc', 'session-old-gzip', 'session-old-zst'])
+    assert.equal(listSessionDirs({ sessionsRoot: path.join(home, 'missing'), cwd }).length, 0)
+    assert.deepEqual(listSessionDirs({ sessionsRoot, cwd: other }).map((s) => s.id), ['session-other'])
   } finally { rmSync(home, { recursive: true, force: true }) }
 })
 
-test('listSessionDirs accepts cwd aliases (symlinked DSH_HOME spelling)', () => {
+test('listSessionDirs resolves both spellings of the same physical mirror', (t) => {
   const home = tempHome()
   try {
     const sessionsRoot = path.join(home, 'sessions')
-    const resolved = '/mirrors/host-user-22/proj'
-    const alias = '/private/mirrors/host-user-22/proj'
-    mkdirSync(path.join(sessionsRoot, projectKey(resolved), encodeSegment('session-a')), { recursive: true })
-    mkdirSync(path.join(sessionsRoot, projectKey(alias), encodeSegment('session-b')), { recursive: true })
-    const found = listSessionDirs({ sessionsRoot, cwd: resolved, cwds: [alias] })
-    assert.deepEqual(found.map((s) => s.id).sort(), ['session-a', 'session-b'])
-    // Deduplication: the same spelling twice must not duplicate rows.
-    const twice = listSessionDirs({ sessionsRoot, cwd: resolved, cwds: [resolved] })
-    assert.equal(twice.length, 1)
+    const resolved = realpathSync(seedMirror(home))
+    const alias = path.join(home, 'alias')
+    try {
+      symlinkSync(resolved, alias, process.platform === 'win32' ? 'junction' : 'dir')
+    } catch {
+      return t.skip('directory links are unavailable')
+    }
+    seedSession(sessionsRoot, resolved, 'session-a')
+    seedSession(sessionsRoot, alias, 'session-b')
+    for (const cwd of [resolved, alias]) {
+      const found = listSessionDirs({ sessionsRoot, cwd })
+      assert.deepEqual(found.map((s) => s.id).sort(), ['session-a', 'session-b'])
+    }
   } finally { rmSync(home, { recursive: true, force: true }) }
 })
 
 test('deleteSessionsFor skips live sessions unless forced', async () => {
   const home = tempHome()
   try {
-    const cwd = '/mirrors/host-user-22/proj'
+    const cwd = seedMirror(home)
     const sessionsRoot = path.join(home, 'sessions')
-    const projectDir = path.join(sessionsRoot, projectKey(cwd))
-    const liveDir = path.join(projectDir, encodeSegment('session-live'))
-    const deadDir = path.join(projectDir, encodeSegment('session-dead'))
-    mkdirSync(liveDir, { recursive: true })
-    mkdirSync(deadDir, { recursive: true })
+    const nested = path.join(cwd, 'src')
+    mkdirSync(nested)
+    const liveDir = seedSession(sessionsRoot, cwd, 'session-live')
+    const deadDir = seedSession(sessionsRoot, nested, 'session-dead', { version: 4, suffix: '.zstd' })
 
     const skipped = await deleteSessionsFor({
       sessionsRoot,
@@ -188,6 +210,7 @@ test('deleteSessionsFor skips live sessions unless forced', async () => {
     assert.deepEqual(skipped.removed, ['session-dead'])
     assert.deepEqual(skipped.skippedLive, ['session-live'])
     assert.equal(existsSync(deadDir), false)
+    assert.equal(existsSync(path.dirname(deadDir)), false)
     assert.equal(existsSync(liveDir), true)
 
     const forced = await deleteSessionsFor({
