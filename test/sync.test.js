@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, statSync, utimesSync, mkdirSync, readdirSync } from 'node:fs'
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, statSync, utimesSync, mkdirSync, symlinkSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { syncTree, pushTree, loadSyncState, saveSyncState, pushOneFile } from '../lib/sync.js'
@@ -28,6 +28,39 @@ test('first sync downloads everything and writes a state snapshot', async () => 
   assert.equal(r2.stats.skippedUnchanged, 3)
   assert.equal(r2.stats.files, 0)
   rmSync(local, { recursive: true, force: true })
+})
+
+test('syncTree rejects a symlinked local directory and continues with ordinary files', async (t) => {
+  const fs = new MemFs()
+  seed(fs, { 'proj/src/a.txt': 'remote', 'proj/README.md': 'normal' })
+  const local = tmpDir()
+  t.after(() => rmSync(local, { recursive: true, force: true }))
+  const fixture = path.join(local, 'local-fixture')
+  mkdirSync(fixture)
+  symlinkSync(fixture, path.join(local, 'src'), 'junction')
+
+  const result = await syncTree(makeSftp(fs), '/proj', local, { force: true })
+
+  assert.equal(result.stats.failed, 1)
+  assert.equal(result.stats.files, 1)
+  assert.equal(existsSync(path.join(fixture, 'a.txt')), false)
+  assert.equal(readFileSync(path.join(local, 'README.md'), 'utf8'), 'normal')
+})
+
+test('syncTree rejects a symlinked regular-file destination', { skip: process.platform === 'win32' }, async (t) => {
+  const fs = new MemFs()
+  seed(fs, { 'proj/a.txt': 'remote' })
+  const local = tmpDir()
+  t.after(() => rmSync(local, { recursive: true, force: true }))
+  const fixture = path.join(local, 'local-fixture.txt')
+  writeFileSync(fixture, 'original')
+  symlinkSync(fixture, path.join(local, 'a.txt'), 'file')
+
+  const result = await syncTree(makeSftp(fs), '/proj', local, { force: true })
+
+  assert.equal(result.stats.failed, 1)
+  assert.equal(result.stats.files, 0)
+  assert.equal(readFileSync(fixture, 'utf8'), 'original')
 })
 
 test('remote change is pulled; local-only change becomes a conflict', async () => {
