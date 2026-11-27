@@ -10,11 +10,12 @@
 //     and the workspace registry gets the host-qualified title.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createHostApi } from '../lib/host-api.js'
 import { resolveMirror } from '../lib/binding.js'
+import { shortHash } from '../lib/paths.js'
 import { encodeSegment, projectKey } from '../lib/workspace-cleanup.js'
 import { createHost, machine } from './harness/plugin-host.js'
 import { MemFs, makeSftp, seed } from './helpers.js'
@@ -503,7 +504,12 @@ test('ensureRemoteWorkspace creates the local mirror + meta WITHOUT SSH, then li
     // Workspace ledger: host-qualified title, and no duplicate on re-ensure.
     assert.deepEqual(res.workspace, { id: 'w-1', title: 'box-proj' })
     assert.deepEqual(registry.workspaces.map((w) => [w.path, w.title]), [[res.localMirror, 'box-proj']])
-    await api.ensureRemoteWorkspace({ remotePath: '/srv/proj' })
+    const metaPath = path.join(res.localMirror, '.dsh-remote-meta.json')
+    const existingMeta = JSON.stringify({ ...meta, createdAt: '2026-01-01T00:00:00Z' })
+    writeFileSync(metaPath, existingMeta)
+    const reopened = await api.ensureRemoteWorkspace({ remotePath: '/srv/./proj/' })
+    assert.equal(reopened.localMirror, res.localMirror)
+    assert.equal(readFileSync(metaPath, 'utf8'), existingMeta)
     assert.equal(registry.workspaces.length, 1, 'an existing mirror/workspace must be reused, not duplicated')
 
     // register:false creates the mirror but leaves the ledger alone.
@@ -521,6 +527,91 @@ test('ensureRemoteWorkspace creates the local mirror + meta WITHOUT SSH, then li
     assert.equal(proj.alias, '')
     assertNoSecrets('listRemoteProjects', projects)
   } finally { await host.dispose() }
+})
+
+test('same-named workspaces retain their own mirror when an earlier name becomes free', async () => {
+  const saved = machine({ host: 'mirror.example' })
+  const host = await createHost({ machines: [saved], currentId: saved.id })
+  try {
+    const ensure = (remotePath) => host.api.ensureRemoteWorkspace({ remotePath, register: false })
+    const first = await ensure('/src/project')
+    const second = await ensure('/srv/project')
+    assert.equal(path.basename(first.localMirror), 'project')
+    assert.equal(path.basename(second.localMirror), 'project-' + shortHash('/srv/project'))
+    renameSync(first.localMirror, path.join(host.home, 'archived-project'))
+    assert.equal((await ensure('/srv/project')).localMirror, second.localMirror)
+  } finally { await host.dispose() }
+})
+
+test('mirror allocation leaves occupied preferred and suffix paths intact', async () => {
+  const saved = machine({ host: 'mirror.example' })
+  const host = await createHost({ machines: [saved], currentId: saved.id })
+  try {
+    const group = path.join(host.root, 'mirror.example-root-22')
+    const preferred = path.join(group, 'project')
+    const remotePath = '/srv/project'
+    const legacySuffix = path.join(group, 'project-' + shortHash(remotePath))
+    mkdirSync(preferred, { recursive: true })
+    const localFile = path.join(preferred, 'keep.txt')
+    const incompleteMeta = path.join(preferred, '.dsh-remote-meta.json')
+    const originalMeta = JSON.stringify({ remotePath })
+    writeFileSync(localFile, 'local notes')
+    writeFileSync(incompleteMeta, originalMeta)
+    writeFileSync(legacySuffix, 'an existing local file')
+
+    const ensure = () => host.api.ensureRemoteWorkspace({ remotePath, register: false })
+    const created = await ensure()
+    assert.equal(path.dirname(created.localMirror), group)
+    assert.notEqual(created.localMirror, preferred)
+    assert.notEqual(created.localMirror, legacySuffix)
+    assert.equal(readFileSync(localFile, 'utf8'), 'local notes')
+    assert.equal(readFileSync(legacySuffix, 'utf8'), 'an existing local file')
+    assert.equal(readFileSync(incompleteMeta, 'utf8'), originalMeta)
+    assert.equal((await ensure()).localMirror, created.localMirror)
+    renameSync(legacySuffix, path.join(host.home, 'archived-file'))
+    assert.equal((await ensure()).localMirror, created.localMirror)
+  } finally { await host.dispose() }
+})
+
+test('a rebound workspace reopens in its existing directory', async () => {
+  const saved = machine({ host: 'old-address.example' })
+  const host = await createHost({ machines: [saved], currentId: saved.id })
+  try {
+    const opts = { machineId: saved.id, remotePath: '/srv/project', register: false }
+    const original = await host.api.ensureRemoteWorkspace(opts)
+    const marker = path.join(original.localMirror, '.dsh-remote-meta.json')
+    await host.api.upsertMachine({ id: saved.id, host: 'new-address.example' })
+    const rebound = readFileSync(marker, 'utf8')
+    assert.equal(JSON.parse(rebound).host, 'new-address.example')
+    assert.equal((await host.api.ensureRemoteWorkspace(opts)).localMirror, original.localMirror)
+    assert.equal(readFileSync(marker, 'utf8'), rebound)
+  } finally { await host.dispose() }
+})
+
+test('a saved SSH alias keeps its workspace when its resolved address changes', async () => {
+  const saved = machine({ host: 'build-box', useSshConfig: true, password: 'pw' })
+  const fixture = mkdtempSync(path.join(tmpdir(), 'dsh-mirror-alias-'))
+  const previousConfig = process.env.DSH_REMOTE_SSH_CONFIG
+  const sshConfig = path.join(fixture, 'ssh-config')
+  writeFileSync(sshConfig, 'Host build-box\n  HostName build.example\n  User dev\n  Port 2201\n')
+  process.env.DSH_REMOTE_SSH_CONFIG = sshConfig
+  let host
+  try {
+    host = await createHost({ machines: [saved], currentId: saved.id })
+    const opts = { machineId: saved.id, remotePath: '/srv/project', register: false }
+    const existingDir = path.join(host.root, 'previous-build.example-dev-2202', 'project')
+    const existing = JSON.stringify({ host: 'previous-build.example', port: 2202, username: 'dev', alias: saved.host, remotePath: opts.remotePath })
+    mkdirSync(existingDir, { recursive: true })
+    const marker = path.join(existingDir, '.dsh-remote-meta.json')
+    writeFileSync(marker, existing)
+    assert.equal((await host.api.ensureRemoteWorkspace(opts)).localMirror, existingDir)
+    assert.equal(readFileSync(marker, 'utf8'), existing)
+  } finally {
+    if (previousConfig === undefined) delete process.env.DSH_REMOTE_SSH_CONFIG
+    else process.env.DSH_REMOTE_SSH_CONFIG = previousConfig
+    await host?.dispose()
+    rmSync(fixture, { recursive: true, force: true })
+  }
 })
 
 test('ensureRemoteWorkspace resolves machineId over the current machine', async () => {
