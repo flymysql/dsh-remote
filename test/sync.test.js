@@ -96,6 +96,21 @@ test('dryRun writes nothing locally', async () => {
   rmSync(local, { recursive: true, force: true })
 })
 
+test('push dryRun lists nested uploads without creating remote directories', async (t) => {
+  const fs = new MemFs()
+  seed(fs, { 'proj/existing.txt': 'existing' })
+  const local = tmpDir()
+  t.after(() => rmSync(local, { recursive: true, force: true }))
+  mkdirSync(path.join(local, 'src', 'sub'), { recursive: true })
+  writeFileSync(path.join(local, 'src', 'sub', 'example.txt'), 'new file')
+
+  const result = await pushTree(makeSftp(fs), local, '/proj', { dryRun: true })
+
+  assert.deepEqual(result.stats.pushed, ['/proj/src/sub/example.txt'])
+  assert.equal(result.stats.dirs, 2)
+  assert.equal(fs.existsSync('/proj/src'), false)
+})
+
 test('push: local edit uploads; remote edit + local untouched is a conflict', async () => {
   const fs = new MemFs()
   seed(fs, { 'proj/a.txt': 'base' })
