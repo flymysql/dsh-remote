@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, statSync, utimesSync, mkdirSync, symlinkSync } from 'node:fs'
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, statSync, utimesSync, mkdirSync, readdirSync, symlinkSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { syncTree, pushTree, loadSyncState, saveSyncState, pushOneFile } from '../lib/sync.js'
