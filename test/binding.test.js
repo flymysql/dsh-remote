@@ -11,7 +11,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
 import { gzipSync } from 'node:zlib'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -54,6 +54,7 @@ test('resolveMirror: a path NESTED inside a mirror resolves to that mirror', () 
   const r = resolveMirror(nested, d)
   assert.equal(r.mirrorDir, m)
   assert.equal(r.remotePath, '/home/lucas/proj')
+  assert.deepEqual(resolveMirror(path.join(nested, 'new-dir'), d), r)
   rmSync(d, { recursive: true, force: true })
 })
 
@@ -226,6 +227,29 @@ test('resolveMirror: a cwd written THROUGH a junction still binds to a literally
     rmSync(real, { recursive: true, force: true })
     rmSync(links, { recursive: true, force: true })
   }
+})
+
+test('resolveMirror: nested directory aliases still resolve to the registered mirror root', (t) => {
+  const registry = root()
+  const links = root()
+  t.after(() => {
+    rmSync(links, { recursive: true, force: true })
+    rmSync(registry, { recursive: true, force: true })
+  })
+  const m = mirror(registry, { host: 'mirror.example', username: 'dev', remotePath: '/srv/app', base: 'app' })
+  const linkedRoot = path.join(links, 'registry')
+  if (!linkDir(registry, linkedRoot)) return t.skip('this OS refuses directory links')
+
+  const src = path.join(m, 'src')
+  const view = path.join(m, 'views', 'default')
+  mkdirSync(src)
+  mkdirSync(view, { recursive: true })
+  if (!linkDir(src, path.join(view, 'sources'))) return t.skip('this OS refuses directory links')
+
+  const cwd = path.join(linkedRoot, path.relative(registry, view), 'sources')
+  const r = resolveMirror(cwd, registry)
+  assert.equal(r.remotePath, '/srv/app')
+  assert.equal(realpathSync.native(r.mirrorDir), realpathSync.native(m))
 })
 
 test('resolveMirror: a linked root never makes a NON-mirror path look bound', (t) => {
