@@ -313,12 +313,10 @@ WORKSPACE_BUSY | INTERNAL`（`VALIDATION` = 调用方输入不可用，如缺 ho
 - 目标必须是 `$DSH_HOME/remote-workspaces/<host>-<user>-<port>/<name>` **恰好两层**、
   且目录内有合法的 `.dsh-remote-meta.json`；realpath 之后仍必须落在根目录内。
   其他路径（含更深的子目录、根目录本身、软链出去的目标）一律 `VALIDATION` 拒绝。
-- 会话目录按 DSH 自己的布局定位：`$DSH_HOME/sessions/--<cwd 转义>--/<encodeSegment(id)>`，
-  两个编码器与 `@deepseek-ai/dsh-session-persistence-jsonl` 逐字符一致（有单测钉住）。
-  同时用 realpath 与调用方给的镜像路径两种拼写查目录（`DSH_HOME` 本身是软链时两者不同）。
-- 「占用」判定：先问进程内 `sessions` 服务（能看见本 TUI 的 parked 会话），
-  再在该会话目录有 `session.lock` 时用 `lsof -t` 探测内核 flock（POSIX）；
-  Windows 没有 lsof，只能依赖进程内检查，删除前会给出相同提示。
+- 清理会扫描 DSH 的历史目录 `$DSH_HOME/sessions/--<cwd 转义>--/<encodeSegment(id)>`。
+  日志头的 cwd 必须解析为镜像根目录或其子目录，会话才会列入清理范围。
+- 进程内的 `sessions` 服务可识别正在使用或暂时停放的会话。POSIX 上删除时，
+  清理也会对已确认归属的会话目录中的 `session.lock` 运行 `lsof -t` 检查占用。
 
 ## 5. 配置（行 config，`cordis.patch.yml` 同一行）
 
