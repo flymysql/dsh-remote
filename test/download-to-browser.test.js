@@ -18,6 +18,8 @@ import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { createHost, machine } from './harness/plugin-host.js'
 import { startFakeSsh } from './harness/fake-ssh.js'
+import { connectionRoute } from '../lib/http-transport.js'
+import { createFsRoutes } from '../lib/routes-fs.js'
 
 const TREE = {
   '/home/user/README.md': '# hello\n',
@@ -106,6 +108,94 @@ test('a non-ASCII name survives in filename* and in X-Dsh-Download-Name', async 
     assert.equal(decodeURIComponent(res.headers['x-dsh-download-name']), '报告 2026.txt')
     assert.equal(res.body().toString(), '中文文件名\n')
   })
+})
+
+test('the Desktop Fetch route returns binary bytes and preserves the UTF-8 attachment name', async () => {
+  await withRemote({}, async ({ host, srv }) => {
+    const name = '报告 2026.bin'
+    const file = '/home/user/' + name
+    const bytes = Buffer.from([0x00, 0xff, 0x13, 0x00])
+    srv.fs.write(file, bytes)
+    const route = connectionRoute(host.routes.get('/dsh-remote/download'))
+    const res = await route.fetch(new Request('dsh-app://app' + route.path + q(file)))
+    assert.equal(res.status, 200)
+    assert.equal(res.headers.get('content-type'), 'application/octet-stream')
+    assert.equal(res.headers.get('content-length'), String(bytes.length))
+    assert.equal(res.headers.get('cache-control'), 'no-store')
+    assert.equal(res.headers.get('content-disposition'), `attachment; filename="__ 2026.bin"; filename*=UTF-8''%E6%8A%A5%E5%91%8A%202026.bin`)
+    assert.equal(decodeURIComponent(res.headers.get('x-dsh-download-name')), name)
+    assert.deepEqual(Buffer.from(await res.arrayBuffer()), bytes)
+  })
+})
+
+function fixtureDownload(sftp, signal) {
+  const routes = createFsRoutes({
+    resolveRequestBinding: async () => ({ local: true, pool: { sftp: async () => sftp } }),
+    sendJson(_res, _status, body) { assert.fail(body.error) },
+    config: { maxFileBytes: 0 },
+  })
+  const route = connectionRoute(routes.find((r) => r.path === '/dsh-remote/download'))
+  return route.fetch(new Request('dsh-app://app' + route.path + q('/fixture.bin'), { signal }))
+}
+
+test('Desktop downloads wait for consumer demand and stop reading when the body is canceled', async () => {
+  const chunkSize = 1024 * 1024
+  const reads = []
+  const res = await fixtureDownload({
+    stat: async () => ({ size: 2 * chunkSize }),
+    async readPartial(_file, offset, length) {
+      reads.push([offset, length])
+      return Buffer.alloc(length, 0xa5)
+    },
+  })
+  assert.deepEqual(reads, [])
+  const reader = res.body.getReader()
+  const { value, done } = await reader.read()
+  assert.equal(done, false)
+  assert.equal(value.length, chunkSize)
+  assert.deepEqual(reads, [[0, chunkSize]])
+  await reader.cancel()
+  assert.equal((await reader.read()).done, true)
+  assert.deepEqual(reads, [[0, chunkSize]], 'cancel must stop further range reads')
+})
+
+test('aborting a Desktop request errors the body while a range read is still in flight', async () => {
+  const controller = new AbortController()
+  const started = Promise.withResolvers()
+  const pending = Promise.withResolvers()
+  const res = await fixtureDownload({
+    stat: async () => ({ size: 2 }),
+    async readPartial() {
+      started.resolve()
+      return pending.promise
+    },
+  }, controller.signal)
+  const reader = res.body.getReader()
+  const read = reader.read()
+  await started.promise
+  try {
+    controller.abort()
+    await assert.rejects(read, { name: 'AbortError' })
+  } finally {
+    pending.resolve(Buffer.from([0x01]))
+  }
+})
+
+test('Desktop downloads error the body on a failed read or premature EOF', async () => {
+  const failure = new Error('fixture SFTP read failed')
+  for (const [readNext, expected] of [
+    [async () => { throw failure }, failure],
+    [async () => Buffer.alloc(0), /file size changed during download/],
+  ]) {
+    const res = await fixtureDownload({
+      stat: async () => ({ size: 2 }),
+      readPartial: async (_file, offset) => offset === 0 ? Buffer.from([0xff]) : readNext(),
+    })
+    assert.equal(res.status, 200)
+    const reader = res.body.getReader()
+    assert.deepEqual((await reader.read()).value, Buffer.from([0xff]))
+    await assert.rejects(reader.read(), expected)
+  }
 })
 
 test('a folder, a missing file and an oversized file are refused in JSON, not as empty downloads', async () => {
