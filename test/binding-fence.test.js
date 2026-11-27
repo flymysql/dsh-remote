@@ -117,6 +117,31 @@ test('a stale mirror (machine deleted from the registry) does not fall back to a
   }
 })
 
+test('/resolve-mirror preserves percent characters in a workspace path', async t => {
+  const host = await createHost()
+  t.after(() => host.dispose())
+  const local = makeMirror(host.root, { host: 'localhost', port: 22, username: 'user', base: 'work-100%', remotePath: '/srv/work-100%' })
+  const result = await host.call('/dsh-remote/resolve-mirror?local=' + encodeURIComponent(local), { method: 'GET' })
+  assert.equal(result.status, 200)
+  assert.equal(result.json.local, local)
+  assert.equal(result.json.remotePath, '/srv/work-100%')
+  assert.equal(result.json.resolvedVia, 'query')
+})
+
+test('/resolve-mirror resolves historical sessions with versioned logs', async t => {
+  const host = await createHost()
+  t.after(() => host.dispose())
+  const local = makeMirror(host.root, { host: 'localhost', port: 22, username: 'user', base: 'project', remotePath: '/srv/project' })
+  const session = 'historical-session'
+  const sessionDir = path.join(path.dirname(host.root), 'sessions', 'project', session)
+  mkdirSync(sessionDir, { recursive: true })
+  writeFileSync(path.join(sessionDir, 'session.v4.jsonl'), JSON.stringify({ type: 'session', id: session, cwd: local }) + '\n')
+  const result = await host.call('/dsh-remote/resolve-mirror?sessionId=' + session, { method: 'GET' })
+  assert.equal(result.status, 200)
+  assert.equal(result.json.remotePath, '/srv/project')
+  assert.equal(result.json.resolvedVia, 'session-log')
+})
+
 test('/bindings and /resolve-mirror describe the mirrors that exist', async () => {
   await withTwoHosts(async ({ host, srvA, srvB }) => {
     makeMirror(host.root, { host: '127.0.0.1', port: srvA.port, username: 'root', base: 'proj-a', remotePath: '/srv/a' })
