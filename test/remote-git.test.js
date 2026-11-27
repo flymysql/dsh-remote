@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { inspectRemoteGit, parseGitStatus, createGitRoutes } from '../lib/remote-git.js'
+import { connectionRoute } from '../lib/http-transport.js'
 import { SshPool } from '../lib/pool.js'
 import { startDiskWorkspace } from './harness/disk-workspace.js'
 
@@ -58,6 +59,26 @@ test('HTTP Git route requires session context and returns binding denials as str
   assert.equal((await call({ method: 'GET', url: '/dsh-remote/git' })).status, 400); assert.equal(binds, 0)
   const denied = await call({ method: 'GET', url: '/dsh-remote/git?sessionId=local' })
   assert.equal(denied.status, 403); assert.match(denied.json.error, /LOCAL/)
+})
+
+test('Desktop cancellation during session lookup skips Git and does not send a response', async () => {
+  const controller = new AbortController()
+  let calls = 0
+  const pool = {
+    detect: async () => { calls++ },
+    exec: async () => ({ code: 128, stderr: 'fatal: not a git repository' }),
+  }
+  const route = createGitRoutes({
+    config: {},
+    sendJson(res, status, body) { res.statusCode = status; res.end(JSON.stringify(body)) },
+    async resolveRequestBinding() {
+      controller.abort()
+      return { pool, ws: '/project', bound: true }
+    },
+  })[0]
+  const request = new Request('http://localhost/api/dsh-remote/git?sessionId=desktop', { signal: controller.signal })
+  await assert.rejects(connectionRoute(route).fetch(request), { name: 'AbortError' })
+  assert.equal(calls, 0)
 })
 
 test('unsupported native Windows shell is explained without sending POSIX-quoted Git commands', async () => {
