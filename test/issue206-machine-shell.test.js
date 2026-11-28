@@ -27,10 +27,14 @@ test('#206: applyMachine copies the per-machine shell onto the shared config', (
   const config = { ...POOL_CONFIG }
   applyMachine(config, machine({ host: 'h1', shell: 'D:/wrap/bash.exe' }))
   assert.equal(config.shell, 'D:/wrap/bash.exe')
-  // An absent field must not clobber a global default.
+  // Continuing #206 (apply-machine reset): an absent field used to keep
+  // whatever the shared config held — but that value is indistinguishable
+  // from the PREVIOUS machine's leftover (a stale backend or a disabled
+  // host-key mode leaked exactly this way), so it now resets to the schema
+  // default '' (lib/main.js Config.shell). See test/apply-machine-reset.test.js.
   const config2 = { ...POOL_CONFIG, shell: 'global-bash' }
   applyMachine(config2, machine({ host: 'h2' }))
-  assert.equal(config2.shell, 'global-bash')
+  assert.equal(config2.shell, '')
 })
 
 for (const [label, makePool] of [
