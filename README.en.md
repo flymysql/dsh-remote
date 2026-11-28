@@ -18,7 +18,7 @@ Use the normal layout or choose the optional **three-column IDE layout** to view
 
 <img src="https://raw.githubusercontent.com/flymysql/dsh-remote/main/docs/shots/workbench-ide.png" alt="DSH remote IDE with file tree, native code editor and agent conversation" width="1200"/>
 
-[1.5.0 release notes](https://github.com/flymysql/dsh-remote/blob/main/docs/release/1.5.0.md): attach tunnels self-heal after link flaps, downloads can land on the machine running the browser, 6x faster commands on high-RTT links, a plain-login terminal mode for bastion gateways.
+[1.6.0 release notes](https://github.com/flymysql/dsh-remote/blob/main/docs/release/1.6.0.md): a read-only remote commit graph, an IDE-button visibility preference, and a large batch of robustness fixes across search, sync, self-update and forwarding.
 
 ## Install
 
