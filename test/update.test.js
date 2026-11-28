@@ -370,9 +370,16 @@ test('rollback attempts every file even when one restore fails (ENOTDIR)', async
     'lib/tui/helper.js': '// NEW HELPER\n' + 'z'.repeat(180) + '\n',
   }
   try {
+    // WHICH step dies first is platform-specific: POSIX reaches the install hop
+    // (rename onto a path whose parent is a file) and fails ENOTDIR, so the
+    // rollback also meets the path and its failure names it; Windows fails one
+    // step earlier while creating the temp file inside the same blocking path
+    // (ENOENT) and the rollback then has nothing to fail on. Both shapes must
+    // name the blocking path, and the invariant asserted below — the tree ends
+    // fully old — is what the fix is about.
     await assert.rejects(
       () => applyUpdate('0.2.0', { dir, fetchImpl: makeFetch({ version: '0.2.0', tarball: makeTarball(files) }) }),
-      /rollback failed at lib\/tui\/helper\.js/,
+      /lib[\\/]tui[\\/]helper\.js/,
     )
     // On the unfixed code index.js stayed NEW here — this is the red case.
     assert.equal(readFileSync(path.join(dir, 'lib', 'index.js'), 'utf8'), 'OLD INDEX')
