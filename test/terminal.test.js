@@ -152,6 +152,52 @@ test('the output ring drops the oldest bytes past its budget and says so', async
   } finally { mgr.dispose() }
 })
 
+test('the ring budget counts UTF-8 bytes, so CJK output drops at the documented cap, not 3x later', async () => {
+  // The ring from 953a5f1 documents TERMINAL_RING_BYTES in bytes and already
+  // counts `total` that way (Buffer.byteLength); `retained` kept counting UTF-16
+  // code units, so CJK output (3 bytes/char) could hold up to 3x the budget
+  // before its head dropped. This pins the fix that puts `retained` on the same
+  // byte line as `total`.
+  const mgr = createTerminalManager()
+  const pool = fakePool()
+  try {
+    const { id } = await mgr.open({ pool, machine: 'h', cols: 80, rows: 24 })
+    const s = mgr.owned(id, 'h').session
+    // 1365 CJK chars (3 bytes each) + one ASCII byte = exactly 4 KiB of UTF-8,
+    // but only 1366 code units — the unit-vs-byte gap the bug lived in.
+    const chunk = '中'.repeat(1365) + 'a'
+    assert.equal(Buffer.byteLength(chunk, 'utf8'), 4096)
+    // Filling the budget exactly must not drop anything (the cap is `>`).
+    for (let i = 0; i < TERMINAL_RING_BYTES / 4096; i++) pool.streams[0].emit('data', chunk)
+    assert.equal(s.total, TERMINAL_RING_BYTES, 'total already counts bytes')
+    assert.equal(s.readFrom(0).lossy, false)
+    // One chunk past the BYTE budget the head must already be gone. Counting
+    // code units instead, retained is only ~87k here — the unfixed ring
+    // needed 3x the bytes before it would drop anything.
+    pool.streams[0].emit('data', chunk)
+    const out = s.readFrom(0)
+    assert.equal(out.lossy, true, 'the head is dropped at the byte budget, not 3x later')
+    assert.equal(s.retained, TERMINAL_RING_BYTES, 'retained is counted in bytes now')
+    assert.equal(s.retained, Buffer.byteLength(out.chunks.join(''), 'utf8'),
+      'retained matches the bytes the reader can still see')
+    assert.equal(s.total, TERMINAL_RING_BYTES + 4096, 'offsets stay byte-based and monotonic')
+    // A poller at the head is not lossy and still gets live output.
+    const live = s.readFrom(s.total - 4096)
+    assert.equal(live.lossy, false)
+    assert.deepEqual(live.chunks, [chunk])
+    // The single-huge-chunk-kept-whole rule survives the byte accounting: one
+    // chunk larger than the whole budget is kept, and the lossy flag (not
+    // truncation) is how the reader learns bytes are missing.
+    const { id: lone } = await mgr.open({ pool, machine: 'h', cols: 80, rows: 24 })
+    const hs = mgr.owned(lone, 'h').session
+    const huge = '中'.repeat(TERMINAL_RING_BYTES / 2) // 128 Ki chars = 384 Ki bytes
+    pool.streams[1].emit('data', huge)
+    assert.equal(hs.chunks.length, 1, 'an oversized single chunk is kept whole')
+    assert.equal(hs.readFrom(0).lossy, false)
+    assert.equal(hs.retained, Buffer.byteLength(huge, 'utf8'))
+  } finally { mgr.dispose() }
+})
+
 test('session count is capped so a runaway UI cannot exhaust remote MaxSessions', async () => {
   const mgr = createTerminalManager()
   const pool = fakePool()
