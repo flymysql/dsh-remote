@@ -408,6 +408,34 @@ test('the stop command also removes this session\'s log, so attaches do not accu
   assert.doesNotMatch(buildStopCommand(0), /rm -f/, 'no log path means nothing to remove')
 })
 
+// The stop command must REPORT what it achieved. It ended in `; true` (always
+// exit 0), its case-match deliberately refuses argvs without a dsh substring
+// (custom webAttachCommand binaries), remotes without /proc (macOS) skip the
+// kill entirely, and an exec failure was swallowed — while the route answered
+// `stoppedRemote: true` from the request flag alone. Three failure shapes
+// therefore all read as success, the same dishonest-reporting class the
+// maintainer fixed for recursive remove (#271/#272). The markers below are what
+// close() parses into that claim.
+test('the stop command reports a surviving process, a refusal, and an unverifiable remote', () => {
+  const cmd = buildStopCommand(1234)
+  assert.match(cmd, /__DSH_REMOTE_STOP_FAILED__/, 'a process that survives the signal must be distinguishable from a dead one')
+  assert.match(cmd, /\[ -d "\/proc\/\$P" \] && echo __DSH_REMOTE_STOP_FAILED__/, 'the probe runs after the kill')
+  assert.match(cmd, /while \[ -d "\/proc\/\$P" \] && \[ "\$i" -lt 3 \]; do sleep 1/, 'the probe waits briefly: SIGTERM needs a scheduler turn before /proc shows the death')
+  assert.match(cmd, /__DSH_REMOTE_STOP_REFUSED__/, 'the never-kill-a-stranger refusal must be visible, not silent')
+  assert.match(cmd, /__DSH_REMOTE_STOP_UNVERIFIED__/, 'a remote without /proc must say so instead of printing nothing')
+  assert.match(cmd, /elif \[ ! -d \/proc \]/, 'the unverified shape is exactly the macOS/other-Unix case')
+  assert.ok(!cmd.includes('\n'), 'must stay a single line for ssh exec')
+})
+
+test('reporting never weakens the stop command\'s contracts', () => {
+  const cmd = buildStopCommand(1234, '.log-r')
+  // The cleanup stays unconditional and outside the kill branches.
+  assert.ok(cmd.indexOf('rm -f') > cmd.indexOf('esac'), 'the log is removed whether or not the kill fired')
+  assert.match(cmd, /kill -- -"\$P"/, 'the group kill is unchanged')
+  assert.match(cmd, /\*dsh\*/, 'the argv re-verification is unchanged')
+  assert.match(cmd, /true$/, 'must still always exit 0 so teardown cannot fail the caller')
+})
+
 test('close() passes this session\'s log path to the stop command', async () => {
   const attach = new WebAttach({ net: fakeNet() })
   await attach.open({ pool: fakePool(READY()) })
@@ -415,6 +443,40 @@ test('close() passes this session\'s log path to the stop command', async () => 
   const calls = []
   await attach.close({ stopRemote: true, exec: async (cmd) => { calls.push(cmd) } })
   assert.match(calls[0], new RegExp(attach.logPath.replace(/\./g, '\\.')))
+})
+
+// close() returns what the stop PROVED so the route can claim only that
+// (#271/#272 honest-reporting line). The route used to read the request flag
+// back as the result; these tests fail until close() classifies the stop
+// command's markers into the outcome the route consumes.
+test('close() returns what the stop command proved, so the route can claim only that', async () => {
+  const byOutcome = [
+    ['__DSH_REMOTE_STOP_FAILED__\n', 'failed'],
+    ['__DSH_REMOTE_STOP_REFUSED__\n', 'refused'],
+    ['__DSH_REMOTE_STOP_UNVERIFIED__\n', 'unverified'],
+    ['', 'verified'],
+  ]
+  for (const [stdout, outcome] of byOutcome) {
+    const attach = new WebAttach({ net: fakeNet() })
+    await attach.open({ pool: fakePool(READY()) })
+    const report = await attach.close({ stopRemote: true, exec: async () => ({ code: 0, stdout, stderr: '' }) })
+    assert.equal(report.stopOutcome, outcome, `stdout ${JSON.stringify(stdout)} must classify as ${outcome}`)
+  }
+})
+
+test('a stop command that exits non-zero without markers is unverified, never verified', async () => {
+  const attach = new WebAttach({ net: fakeNet() })
+  await attach.open({ pool: fakePool(READY()) })
+  const report = await attach.close({ stopRemote: true, exec: async () => ({ code: 127, stdout: '', stderr: 'sh: not found' }) })
+  assert.equal(report.stopOutcome, 'unverified', 'a command that never really ran proves nothing')
+})
+
+test('close() reports "error" when the stop exec itself fails, instead of swallowing it', async () => {
+  const attach = new WebAttach({ net: fakeNet() })
+  await attach.open({ pool: fakePool(READY()) })
+  // The old .catch(() => {}) turned exactly this shape into a silent success.
+  const report = await attach.close({ stopRemote: true, exec: async () => { throw new Error('channel closed') } })
+  assert.equal(report.stopOutcome, 'error')
 })
 
 test('close() is safe to call twice', async () => {
