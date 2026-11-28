@@ -150,6 +150,28 @@ test('a half-updated install heals itself: re-lays the tarball, then imports cle
   rmSync(path.join(pkgDir, '..', '..'), { recursive: true, force: true })
 })
 
+test('repair re-laying the tree also drops files the version no longer ships', async () => {
+  // Continues #164 (commit 25e0e95): the repair path drives applyUpdate, so it
+  // inherits the stale-file cleanup. A healed tree must end up exactly the
+  // shipped tree — not the shipped tree plus whatever an older release left
+  // behind while the marker claims the repaired version.
+  const pkgDir = makeHalfUpdatedInstall()
+  // A leftover from an older release; 0.2.0's tarball does not ship it.
+  writeFileSync(path.join(pkgDir, 'lib', 'leftover-deleted.js'), 'export const stale = 1\n')
+  try {
+    const res = await importWithSelfHeal(importFresh(path.join(pkgDir, 'lib', 'main.js')), {
+      dir: pkgDir,
+      fetchImpl: tarballFetch(goodTarball()),
+      log: () => {},
+    })
+    assert.equal(res.repaired, true)
+    assert.equal(res.module.answer, 42)
+    assert.equal(existsSync(path.join(pkgDir, 'lib', 'leftover-deleted.js')), false)
+  } finally {
+    rmSync(path.join(pkgDir, '..', '..'), { recursive: true, force: true })
+  }
+})
+
 test('the old lib/index.js entry repairs a half-applied tree on the same URL', async () => {
   const pkgDir = makeHalfUpdatedInstall()
   for (const file of ['self-heal.js', 'update.js', 'index.js']) {
