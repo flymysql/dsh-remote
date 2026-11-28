@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-27T21:14:48.036Z",
+  "generatedAt": "2026-11-28T07:44:06.737Z",
   "heartbeat": {
     "ok": true,
-    "generatedAt": "2026-11-27T21:14:47.576Z",
+    "generatedAt": "2026-11-28T07:44:06.281Z",
     "tz": "Asia/Shanghai",
     "daily": [
       {
@@ -123,32 +123,32 @@
       },
       {
         "day": "2026-11-28",
-        "dau": 2148
+        "dau": 2772
       }
     ],
-    "wau": 6303,
-    "mau": 9423,
-    "installs": 9423,
+    "wau": 6457,
+    "mau": 9547,
+    "installs": 9547,
     "byVersion": [
       {
         "version": "1.5.0",
-        "n": 4335
+        "n": 4526
       },
       {
         "version": "1.3.0",
-        "n": 3133
+        "n": 3137
       },
       {
         "version": "1.4.1",
-        "n": 3099
+        "n": 3105
       },
       {
         "version": "1.4.0",
-        "n": 2801
+        "n": 2805
       },
       {
         "version": "1.2.1",
-        "n": 2788
+        "n": 2789
       },
       {
         "version": "1.2.0",
@@ -156,7 +156,7 @@
       },
       {
         "version": "1.3.1",
-        "n": 2553
+        "n": 2554
       },
       {
         "version": "0.8.91",
@@ -164,11 +164,11 @@
       },
       {
         "version": "1.1.2",
-        "n": 1190
+        "n": 1191
       },
       {
         "version": "0.8.94",
-        "n": 1129
+        "n": 1131
       },
       {
         "version": "0.8.85",
@@ -182,15 +182,15 @@
     "byPlatform": [
       {
         "platform": "win32",
-        "n": 6218
+        "n": 6314
       },
       {
         "platform": "darwin",
-        "n": 1788
+        "n": 1801
       },
       {
         "platform": "linux",
-        "n": 1389
+        "n": 1404
       },
       {
         "platform": "android",
@@ -209,7 +209,7 @@
   "heartbeatError": null,
   "npm": {
     "package": "dsh-remote",
-    "checkedAt": "2026-11-27T21:14:47.598Z",
+    "checkedAt": "2026-11-28T07:44:06.307Z",
     "latest": "1.5.0",
     "lastWeek": 143907,
     "lastMonth": 340776,
@@ -340,8 +340,8 @@
   },
   "repo": {
     "stars": 363,
-    "forks": 71,
-    "openIssues": 6,
-    "pushedAt": "2026-11-27T17:12:41Z"
+    "forks": 72,
+    "openIssues": 37,
+    "pushedAt": "2026-11-27T21:14:49Z"
   }
 }
