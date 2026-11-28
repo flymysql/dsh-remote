@@ -342,6 +342,105 @@ test('a rollback failure retains the backup and reports the original failure', a
   }
 })
 
+// ── transactional completeness (continues #164, commit 25e0e95) ───────────
+//
+// #164 made the self-update transactional and its header promise is that a
+// failed apply can never leave a half-applied tree. Two verified defects
+// remained in applyUpdate, fixed together as one completeness change:
+//   1. the rollback loop `break`ed at the first restore failure, so every
+//      file behind it stayed NEW — producing exactly the promised-impossible
+//      mixed tree (and auto-update then retried the same doomed swap forever);
+//   2. files the new tarball dropped were never removed, so the marker ended
+//      up claiming a version whose tree was not what shipped.
+
+test('rollback attempts every file even when one restore fails (ENOTDIR)', async () => {
+  // Verified defect: the old tree ships the extension-less FILE `lib/tui`,
+  // the new tarball turns that path into a directory (lib/tui/helper.js).
+  // The install dies ENOTDIR right after lib/index.js landed, and the
+  // reverse-order rollback meets the never-existed helper.js FIRST:
+  // rmSync(lib/tui/helper.js) throws ENOTDIR again (its parent is still the
+  // old file), and the loop used to give up right there — index.js and
+  // client.js stayed NEW while package.json stayed OLD. The rollback must
+  // attempt EVERY file independently, keep the first failure in the error
+  // message, and still restore the rest so the tree ends fully old.
+  const dir = makeInstall()
+  writeFileSync(path.join(dir, 'lib', 'tui'), 'export const oldTuiFile = 1\n')
+  const files = {
+    ...NEW_FILES,
+    'lib/tui/helper.js': '// NEW HELPER\n' + 'z'.repeat(180) + '\n',
+  }
+  try {
+    await assert.rejects(
+      () => applyUpdate('0.2.0', { dir, fetchImpl: makeFetch({ version: '0.2.0', tarball: makeTarball(files) }) }),
+      /rollback failed at lib\/tui\/helper\.js/,
+    )
+    // On the unfixed code index.js stayed NEW here — this is the red case.
+    assert.equal(readFileSync(path.join(dir, 'lib', 'index.js'), 'utf8'), 'OLD INDEX')
+    assert.equal(readFileSync(path.join(dir, 'lib', 'client.js'), 'utf8'), 'OLD CLIENT')
+    assert.equal(JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8')).version, '0.1.0')
+    // The blocking old file itself is untouched: the install failed before
+    // stale-file cleanup could run, so the fully-old tree keeps it.
+    assert.equal(readFileSync(path.join(dir, 'lib', 'tui'), 'utf8'), 'export const oldTuiFile = 1\n')
+    assert.equal(existsSync(path.join(dir, '.dsh-remote-updated')), false)
+    // One restore keeps failing, so the backup stays for manual recovery.
+    const leftovers = readdirSync(dir).filter((n) => n.startsWith('.dsh-remote-update-'))
+    assert.equal(leftovers.length, 1)
+    assert.equal(existsSync(path.join(dir, leftovers[0], 'backup')), true)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('applyUpdate removes files the new tarball no longer ships', async () => {
+  // Verified defect: a file dropped from the new tarball survived every
+  // update (lib/legacy-helper.js stayed on disk while the marker claimed
+  // 0.2.0), so the install claimed a version whose tree was not what
+  // shipped. The removal joins the same transaction and is reported in a
+  // `removed` list next to `changed`.
+  const dir = makeInstall()
+  writeFileSync(path.join(dir, 'lib', 'legacy-helper.js'), '// dropped in 0.2.0\n')
+  try {
+    const res = await applyUpdate('0.2.0', {
+      dir,
+      fetchImpl: makeFetch({ version: '0.2.0', tarball: makeTarball(NEW_FILES) }),
+    })
+    assert.equal(existsSync(path.join(dir, 'lib', 'legacy-helper.js')), false)
+    assert.deepEqual(res.removed, ['lib/legacy-helper.js'])
+    assert.deepEqual(res.changed.sort(), ['lib/client.js', 'lib/index.js', 'package.json'])
+    assert.equal(readFileSync(path.join(dir, '.dsh-remote-updated'), 'utf8'), '0.2.0')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a failed update resurrects the stale files it had already removed', async () => {
+  // The removal is part of the same transaction, not a post-success sweep:
+  // each removed file is backed up first, so a later failure must bring it
+  // back and leave the tree fully old again.
+  const dir = makeInstall()
+  writeFileSync(path.join(dir, 'lib', 'legacy-helper.js'), '// dropped in 0.2.0\n')
+  try {
+    const fetchImpl = makeFetch({ version: '0.2.0', tarball: makeTarball(NEW_FILES) })
+    await assert.rejects(
+      () => applyUpdate('0.2.0', {
+        dir,
+        fetchImpl,
+        writeFileAtomic(dest, bytes) {
+          writeFileAtomic(dest, dest.endsWith('client.js') ? Buffer.from('CORRUPT') : bytes)
+        },
+      }),
+      /applied file mismatch: lib.*client\.js/,
+    )
+    assert.equal(readFileSync(path.join(dir, 'lib', 'legacy-helper.js'), 'utf8'), '// dropped in 0.2.0\n')
+    assert.equal(readFileSync(path.join(dir, 'lib', 'index.js'), 'utf8'), 'OLD INDEX')
+    assert.equal(readFileSync(path.join(dir, 'lib', 'client.js'), 'utf8'), 'OLD CLIENT')
+    assert.equal(JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8')).version, '0.1.0')
+    assert.equal(existsSync(path.join(dir, '.dsh-remote-updated')), false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('writeFileAtomic replaces content and cleans up its temp file', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'dsh-remote-atomic-'))
   try {

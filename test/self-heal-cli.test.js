@@ -68,6 +68,14 @@ test('node lib/self-heal.js repairs a broken install without importing the broke
   try {
     const tarball = makeTarball({
       'lib/index.js': readFileSync(path.join(root, 'lib', 'index.js')),
+      // A real npm tarball ships the complete lib/ tree (package.json "files"
+      // includes lib), so the repair fixture must too: applyUpdate removes
+      // managed files the tarball no longer ships (continues #164), and this
+      // test's fresh post-repair import of lib/index.js needs self-heal.js
+      // and update.js to come FROM the tarball, not from a stale pre-seeded
+      // copy that only survived because the old updater never removed it.
+      'lib/self-heal.js': readFileSync(path.join(root, 'lib', 'self-heal.js')),
+      'lib/update.js': readFileSync(path.join(root, 'lib', 'update.js')),
       'lib/main.js': "export const name = 'dsh-remote'\nexport { answer } from './helper.js'\n// " + 'y'.repeat(120) + '\n',
       'lib/helper.js': 'export const answer = 42\n',
       'package.json': JSON.stringify({ name: 'dsh-remote', version: '0.2.0', main: 'lib/index.js' }),
