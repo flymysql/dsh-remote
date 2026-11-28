@@ -188,7 +188,10 @@ test('close releases the tunnel, audits it, and only claims stoppedRemote for a 
   const webAttaches = new Map([['m1', {
     cleanUrl: 'http://127.0.0.1:24488/',
     remotePid: 777,
-    close: async (opts) => { calls.push(opts) },
+    // The stop command VERIFIED the kill (the markers that produce each
+    // outcome are pinned in web-attach-stop-report.test.js). A clean claim
+    // must keep the exact historical wire shape — no note field.
+    close: async (opts) => { calls.push(opts); return { stopOutcome: 'verified' } },
   }]])
   const world = makeWorld({ webAttaches, rawBody: JSON.stringify({ action: 'close', machineId: 'm1', stopRemote: true }) })
   const r = await call(world)
@@ -211,6 +214,74 @@ test('close with stopRemote on an unmanaged attach reports stoppedRemote:false',
   const world = makeWorld({ webAttaches, rawBody: JSON.stringify({ action: 'close', machineId: 'm1', stopRemote: true }) })
   const r = await call(world)
   assert.equal(r.body.stoppedRemote, false, 'no recorded PID → nothing was signalled')
+  // The hands-off policy is stated instead of silently framed as a stop: the
+  // audit line used to claim "(remote stopped)" for a discovered instance.
+  assert.match(String(r.body.stoppedRemoteNote), /no pid of ours/)
+  assert.doesNotMatch(String(world.audits[0][1]), /remote stopped/, 'an attach without our PID never stopped anything')
+})
+
+// ── close: the stop claim is what the command PROVED (#271/#272 line) ───────
+//
+// The route used to answer `stoppedRemote: true` from the request flag plus a
+// recorded PID — while the stop command always exited 0, its case-match
+// deliberately refuses to signal argvs without a dsh substring (custom
+// webAttachCommand binaries), remotes without /proc (macOS) skip the kill
+// entirely, and an exec failure was swallowed. Three failure shapes therefore
+// all read as success, the same dishonest-reporting class the maintainer fixed
+// for recursive remove (#271/#272). close() now returns what the stop command
+// proved; these tests drive the response and audit mapping for every outcome
+// through the same `{ stopOutcome }` contract the real WebAttach honours.
+
+/** A managed attach whose close() reports the given stop outcome. */
+const managedAttachWithOutcome = (stopOutcome) => new Map([['m1', {
+  cleanUrl: 'http://127.0.0.1:24488/',
+  remotePid: 777,
+  close: async () => ({ stopOutcome }),
+}]])
+
+test('a stop the command proves FAILED must not be claimed as stoppedRemote', async () => {
+  const world = makeWorld({ webAttaches: managedAttachWithOutcome('failed'), rawBody: JSON.stringify({ action: 'close', machineId: 'm1', stopRemote: true }) })
+  const r = await call(world)
+  assert.equal(r.status, 200)
+  assert.equal(r.body.stoppedRemote, false, 'a surviving remote process must never read as stopped')
+  assert.match(String(r.body.stoppedRemoteNote), /still running/)
+  assert.equal(world.audits.length, 1)
+  assert.equal(world.audits[0][2], 1, 'an honestly-failed stop is a failure audit line')
+  assert.match(String(world.audits[0][1]), /remote stop failed/)
+})
+
+test('a refused kill (argv no longer looks like our dsh) must not be claimed as stoppedRemote', async () => {
+  const world = makeWorld({ webAttaches: managedAttachWithOutcome('refused'), rawBody: JSON.stringify({ action: 'close', machineId: 'm1', stopRemote: true }) })
+  const r = await call(world)
+  assert.equal(r.body.stoppedRemote, false, 'refusing to kill a stranger is the right call — claiming we did is not')
+  assert.match(String(r.body.stoppedRemoteNote), /refused/)
+  assert.equal(world.audits[0][2], 1)
+})
+
+test('a stop command that could not run must not be claimed as stoppedRemote', async () => {
+  const world = makeWorld({ webAttaches: managedAttachWithOutcome('error'), rawBody: JSON.stringify({ action: 'close', machineId: 'm1', stopRemote: true }) })
+  const r = await call(world)
+  assert.equal(r.body.stoppedRemote, false, 'the exec failure used to be swallowed into a success claim')
+  assert.match(String(r.body.stoppedRemoteNote), /could not run/)
+  assert.equal(world.audits[0][2], 1)
+})
+
+test('a /proc-less remote keeps the legacy claim but labels it unverified', async () => {
+  const world = makeWorld({ webAttaches: managedAttachWithOutcome('unverified'), rawBody: JSON.stringify({ action: 'close', machineId: 'm1', stopRemote: true }) })
+  const r = await call(world)
+  assert.equal(r.status, 200)
+  assert.equal(r.body.stoppedRemote, true, 'wire compatibility: the macOS shape keeps the old boolean')
+  assert.match(String(r.body.stoppedRemoteNote), /unverified/, '…but it may no longer pass silently as a verified stop')
+  assert.equal(world.audits[0][2], 0, 'unverified is not a failure — the kill may well have landed')
+  assert.match(String(world.audits[0][1]), /unverified/)
+})
+
+test('a close() that reports no outcome claims nothing (unknown is not true)', async () => {
+  const webAttaches = new Map([['m1', { cleanUrl: 'http://127.0.0.1:24488/', remotePid: 777, close: async () => {} }]])
+  const world = makeWorld({ webAttaches, rawBody: JSON.stringify({ action: 'close', machineId: 'm1', stopRemote: true }) })
+  const r = await call(world)
+  assert.equal(r.body.stoppedRemote, false, 'no evidence → no claim')
+  assert.match(String(r.body.stoppedRemoteNote), /not confirmed/)
 })
 
 // ── the handler never rejects ───────────────────────────────────────────────

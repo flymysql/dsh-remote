@@ -155,3 +155,78 @@ for (const [name, disconnect] of [
     assert.equal(mgr.list()[0].lastActive, true)
   })
 }
+
+// ── an edit that lands while the bind is still in flight ────────────────────
+//
+// The update route refuses bind changes only for REGISTERED forwards (a live
+// tunnel must keep its old bind). While forwardIn is still pending the row is
+// not active yet, so the same edit passes and update() mutates the definition
+// under the bind. The entry must remember the port its attempt actually bound:
+// dispatch and teardown read the definition, so they would otherwise follow
+// the EDITED port while the remote keeps listening on the one it bound.
+
+const tick = () => new Promise((r) => setTimeout(r, 0))
+
+/** A FakeClient whose forwardIn callback is held back until completeBind(). */
+function deferredReverseClient() {
+  const client = new FakeClient()
+  const pending = []
+  client.forwardIn = (addr, port, cb) => {
+    client.bound.push([addr, port])
+    pending.push(cb)
+  }
+  client.completeBind = () => pending.shift()(null)
+  return client
+}
+
+const BIND_PORT = 12000
+const EDITED_PORT = 12001
+
+/** A reverse forward that bound BIND_PORT and whose definition was then edited
+ *  to EDITED_PORT while that bind was still in flight. */
+async function startedReverseEditedMidBind() {
+  const client = deferredReverseClient()
+  const net = fakeNet()
+  const mgr = new ForwardManager({ connect: async () => client }, { file: null, net, currentMachine: () => 'm-1' })
+  mgr.attach(client, 'm-1')
+  const def = mgr.define({
+    direction: 'reverse',
+    listenPort: BIND_PORT,
+    targetHost: '127.0.0.1',
+    targetPort: 4747,
+    machineId: 'm-1',
+  })
+  const starting = mgr.start(def)
+  await tick() // the attempt has called forwardIn; its callback is still held
+  // Exactly the edit the route allows while the forward is not active yet.
+  assert.equal(mgr.update(def.id, { listenPort: EDITED_PORT }).listenPort, EDITED_PORT)
+  client.completeBind()
+  assert.deepEqual(await starting, { ok: true, active: true })
+  assert.deepEqual(client.bound, [['127.0.0.1', BIND_PORT]], 'the remote was asked for the ORIGINAL port')
+  return { mgr, client, net, def }
+}
+
+test('stopping a reverse forward edited mid-bind unforwards the port it actually bound', async () => {
+  const { mgr, client, def } = await startedReverseEditedMidBind()
+
+  mgr.stop(def.id, { forget: true })
+
+  // The remote listener sits on BIND_PORT, so that is the port Stop must
+  // release. Unforwarding the edited port would leave the real listener bound
+  // until the SSH connection itself dies.
+  assert.deepEqual(client.unbound, [['127.0.0.1', BIND_PORT]])
+  assert.equal(mgr.list().find((f) => f.id === def.id).active, false)
+})
+
+test('a reverse forward edited mid-bind keeps accepting connections on its bound port', async (t) => {
+  const { mgr, client, net, def } = await startedReverseEditedMidBind()
+  t.after(() => mgr.detach())
+
+  forwardConnection(client, net, 'tcp connection', {
+    listenPort: BIND_PORT, targetHost: '127.0.0.1', targetPort: 4747,
+  })
+
+  const entry = mgr.servers.get(def.id)
+  assert.ok(entry && entry.kind === 'reverse', 'the running entry must still be registered')
+  assert.equal(entry.connections.size, 1, 'the accepted pair must be tracked on the entry')
+})

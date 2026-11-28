@@ -178,6 +178,104 @@ test('a backslash continuation is joined before parsing', () => {
   assert.equal(resolved.port, 2222)
 })
 
+// ── parser boundaries and forms — continues the ssh-config alias line
+// (#38 import, #211 alias backend) ──────────────────────────────────────────
+// Three shapes real ssh accepts that the parser used to mishandle, each verified
+// against `ssh -G` (OpenSSH 10.5) before the fix was written:
+//   • a `Match` section is a block BOUNDARY: its options belong to it, never to
+//     the Host block above (the resolver does not evaluate Match criteria, so
+//     they must simply not leak anywhere);
+//   • `keyword=value` is valid ssh_config(5) syntax, not a typo to drop;
+//   • options BEFORE the first Host apply file-wide.
+
+test('resolveSshHost: a Match section is a boundary — its options belong to nothing', () => {
+  const text = [
+    'Host a',
+    '  User alice',
+    '',
+    'Match host b',
+    '  HostName 5.6.7.8',
+    '  Port 2222',
+  ].join(LF)
+  const resolved = resolveSshHost('a', text)
+  assert.equal(resolved.hostName, 'a', 'HostName under Match must not leak into Host a')
+  assert.equal(resolved.port, 0, 'Port under Match must not leak either (0 = the file said nothing)')
+  assert.equal(resolved.user, 'alice')
+  // `Match=host b` is the same boundary in the keyword=value form.
+  const eq = ['Host a', '  User alice', '', 'Match=host b', '  Port 2222'].join(LF)
+  assert.equal(resolveSshHost('a', eq).port, 0)
+  // The parser shows why: one block, holding only its own values.
+  const blocks = parseHostBlocks(text)
+  assert.equal(blocks.length, 1)
+  assert.deepEqual(blocks[0].values, { user: 'alice' })
+  // The resolver intentionally does not evaluate Match criteria: `b` itself has
+  // no Host block, so it stays unmatched (ssh would resolve it; we do not guess).
+  assert.equal(resolveSshHost('b', text).matched, false)
+})
+
+test('resolveSshHost: the keyword=value form resolves like the spaced form', () => {
+  // ssh_config(5): options may be separated by whitespace or by optional
+  // whitespace and exactly one `=`; real ssh honours `Port=2222` and
+  // `User = root` (verified with `ssh -G`). The old parser required
+  // whitespace and silently dropped these lines — connecting to port 22.
+  const text = [
+    'Host a',
+    '  HostName=1.2.3.4',
+    '  Port=2222',
+    '  User = root',
+    '',
+    'Host b',
+    '  Port=2300',
+    '  Port 2222',
+  ].join(LF)
+  const resolved = resolveSshHost('a', text)
+  assert.equal(resolved.hostName, '1.2.3.4')
+  assert.equal(resolved.port, 2222)
+  assert.equal(resolved.user, 'root')
+  // first-value-wins keeps holding for the equals form: 2300 was obtained first.
+  assert.equal(resolveSshHost('b', text).port, 2300)
+})
+
+test('resolveSshHost: options before the first Host apply as file-level defaults', () => {
+  // Real ssh applies pre-Host options to every dial, and first-obtained-wins
+  // makes them WIN over a block's own value: with `Port 2200` on top,
+  // `ssh -G a` reports port 2200 even when block a sets its own port (verified
+  // against real ssh — the global is obtained first, top-to-bottom). The
+  // resolver keeps the block array in file order, so it reproduces exactly
+  // that; parameters the block never set still fall back to the file level.
+  const text = [
+    'Port 2200',
+    'User fileuser',
+    '',
+    'Host a',
+    '  HostName 1.2.3.4',
+    '  Port 2222',
+    '',
+    'Host bare',
+    '  HostName 5.6.7.8',
+  ].join(LF)
+  const a = resolveSshHost('a', text)
+  assert.equal(a.port, 2200, 'the file-level Port is obtained first — matches `ssh -G` (first obtained value wins)')
+  assert.equal(a.user, 'fileuser', 'a parameter the block never sets falls back to the file level')
+  const bare = resolveSshHost('bare', text)
+  assert.equal(bare.port, 2200, 'a bare alias inherits the file-level Port — matches `ssh -G`')
+  assert.equal(bare.user, 'fileuser')
+  // File-level options are DEFAULTS, not a match: an unknown alias keeps
+  // matched=false, so the "no ~/.ssh/config block matches" warning survives.
+  const ghost = resolveSshHost('ghost', text)
+  assert.equal(ghost.matched, false)
+  assert.equal(ghost.port, 2200)
+  // Represented as one leading block (physical file order) with `global: true`
+  // and the `*` pattern, which existing consumers already treat as
+  // "defaults, never an alias/name".
+  const blocks = parseHostBlocks(text)
+  const globals = blocks[0]
+  assert.equal(globals.global, true)
+  assert.deepEqual(globals.patterns, ['*'])
+  assert.deepEqual(globals.values, { port: 2200, user: 'fileuser' })
+  assert.ok(!listAliases(text).some((entry) => entry.alias === '*'))
+})
+
 test('resolveMachineSshConfig: alias mode inherits, explicit non-defaults override', () => {
   const base = { useSshConfig: true, host: 'build' }
   const inherited = resolveMachineSshConfig(base, { text: SAMPLE })
