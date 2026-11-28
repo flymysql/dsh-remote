@@ -377,9 +377,14 @@ test('rollback attempts every file even when one restore fails (ENOTDIR)', async
     // (ENOENT) and the rollback then has nothing to fail on. Both shapes must
     // name the blocking path, and the invariant asserted below — the tree ends
     // fully old — is what the fix is about.
+    let failure = null
     await assert.rejects(
       () => applyUpdate('0.2.0', { dir, fetchImpl: makeFetch({ version: '0.2.0', tarball: makeTarball(files) }) }),
-      /lib[\\/]tui[\\/]helper\.js/,
+      (error) => {
+        failure = error
+        // Both platform shapes name the blocking path (see the comment above).
+        return /lib[\\/]tui[\\/]helper\.js/.test(String((error && error.message) || error))
+      },
     )
     // On the unfixed code index.js stayed NEW here — this is the red case.
     assert.equal(readFileSync(path.join(dir, 'lib', 'index.js'), 'utf8'), 'OLD INDEX')
@@ -389,10 +394,17 @@ test('rollback attempts every file even when one restore fails (ENOTDIR)', async
     // stale-file cleanup could run, so the fully-old tree keeps it.
     assert.equal(readFileSync(path.join(dir, 'lib', 'tui'), 'utf8'), 'export const oldTuiFile = 1\n')
     assert.equal(existsSync(path.join(dir, '.dsh-remote-updated')), false)
-    // One restore keeps failing, so the backup stays for manual recovery.
+    // A restore that keeps failing keeps the backup for manual recovery. On
+    // Windows the install dies BEFORE the legacy hop, so every restore
+    // succeeded and the backup is cleaned up like any other clean rollback —
+    // asserting the retention there would be asserting the platform again.
     const leftovers = readdirSync(dir).filter((n) => n.startsWith('.dsh-remote-update-'))
-    assert.equal(leftovers.length, 1)
-    assert.equal(existsSync(path.join(dir, leftovers[0], 'backup')), true)
+    if (/rollback failed/.test(String((failure && failure.message) || failure))) {
+      assert.equal(leftovers.length, 1, 'a restore that keeps failing must keep the backup')
+      assert.equal(existsSync(path.join(dir, leftovers[0], 'backup')), true)
+    } else {
+      assert.equal(leftovers.length, 0, 'a clean rollback must not leave a backup behind')
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
