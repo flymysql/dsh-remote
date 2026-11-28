@@ -230,6 +230,43 @@ test('provider: a successful directory listing never rejects', async () => {
   assert.ok(Array.isArray(got) && got.length > 0)
 })
 
+// Continues the remote `@` completion line (issue #39, ff5042d / v0.8.22): the
+// overlay's failure cooldown exists for flaky TRANSPORTS, so one bad path — a
+// typo like `@nope/fi`, an EACCES directory — must answer only its own query
+// (like scan() degrading an unreadable subtree), never open the breaker.
+test('provider: a missing/unreadable directory answers that query empty without opening the breaker', async () => {
+  let clock = 1000
+  const provider = createRemoteFileReference({
+    // ssh2 reports SFTP status codes NUMERICALLY (readdir on a missing path →
+    // code 2 = SSH_FX_NO_SUCH_FILE), while main.js's listDir re-wraps an
+    // unreadable one as `browse failed: Permission denied` (listDirStructured
+    // keeps no code), so both real-world shapes are exercised here.
+    listDir: async (rel) => {
+      if (rel === 'nope') {
+        const missing = new Error('No such file or directory')
+        missing.code = 2
+        throw missing
+      }
+      if (rel === 'locked') throw new Error('browse failed: Permission denied')
+      return makeListDir('/proj')(rel)
+    },
+    config: { failureCooldownMs: 5000 },
+    onError: () => {},
+    now: () => clock,
+  })
+  // A bad completion query: an empty result for THAT query — not `null`,
+  // which the overlay reads as "host down" and answers from the mirror.
+  assert.deepEqual(await provider.list('nope/fi', undefined), [])
+  assert.equal(provider.ready(), true)
+  // An EACCES directory is per-path too: same degradation, breaker stays shut.
+  assert.deepEqual(await provider.list('locked/ma', undefined), [])
+  assert.equal(provider.ready(), true)
+  // Legal queries keep resolving from the remote tree throughout.
+  assert.deepEqual((await provider.list('src/ma', undefined)).map((c) => c.path), ['src/main.c'])
+  assert.equal(provider.ready(), true)
+  provider.dispose()
+})
+
 // ── the overlay over ctx.fileReferences ────────────────────────────────────
 
 /** Wire installFileReferenceOverlay() to a fake service + fake cordis ctx. */
@@ -285,6 +322,71 @@ test('overlay: a rejecting remote listing falls back and opens the breaker', asy
   })
   assert.deepEqual(await service.list(remoteAgent, 'main'), [{ path: 'mirror-only.txt', kind: 'file' }])
   assert.equal(markedDown, 1)
+})
+
+// Same line as above (issue #39, ff5042d / v0.8.22), through the overlay: one
+// bad `@` query must not exile the whole session to the stale local mirror
+// for failureCooldownMs — a per-path failure answers its own query empty and
+// leaves the provider ready, while a transport failure still trips the breaker
+// with exactly the original cooldown semantics.
+test('overlay: a per-path completion failure never marks the provider down; a transport failure still does', async () => {
+  let clock = 1000
+  let transport = false
+  let transportMessage = ''
+  const provider = createRemoteFileReference({
+    listDir: async (rel) => {
+      // A broken pool/connection raises transport-shaped errors (see lib/pool.js
+      // `_sftp`), which must keep opening the breaker.
+      if (transport) throw new Error(transportMessage || 'ssh sftp failed: connect ECONNREFUSED 10.0.0.1:22')
+      if (rel === 'nope') {
+        const missing = new Error('No such file or directory')
+        missing.code = 2 // ssh2 SSH_FX_NO_SUCH_FILE (numeric status)
+        throw missing
+      }
+      return makeListDir('/proj')(rel)
+    },
+    config: { failureCooldownMs: 5000 },
+    onError: () => {},
+    now: () => clock,
+  })
+  const { state, service } = harness({ resolve: () => provider })
+  // One BAD query (`@nope/fi`): empty candidates for that query, the provider
+  // stays ready, and the (empty until synced) local mirror is never consulted.
+  assert.deepEqual(await service.list(remoteAgent, 'nope/fi'), [])
+  assert.equal(provider.ready(), true)
+  assert.equal(state.remoteCalls.length, 0)
+  // Legal completions still resolve from the remote tree, right after the bad
+  // query and later — no window where every keystroke hits the mirror instead.
+  assert.ok((await service.list(remoteAgent, 'src/')).some((c) => c.path === 'src/main.c'))
+  assert.equal(provider.ready(), true)
+  assert.equal(state.remoteCalls.length, 0)
+  // A TRANSPORT failure keeps the original semantics: fall back to the local
+  // mirror and open the cooldown window for failureCooldownMs…
+  transport = true
+  assert.deepEqual(await service.list(remoteAgent, 'src/'), [{ path: 'mirror-only.txt', kind: 'file' }])
+  assert.equal(state.remoteCalls.length, 1)
+  assert.equal(provider.ready(), false)
+  // …a legal query during the window still resolves, via the mirror…
+  assert.deepEqual(await service.list(remoteAgent, 'docs/'), [{ path: 'mirror-only.txt', kind: 'file' }])
+  assert.equal(state.remoteCalls.length, 2)
+  // …and after the cooldown the remote tree answers again.
+  transport = false
+  clock += 5000
+  assert.equal(provider.ready(), true)
+  assert.ok((await service.list(remoteAgent, 'src/')).some((c) => c.path === 'src/main.c'))
+  assert.equal(state.remoteCalls.length, 2)
+  // The OpenSSH handshake-failure shape stays TRANSPORT even though it mentions
+  // "Permission denied": classifying it per-path would let every keystroke pay
+  // a full connect timeout without ever opening the breaker — the exact stall
+  // the breaker exists to prevent.
+  transport = true
+  transportMessage = 'sftp session to build.example timed out: Permission denied (publickey)'
+  assert.deepEqual(await service.list(remoteAgent, 'src/'), [{ path: 'mirror-only.txt', kind: 'file' }])
+  assert.equal(provider.ready(), false)
+  transportMessage = ''
+  clock += 5000
+  assert.equal(provider.ready(), true)
+  provider.dispose()
 })
 
 test('overlay: a cooling-down provider is skipped entirely (no remote round trip)', async () => {
