@@ -43,3 +43,37 @@ test('empty / missing text yields no entries', () => {
   assert.deepEqual(parseSshConfig(''), [])
   assert.deepEqual(importableEntries('# only a comment\n'), [])
 })
+
+// Continues the ssh-config alias line (#38 import, #211 alias backend): the
+// importer feeds the same parser shapes real ssh accepts (verified with
+// `ssh -G`), so a Match section must not bleed into the Host block above and
+// the `keyword=value` form must not be dropped.
+
+test('parseSshConfig: a Match section never leaks into the Host block above', () => {
+  const text = [
+    'Host a',
+    '  User alice',
+    '',
+    'Match host b',
+    '  HostName 5.6.7.8',
+    '  Port 2222',
+  ].join('\n')
+  const entries = parseSshConfig(text)
+  const a = entries.find((e) => e.host === 'a')
+  assert.equal(a.hostName, '', 'HostName under Match must not leak into Host a')
+  assert.equal(a.port, 22, 'Port under Match must not leak either')
+  assert.ok(!entries.some((e) => e.host === 'b'), 'a Match section is not an importable Host line')
+})
+
+test('parseSshConfig: the keyword=value form is parsed like the spaced form', () => {
+  const text = [
+    'Host c',
+    '  HostName=1.2.3.4',
+    '  Port=2300',
+    '  User = ops',
+  ].join('\n')
+  const c = parseSshConfig(text)[0]
+  assert.equal(c.hostName, '1.2.3.4')
+  assert.equal(c.port, 2300)
+  assert.equal(c.user, 'ops')
+})
