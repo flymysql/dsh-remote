@@ -4,7 +4,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, statSync, existsSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { loadMachines, saveMachines, sanitizeMachine, applyMachine, machineId } from '../lib/registry.js'
@@ -128,6 +128,91 @@ test('saveMachines keeps machines.json user-private (0600) — it can carry pass
     // Re-saving through the same path must not loosen it.
     saveMachines(file(d), [machine('a', 'h1'), machine('b', 'h2')], 'b')
     assert.equal(statSync(file(d)).mode & 0o777, 0o600)
+  } finally {
+    rmSync(d, { recursive: true, force: true })
+  }
+})
+
+// ── registry durability, continuing the #171 machines.json hardening ────────
+// #171 (e12b0db — the 0600 test above) keeps the file user-private, but the
+// write itself was still a bare writeFileSync() IN PLACE: open+truncate the
+// live registry, then write the new bytes. A crash mid-write (power loss,
+// kill -9, ENOSPC) left a torn JSON, and loadMachines() then silently returned
+// an EMPTY registry — every saved machine vanished with no error, and the next
+// save overwrote the only evidence. Two rules close that hole: saves must be
+// atomic (temp file + rename in the same directory), and a corrupt file must
+// be quarantined aside instead of being read as "no machines".
+
+test('loadMachines quarantines a corrupt machines.json and fails safe — the torn bytes survive (continues #171)', () => {
+  const d = tmp()
+  try {
+    // Exactly what a crash mid-write leaves behind: truncated mid-object.
+    const torn = '{"list":[{"id":"m-a","name":"h1","host":"h1","port":22,"user'
+    writeFileSync(file(d), torn)
+    // Fail-safe empty registry — never a half-parsed machine list.
+    assert.deepEqual(loadMachines(file(d)), { list: [], currentId: null, explicitNone: false })
+    // The corrupt file must be MOVED ASIDE so a later save cannot erase it.
+    assert.equal(existsSync(file(d)), false, 'corrupt machines.json must not stay at the registry path')
+    const aside = readdirSync(d).filter((f) => f.startsWith('machines.json.corrupt-'))
+    assert.equal(aside.length, 1, 'expected one quarantine file, found: ' + aside.join(', '))
+    assert.equal(readFileSync(path.join(d, aside[0]), 'utf8'), torn, 'the quarantine file must keep the ORIGINAL corrupt bytes')
+  } finally {
+    rmSync(d, { recursive: true, force: true })
+  }
+})
+
+test('a corrupt registry recovers: load fails safe, save rebuilds, the torn original survives (continues #171)', () => {
+  const d = tmp()
+  try {
+    saveMachines(file(d), [machine('a', 'h1')], 'a')
+    const healthy = loadMachines(file(d))
+    assert.equal(healthy.list.length, 1)
+    assert.equal(healthy.currentId, 'a')
+    assert.deepEqual(readdirSync(d), ['machines.json'], 'a healthy save leaves exactly the registry file')
+    // Crash artifact lands; the next boot reads empty and moves it aside…
+    writeFileSync(file(d), '{"list":[{"id":"m-a","na')
+    assert.deepEqual(loadMachines(file(d)), { list: [], currentId: null, explicitNone: false })
+    // …and the next save rebuilds a VALID registry from scratch.
+    saveMachines(file(d), [machine('a', 'h1')], 'a')
+    const recovered = loadMachines(file(d))
+    assert.equal(recovered.list.length, 1)
+    assert.equal(recovered.currentId, 'a')
+    assert.equal(recovered.explicitNone, false)
+    const kept = readdirSync(d).filter((f) => f.startsWith('machines.json.corrupt-'))
+    assert.equal(kept.length, 1, 'the recovery save must not erase the quarantined crash evidence')
+  } finally {
+    rmSync(d, { recursive: true, force: true })
+  }
+})
+
+test('a missing machines.json is a fresh install, not corruption — nothing is quarantined', () => {
+  const d = tmp()
+  try {
+    assert.deepEqual(loadMachines(file(d)), { list: [], currentId: null, explicitNone: false })
+    assert.deepEqual(readdirSync(d), [], 'no quarantine file may appear for a registry that never existed')
+  } finally {
+    rmSync(d, { recursive: true, force: true })
+  }
+})
+
+test('saveMachines replaces the registry atomically (tmp + rename) and keeps it 0600 — no half-written file, no debris (continues #171)', { skip: process.platform === 'win32' ? 'POSIX mode bits and inode replacement semantics do not exist on Windows; the user-private parent dir is the privacy boundary there' : false }, () => {
+  const d = tmp()
+  try {
+    saveMachines(file(d), [machine('a', 'h1')], 'a')
+    const first = statSync(file(d))
+    saveMachines(file(d), [machine('a', 'h1'), machine('b', 'h2')], 'b')
+    const second = statSync(file(d))
+    // The old crash window was open+truncate-then-write on the LIVE file. A
+    // rename() swap puts the new bytes at the path in ONE step, so no reader
+    // and no crash can ever observe a half-written registry; a different inode
+    // proves the file was REPLACED, not truncated and refilled in place.
+    assert.notEqual(second.ino, first.ino, 'saveMachines must replace the file (rename), not rewrite it in place')
+    // #171's user-private rule survives the new write path.
+    assert.equal(second.mode & 0o777, 0o600)
+    assert.deepEqual(readdirSync(d), ['machines.json'], 'a completed save must leave no tmp or quarantine files behind')
+    const j = JSON.parse(readFileSync(file(d), 'utf8'))
+    assert.equal(j.list.length, 2)
+    assert.equal(j.currentId, 'b')
   } finally {
     rmSync(d, { recursive: true, force: true })
   }
