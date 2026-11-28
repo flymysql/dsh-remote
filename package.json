@@ -1,6 +1,6 @@
 {
   "name": "dsh-remote",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "SSH remote workspaces for DeepSeek Harness: parallel projects across hosts, remote file browsing and editing, recursive search, terminals, Git diffs, and workspace-bound Agent tools to edit, build and test remotely. Optional IDE layout.",
   "license": "MIT",
   "author": "flymysql <flyphp@outlook.com>",
